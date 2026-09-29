@@ -1,16 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import type { DateRange } from "react-day-picker";
 import { Bell } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DateRangePicker } from "@/components/vehicles/owner-dashboard/date-range-picker";
 import type { User } from "@/lib/types";
-
-const dateRanges = [
-  { id: "today", label: "Today" },
-  { id: "week", label: "This week" },
-  { id: "month", label: "This month" },
-  { id: "quarter", label: "This quarter" },
-];
 
 const locations = [
   { id: "all", label: "All Locations" },
@@ -18,8 +13,17 @@ const locations = [
   { id: "auction", label: "Auction Lots" },
 ];
 
-export function DashboardHeader({ user, notificationCount }: { user: User; notificationCount: number }) {
-  const [range, setRange] = useState("week");
+export function DashboardHeader({
+  user,
+  notificationCount,
+  dateRange,
+  onDateRangeChange,
+}: {
+  user: User;
+  notificationCount: number;
+  dateRange: DateRange | undefined;
+  onDateRangeChange: (range: DateRange | undefined) => void;
+}) {
   const [location, setLocation] = useState("all");
 
   return (
@@ -29,18 +33,7 @@ export function DashboardHeader({ user, notificationCount }: { user: User; notif
         <p className="mt-1 text-sm text-muted-foreground">Here&apos;s what&apos;s happening across LAL Motors today.</p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <Select value={range} onValueChange={(v) => setRange(v ?? "week")}>
-          <SelectTrigger className="w-[140px]" aria-label="Date range">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {dateRanges.map((r) => (
-              <SelectItem key={r.id} value={r.id}>
-                {r.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <DateRangePicker value={dateRange} onChange={onDateRangeChange} />
         <Select value={location} onValueChange={(v) => setLocation(v ?? "all")}>
           <SelectTrigger className="w-[150px]" aria-label="Location">
             <SelectValue />

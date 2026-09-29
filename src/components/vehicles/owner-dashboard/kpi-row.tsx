@@ -1,6 +1,6 @@
 "use client";
 
-import { Boxes, CarFront, Container, Recycle, Wrench } from "lucide-react";
+import { CarFront, Cog, Container, Filter, Recycle } from "lucide-react";
 
 export type KpiItem = { label: string; value: number | string; trend: string; icon: typeof CarFront };
 
@@ -21,4 +21,4 @@ export function KpiRow({ items }: { items: KpiItem[] }) {
   );
 }
 
-export const kpiIcons = { CarFront, Wrench, Recycle, Container, Boxes };
+export const kpiIcons = { CarFront, Cog, Filter, Container, Recycle };

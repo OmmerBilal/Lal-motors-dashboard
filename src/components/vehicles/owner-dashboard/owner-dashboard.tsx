@@ -1,15 +1,16 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Boxes, CarFront, Container, Recycle, Wrench } from "lucide-react";
+import type { DateRange } from "react-day-picker";
+import { CarFront, Cog, Container, Filter, Recycle } from "lucide-react";
 import type { User } from "@/lib/types";
 import { mockUsers } from "@/lib/mock/users";
 import { vehicleTitle } from "@/lib/mock/vehicles";
 import { parts } from "@/lib/mock/parts";
 import { containerJobs } from "@/lib/mock/containers";
 import { scrapLoads, localDay } from "@/lib/mock/scrap";
-import { computeExceptions, computeStageCounts, type VehicleStage } from "@/lib/mock/owner-dashboard";
+import { computeExceptions, computeStageCounts, inDateRange, type VehicleStage } from "@/lib/mock/owner-dashboard";
 import { useVehicleData } from "@/components/vehicles/vehicle-data-context";
 import { DashboardHeader } from "@/components/vehicles/owner-dashboard/dashboard-header";
 import { VehicleStatusCards } from "@/components/vehicles/owner-dashboard/vehicle-status-cards";
@@ -33,30 +34,45 @@ export function OwnerDashboard({
   const router = useRouter();
   const { vehicles, events, completionQueue, corrections } = useVehicleData();
 
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
+    const to = new Date();
+    const from = new Date();
+    from.setDate(from.getDate() - 6);
+    return { from, to };
+  });
+
+  const scopedEvents = useMemo(
+    () => events.filter((e) => inDateRange(e.createdAt, dateRange?.from, dateRange?.to)),
+    [events, dateRange]
+  );
+  const scopedScrapLoads = useMemo(
+    () => scrapLoads.filter((l) => inDateRange(l.createdAt, dateRange?.from, dateRange?.to)),
+    [dateRange]
+  );
+
   const stageCounts = useMemo(() => computeStageCounts(vehicles, events), [vehicles, events]);
   const exceptions = useMemo(() => computeExceptions(vehicles, events), [vehicles, events]);
 
   const kpis: KpiItem[] = useMemo(() => {
-    const partsPulled = events.filter((e) => e.action === "PART_REMOVED").length;
-    const converters = events.filter((e) => e.action === "PART_REMOVED" && e.partType?.toLowerCase().includes("converter")).length;
+    const partsPulled = scopedEvents.filter((e) => e.action === "PART_REMOVED").length;
+    const converters = scopedEvents.filter((e) => e.action === "PART_REMOVED" && e.partType?.toLowerCase().includes("converter")).length;
     const containersShipped = containerJobs.filter((j) => j.status === "Loaded" || j.status === "Completed").length;
-    const scrapLoadCount = scrapLoads.length;
     return [
       { label: "Total Vehicles", value: vehicles.length, trend: "+3 this week", icon: CarFront },
-      { label: "Total Parts Pulled", value: partsPulled, trend: "+12% vs last month", icon: Wrench },
-      { label: "Total Converters", value: converters, trend: "Steady", icon: Recycle },
+      { label: "Total Parts Pulled", value: partsPulled, trend: "+12% vs last month", icon: Cog },
+      { label: "Total Converters", value: converters, trend: "Steady", icon: Filter },
       { label: "Containers Shipped", value: containersShipped, trend: "This month", icon: Container },
-      { label: "Scrap Loads", value: scrapLoadCount, trend: `${scrapLoads.filter((l) => l.loadDate === localDay()).length} today`, icon: Boxes },
+      { label: "Scrap Loads", value: scopedScrapLoads.length, trend: `${scrapLoads.filter((l) => l.loadDate === localDay()).length} today`, icon: Recycle },
     ];
-  }, [vehicles, events]);
+  }, [vehicles, scopedEvents, scopedScrapLoads]);
 
   const employees: EmployeeCardData[] = useMemo(() => {
     return mockUsers
       .filter((u) => u.role !== "owner")
       .map((u) => {
-        const actions = events.filter((e) => e.actorId === u.id).length;
+        const actions = scopedEvents.filter((e) => e.actorId === u.id).length;
         const captured = parts.filter((p) => p.capturedByName === u.name).length;
-        const loads = scrapLoads.filter((l) => l.driverId === u.id).length;
+        const loads = scopedScrapLoads.filter((l) => l.driverId === u.id).length;
         const metrics =
           u.role === "scrap_driver"
             ? [{ label: "loads", value: loads }, { label: "actions", value: actions }]
@@ -65,11 +81,11 @@ export function OwnerDashboard({
               : [{ label: "actions", value: actions }, { label: "captured", value: captured }];
         return { user: u, metrics: metrics.filter((m) => m.value > 0 || m.label === "actions") };
       });
-  }, [events]);
+  }, [scopedEvents, scopedScrapLoads]);
 
   const activityRows: ActivityRow[] = useMemo(
     () =>
-      [...events]
+      [...scopedEvents]
         .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
         .slice(0, 8)
         .map((e) => {
@@ -83,7 +99,7 @@ export function OwnerDashboard({
             vehicleId: vehicle?.id,
           };
         }),
-    [events, vehicles]
+    [scopedEvents, vehicles]
   );
 
   const notificationCount = completionQueue.length + corrections.length;
@@ -109,7 +125,7 @@ export function OwnerDashboard({
 
   return (
     <div>
-      <DashboardHeader user={user} notificationCount={notificationCount} />
+      <DashboardHeader user={user} notificationCount={notificationCount} dateRange={dateRange} onDateRangeChange={setDateRange} />
 
       <div className="mb-4 grid gap-4 lg:grid-cols-[1fr_300px]">
         <VehicleStatusCards counts={stageCounts} onSelectStage={handleStageSelect} />

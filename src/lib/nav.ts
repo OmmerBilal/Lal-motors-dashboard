@@ -23,7 +23,7 @@ export function getPrimaryNav(role: Role): NavItem[] {
   switch (role) {
     case "owner":
       return [
-        { id: "vehicle-workspace", label: "Owner Vehicle Dashboard", href: "/vehicles", icon: CarFront },
+        { id: "vehicle-workspace", label: "Owner Vehicle Dashboard", href: "/dashboard", icon: CarFront },
         { id: "central-dispatch", label: "Central Dispatch", href: "/central-dispatch", icon: Truck },
         { id: "auction-intake", label: "Auction Vehicle Employee", href: "/preview/auction", icon: CarFront },
         { id: "preview-yard", label: "Yard Employee Workspace", href: "/preview/yard", icon: CarFront },

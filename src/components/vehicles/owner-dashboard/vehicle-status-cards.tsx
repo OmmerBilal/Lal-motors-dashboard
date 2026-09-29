@@ -1,12 +1,12 @@
 "use client";
 
-import { CarFront, CheckCircle2, ClipboardCheck, MapPin, Truck, Wrench } from "lucide-react";
+import { CarFront, CheckCircle2, ClipboardCheck, Truck, Warehouse, Wrench } from "lucide-react";
 import { stageMeta, stageOrder, type VehicleStage } from "@/lib/mock/owner-dashboard";
 
 const stageIcon: Record<VehicleStage, typeof CarFront> = {
   purchased: CarFront,
   inTransit: Truck,
-  arrived: MapPin,
+  arrived: Warehouse,
   processing: Wrench,
   waitingReview: ClipboardCheck,
   completed: CheckCircle2,

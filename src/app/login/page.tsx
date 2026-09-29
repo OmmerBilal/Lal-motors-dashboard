@@ -18,7 +18,8 @@ export default function LoginPage() {
 
   function signInAs(id: string) {
     setUserId(id);
-    router.push("/vehicles");
+    const match = mockUsers.find((u) => u.id === id);
+    router.push(match?.role === "owner" ? "/dashboard" : "/vehicles");
   }
 
   function submit(e: React.FormEvent) {

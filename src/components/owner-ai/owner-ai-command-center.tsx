@@ -22,7 +22,7 @@ export function OwnerAiCommandCenter() {
     if (row.kind === "vehicle") router.push(`/vehicles?open=${row.id}`);
     else if (row.kind === "part") router.push(`/parts?open=${row.id}`);
     else if (row.kind === "customer") router.push(`/sales?open=${row.id}`);
-    else router.push("/vehicles");
+    else router.push("/team");
   }
 
   function ask(value = prompt) {

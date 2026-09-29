@@ -72,7 +72,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               variant="outline"
               size="sm"
               className="shrink-0"
-              onClick={() => router.push("/vehicles")}
+              onClick={() => router.push("/dashboard")}
             >
               Return to Owner Dashboard
             </Button>
