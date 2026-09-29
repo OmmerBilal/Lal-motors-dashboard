@@ -1,11 +1,9 @@
-import { ModulePlaceholder } from "@/components/patterns/module-placeholder";
+"use client";
 
-export default function Page() {
-  return (
-    <ModulePlaceholder
-      eyebrow="EXPORT"
-      title="Containers & Export"
-      description="Container jobs, loading photos, export invoices and finalized/locked invoices."
-    />
-  );
+import { ContainersWorkspace } from "@/components/containers/containers-workspace";
+import { useEffectiveUser } from "@/lib/effective-user";
+
+export default function ContainersPage() {
+  const { user } = useEffectiveUser();
+  return <ContainersWorkspace user={user} />;
 }
