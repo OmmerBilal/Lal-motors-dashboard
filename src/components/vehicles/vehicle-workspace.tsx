@@ -14,6 +14,7 @@ import { ActivityView } from "@/components/vehicles/views/activity-view";
 import { DetailView } from "@/components/vehicles/views/detail-view";
 import { CompletionReviewView } from "@/components/vehicles/views/completion-review-view";
 import { CompletionGroupView } from "@/components/vehicles/views/completion-group-view";
+import { OwnerDashboard } from "@/components/vehicles/owner-dashboard/owner-dashboard";
 
 export type VehicleView =
   | "home"
@@ -42,6 +43,7 @@ function WorkspaceBody({ user, initialVehicleId }: { user: User; initialVehicleI
   const [completionEmployeeId, setCompletionEmployeeId] = useState<string | null>(null);
 
   const selectedVehicle = selectedVehicleId ? getVehicle(selectedVehicleId) : undefined;
+  const isOwnerHome = user.role === "owner" && view === "home";
 
   function openVehicle(id: string) {
     setSelectedVehicleId(id);
@@ -77,21 +79,39 @@ function WorkspaceBody({ user, initialVehicleId }: { user: User; initialVehicleI
 
   return (
     <div>
-      <div className="mb-5 flex items-center justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold tracking-[0.12em] text-muted-foreground uppercase">
-            {isYard ? "Yard Vehicle Work" : "Auction Vehicle Intake"}
-          </p>
-          <h2 className="mt-1 text-xl font-semibold">{heading}</h2>
+      {!isOwnerHome && (
+        <div className="mb-5 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold tracking-[0.12em] text-muted-foreground uppercase">
+              {isYard ? "Yard Vehicle Work" : "Auction Vehicle Intake"}
+            </p>
+            <h2 className="mt-1 text-xl font-semibold">{heading}</h2>
+          </div>
+          {view !== "home" && (
+            <Button variant="outline" size="sm" onClick={goHome}>
+              <ArrowLeft /> Back
+            </Button>
+          )}
         </div>
-        {view !== "home" && (
-          <Button variant="outline" size="sm" onClick={goHome}>
-            <ArrowLeft /> Back
-          </Button>
-        )}
-      </div>
+      )}
 
-      {view === "home" && (
+      {view === "home" && isOwnerHome && (
+        <OwnerDashboard
+          user={user}
+          onOpenVehicle={openVehicle}
+          onGoList={(f) => {
+            setFilter(f);
+            setEventTypeFilter("");
+            setView("list");
+          }}
+          onGoActivity={(actorId, kind) => {
+            setEventTypeFilter(kind || "");
+            setView("activity");
+          }}
+        />
+      )}
+
+      {view === "home" && !isOwnerHome && (
         <HomeView
           user={user}
           canIntake={canIntake}
