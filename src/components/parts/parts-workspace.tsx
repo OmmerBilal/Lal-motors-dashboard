@@ -11,11 +11,11 @@ import { PartDetailView } from "@/components/parts/views/part-detail-view";
 
 type Tab = "capture" | "pending" | "inventory";
 
-function WorkspaceBody({ user }: { user: User }) {
+function WorkspaceBody({ user, initialPartId }: { user: User; initialPartId?: string | null }) {
   const manager = user.role !== "employee";
   const [view, setView] = useState<Tab>(user.role === "manager" || user.role === "engineer_admin" ? "pending" : "capture");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [origin, setOrigin] = useState<"pending" | "inventory">("pending");
+  const [selectedId, setSelectedId] = useState<string | null>(initialPartId ?? null);
+  const [origin, setOrigin] = useState<"pending" | "inventory">("inventory");
 
   function open(id: string, from: "pending" | "inventory") {
     setOrigin(from);
@@ -64,10 +64,10 @@ function WorkspaceBody({ user }: { user: User }) {
   );
 }
 
-export function PartsWorkspace({ user }: { user: User }) {
+export function PartsWorkspace({ user, initialPartId }: { user: User; initialPartId?: string | null }) {
   return (
     <PartsDataProvider>
-      <WorkspaceBody user={user} />
+      <WorkspaceBody user={user} initialPartId={initialPartId} />
     </PartsDataProvider>
   );
 }

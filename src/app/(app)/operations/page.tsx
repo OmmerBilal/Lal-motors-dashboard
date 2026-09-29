@@ -1,11 +1,5 @@
-import { ModulePlaceholder } from "@/components/patterns/module-placeholder";
+import { OperationsView } from "@/components/parts/operations-view";
 
-export default function Page() {
-  return (
-    <ModulePlaceholder
-      eyebrow="PARTS OPERATIONS"
-      title="Parts Operations"
-      description="Inventory operational states, location management and quantity/status changes."
-    />
-  );
+export default function OperationsPage() {
+  return <OperationsView />;
 }

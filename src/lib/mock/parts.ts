@@ -80,6 +80,16 @@ function daysAgo(n: number) {
 
 export const operationalStatusOptions = ["AVAILABLE", "RESERVED", "SOLD", "DAMAGED", "RETURNED", "MISSING"];
 
+export function formatPartLocation(p: PartRecord): string {
+  const segments = [
+    ["Zone", p.zone],
+    ["Rack", p.rack],
+    ["Shelf", p.shelf],
+    ["Bin", p.bin],
+  ].filter(([, v]) => v);
+  return segments.length ? segments.map(([k, v]) => `${k} ${v}`).join(" / ") : "Location not assigned";
+}
+
 export function generateAiDraft(): PartDraft {
   return {
     sourceVin: "",
