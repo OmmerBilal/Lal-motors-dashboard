@@ -1,11 +1,19 @@
-import { ModulePlaceholder } from "@/components/patterns/module-placeholder";
+"use client";
 
-export default function Page() {
-  return (
-    <ModulePlaceholder
-      eyebrow="OWNER AI"
-      title="AI Command Center"
-      description="Natural-language command center for vehicles, parts, customers and employees."
-    />
-  );
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { OwnerAiCommandCenter } from "@/components/owner-ai/owner-ai-command-center";
+import { useSession } from "@/lib/session";
+
+export default function AiCommandCenterPage() {
+  const { user } = useSession();
+  const router = useRouter();
+  const allowed = user.role === "owner" || user.role === "engineer_admin";
+
+  useEffect(() => {
+    if (!allowed) router.replace("/vehicles");
+  }, [allowed, router]);
+
+  if (!allowed) return null;
+  return <OwnerAiCommandCenter />;
 }

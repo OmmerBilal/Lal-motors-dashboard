@@ -27,15 +27,15 @@ export type VehicleView =
 
 export type IntakeMethod = "bulk" | "single" | "scan" | "manual";
 
-function WorkspaceBody({ user }: { user: User }) {
+function WorkspaceBody({ user, initialVehicleId }: { user: User; initialVehicleId?: string | null }) {
   const isYard = user.role === "yard";
   const canIntake = !isYard;
   const { getVehicle } = useVehicleData();
 
-  const [view, setView] = useState<VehicleView>("home");
+  const [view, setView] = useState<VehicleView>(initialVehicleId ? "detail" : "home");
   const [filter, setFilter] = useState("active");
   const [eventTypeFilter, setEventTypeFilter] = useState("");
-  const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(initialVehicleId ?? null);
   const [intakeMethod, setIntakeMethod] = useState<IntakeMethod>("bulk");
   const [reviewDraftBatch, setReviewDraftBatch] = useState<{ method: IntakeMethod; sourceText: string } | null>(null);
   const [completionPeriod, setCompletionPeriod] = useState<"week" | "month">("week");
@@ -160,10 +160,10 @@ function WorkspaceBody({ user }: { user: User }) {
   );
 }
 
-export function VehicleWorkspace({ user }: { user: User }) {
+export function VehicleWorkspace({ user, initialVehicleId }: { user: User; initialVehicleId?: string | null }) {
   return (
     <VehicleDataProvider>
-      <WorkspaceBody user={user} />
+      <WorkspaceBody user={user} initialVehicleId={initialVehicleId} />
     </VehicleDataProvider>
   );
 }
