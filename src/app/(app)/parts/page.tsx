@@ -1,11 +1,9 @@
-import { ModulePlaceholder } from "@/components/patterns/module-placeholder";
+"use client";
 
-export default function Page() {
-  return (
-    <ModulePlaceholder
-      eyebrow="WAREHOUSE"
-      title="Parts Inventory"
-      description="Quick part capture, pending parts queue, manager review and permanent parts inventory."
-    />
-  );
+import { PartsWorkspace } from "@/components/parts/parts-workspace";
+import { useEffectiveUser } from "@/lib/effective-user";
+
+export default function PartsPage() {
+  const { user } = useEffectiveUser();
+  return <PartsWorkspace user={user} />;
 }
