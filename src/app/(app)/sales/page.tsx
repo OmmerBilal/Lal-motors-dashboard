@@ -1,11 +1,22 @@
-import { ModulePlaceholder } from "@/components/patterns/module-placeholder";
+"use client";
 
-export default function Page() {
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import { SalesWorkspace } from "@/components/sales/sales-workspace";
+import { useEffectiveUser } from "@/lib/effective-user";
+
+function SalesPageInner() {
+  const { user } = useEffectiveUser();
+  const searchParams = useSearchParams();
+  const initialCustomerId = searchParams.get("open");
+
+  return <SalesWorkspace user={user} initialCustomerId={initialCustomerId} />;
+}
+
+export default function SalesPage() {
   return (
-    <ModulePlaceholder
-      eyebrow="SALES DESK"
-      title="Customers & Sales"
-      description="Customers, quotes, direct sale, invoices, payments and the Sales AI Manager."
-    />
+    <Suspense fallback={null}>
+      <SalesPageInner />
+    </Suspense>
   );
 }
