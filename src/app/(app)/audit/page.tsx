@@ -1,11 +1,5 @@
-import { ModulePlaceholder } from "@/components/patterns/module-placeholder";
+import { AuditView } from "@/components/team/audit-view";
 
-export default function Page() {
-  return (
-    <ModulePlaceholder
-      eyebrow="COMPLIANCE"
-      title="Audit & History"
-      description="Every create, edit, photo upload and deletion across the system."
-    />
-  );
+export default function AuditPage() {
+  return <AuditView />;
 }

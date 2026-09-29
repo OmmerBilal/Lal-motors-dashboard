@@ -1,11 +1,5 @@
-import { ModulePlaceholder } from "@/components/patterns/module-placeholder";
+import { TeamView } from "@/components/team/team-view";
 
-export default function Page() {
-  return (
-    <ModulePlaceholder
-      eyebrow="OWNER / ADMIN"
-      title="Users & Activity"
-      description="Users, roles and employee activity. Owner-only controls."
-    />
-  );
+export default function TeamPage() {
+  return <TeamView />;
 }
