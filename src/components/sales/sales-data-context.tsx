@@ -15,11 +15,13 @@ import {
   type SaleRecord,
   type Payment,
 } from "@/lib/mock/sales";
+import { returns as seedReturns, type ReturnRecord, type ReturnDisposition, type ReturnReason } from "@/lib/mock/pos";
 
 let customerSeq = 1004;
 let quoteSeq = 2202;
 let saleSeq = 3302;
 let paymentSeq = 9002;
+let returnSeq = 7701;
 
 type NewCustomer = typeof emptyCustomer;
 
@@ -40,8 +42,26 @@ type SalesDataValue = {
   setQuoteStatus: (id: string, status: QuoteStatus) => void;
   convertQuote: (id: string) => string;
   directSale: (customerId: string, items: SaleItem[]) => string;
+  completePosSale: (input: {
+    customerId: string;
+    items: SaleItem[];
+    discount: number;
+    coreCharge: number;
+    depositApplied: number;
+    notes: string;
+    taxExempt: boolean;
+  }) => string;
   recordPayment: (saleId: string, amount: number, method: Payment["method"], reference: string, notes: string) => void;
   updateSettings: (s: Partial<typeof seedSettings>) => void;
+  returns: ReturnRecord[];
+  processReturn: (input: {
+    saleId: string;
+    itemDescription: string;
+    reason: ReturnReason;
+    disposition: ReturnDisposition;
+    refundMethod: Payment["method"];
+    refundAmount: number;
+  }) => string;
 };
 
 const SalesDataContext = createContext<SalesDataValue | null>(null);
@@ -52,6 +72,7 @@ export function SalesDataProvider({ children }: { children: React.ReactNode }) {
   const [sales, setSales] = useState<SaleRecord[]>(seedSales);
   const [payments, setPayments] = useState<Payment[]>(seedPayments);
   const [settings, setSettings] = useState(seedSettings);
+  const [returns, setReturns] = useState<ReturnRecord[]>(seedReturns);
 
   const getCustomer = useCallback((id: string) => customers.find((c) => c.id === id), [customers]);
   const getQuote = useCallback((id: string) => quotes.find((q) => q.id === id), [quotes]);
@@ -133,6 +154,66 @@ export function SalesDataProvider({ children }: { children: React.ReactNode }) {
     [customers, settings.taxRate, createSaleFromItems]
   );
 
+  const completePosSale = useCallback(
+    (input: { customerId: string; items: SaleItem[]; discount: number; coreCharge: number; depositApplied: number; notes: string; taxExempt: boolean }) => {
+      const id = `sale-${Date.now()}`;
+      const number = `S-${saleSeq}`;
+      const invoice = `INV-${saleSeq}`;
+      saleSeq++;
+      setSales((xs) => [
+        {
+          id,
+          saleNumber: number,
+          invoiceNumber: invoice,
+          customerId: input.customerId,
+          items: input.items,
+          discount: input.discount,
+          taxRate: input.taxExempt ? 0 : settings.taxRate,
+          createdAt: new Date().toISOString(),
+          coreCharge: input.coreCharge,
+          depositApplied: input.depositApplied,
+          notes: input.notes,
+        },
+        ...xs,
+      ]);
+      return id;
+    },
+    [settings.taxRate]
+  );
+
+  const processReturn = useCallback(
+    (input: {
+      saleId: string;
+      itemDescription: string;
+      reason: ReturnReason;
+      disposition: ReturnDisposition;
+      refundMethod: Payment["method"];
+      refundAmount: number;
+    }) => {
+      const id = `return-${Date.now()}`;
+      const number = `RMA-${returnSeq++}`;
+      const sale = sales.find((s) => s.id === input.saleId);
+      setReturns((xs) => [
+        {
+          id,
+          returnNumber: number,
+          saleId: input.saleId,
+          saleNumber: sale?.saleNumber || "",
+          itemDescription: input.itemDescription,
+          reason: input.reason,
+          disposition: input.disposition,
+          refundMethod: input.refundMethod,
+          refundAmount: input.refundAmount,
+          status: "processed",
+          createdAt: new Date().toISOString(),
+        },
+        ...xs,
+      ]);
+      return id;
+    },
+    [sales]
+  );
+
   const recordPayment = useCallback((saleId: string, amount: number, method: Payment["method"], reference: string, notes: string) => {
     const number = `P-${paymentSeq++}`;
     setPayments((xs) => [{ id: `pay-${Date.now()}`, paymentNumber: number, saleId, amount, method, reference, notes, createdAt: new Date().toISOString() }, ...xs]);
@@ -159,8 +240,11 @@ export function SalesDataProvider({ children }: { children: React.ReactNode }) {
     setQuoteStatus,
     convertQuote,
     directSale,
+    completePosSale,
     recordPayment,
     updateSettings,
+    returns,
+    processReturn,
   };
 
   return <SalesDataContext.Provider value={value}>{children}</SalesDataContext.Provider>;

@@ -1,0 +1,121 @@
+"use client";
+
+import { toast } from "sonner";
+import { Banknote, CheckCircle2, CreditCard, Landmark, Link2, Mail, MessageSquare, Printer, QrCode, ReceiptText, Wallet } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { StatusBadge } from "@/components/patterns/status-badge";
+import { usd, type PaymentMethod } from "@/lib/mock/sales";
+
+const methods: { id: PaymentMethod; label: string; icon: typeof Banknote }[] = [
+  { id: "CASH", label: "Cash", icon: Banknote },
+  { id: "CARD", label: "Card", icon: CreditCard },
+  { id: "CHECK", label: "Check", icon: ReceiptText },
+  { id: "BANK_TRANSFER", label: "Bank Transfer", icon: Landmark },
+  { id: "QR_CODE", label: "QR Code", icon: QrCode },
+  { id: "PAYMENT_LINK", label: "Payment Link", icon: Link2 },
+];
+
+export function PaymentStep({
+  balanceDue,
+  method,
+  onSelectMethod,
+  tendered,
+  onChangeTendered,
+  completedSaleId,
+  onCompleteSale,
+  onNewSale,
+  canComplete,
+}: {
+  balanceDue: number;
+  method: PaymentMethod;
+  onSelectMethod: (m: PaymentMethod) => void;
+  tendered: string;
+  onChangeTendered: (v: string) => void;
+  completedSaleId: string | null;
+  onCompleteSale: () => void;
+  onNewSale: () => void;
+  canComplete: boolean;
+}) {
+  const tenderedNum = Number(tendered) || 0;
+  const changeDue = method === "CASH" ? Math.max(0, tenderedNum - balanceDue) : 0;
+  const status = balanceDue <= 0 ? "Paid" : method === "CASH" && tenderedNum >= balanceDue ? "Paid" : tenderedNum > 0 ? "Partial" : "Unpaid";
+
+  function mockAction(label: string) {
+    toast.info(`${label} (mock — no real delivery in this UI phase)`);
+  }
+
+  if (completedSaleId) {
+    return (
+      <div className="rounded-lg border border-success/30 bg-success/5 p-4">
+        <div className="flex items-center gap-2">
+          <CheckCircle2 className="size-5 text-success" />
+          <div>
+            <b className="block text-sm">Sale completed</b>
+            <small className="text-xs text-muted-foreground">Reference {completedSaleId} · demo record, no real payment was captured</small>
+          </div>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button size="sm" onClick={onNewSale}>
+            New Sale
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => mockAction("Email receipt")}>
+            <Mail className="size-3.5" /> Email Receipt
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => mockAction("Text receipt")}>
+            <MessageSquare className="size-3.5" /> Text Receipt
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => window.print()}>
+            <Printer className="size-3.5" /> Print Small Receipt
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => window.print()}>
+            <Printer className="size-3.5" /> Print Full Invoice
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-border bg-card p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-sm font-semibold">4. Payment &amp; Checkout</h3>
+        <StatusBadge tone={status === "Paid" ? "success" : status === "Partial" ? "warning" : "neutral"}>{status}</StatusBadge>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+        {methods.map((m) => (
+          <button
+            key={m.id}
+            onClick={() => onSelectMethod(m.id)}
+            className={`flex flex-col items-center gap-1 rounded-md border p-2.5 text-xs font-medium ${method === m.id ? "border-primary bg-primary/5 text-primary" : "border-border text-muted-foreground hover:bg-accent/30"}`}
+          >
+            <m.icon className="size-4" />
+            {m.label}
+          </button>
+        ))}
+      </div>
+
+      {method === "CASH" && (
+        <div className="mt-3 grid grid-cols-3 gap-3">
+          <div>
+            <p className="text-xs text-muted-foreground">Amount Due</p>
+            <b className="text-lg">{usd(balanceDue)}</b>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Amount Tendered</p>
+            <Input type="number" min={0} step="0.01" value={tendered} onChange={(e) => onChangeTendered(e.target.value)} className="h-8" />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Change Due</p>
+            <b className="text-lg text-success">{usd(changeDue)}</b>
+          </div>
+        </div>
+      )}
+
+      <Button className="mt-4 w-full" size="lg" disabled={!canComplete} onClick={onCompleteSale}>
+        <Wallet /> Complete Sale &amp; Print Invoice
+      </Button>
+    </div>
+  );
+}

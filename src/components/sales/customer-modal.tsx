@@ -11,8 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { customerFieldOrder, emptyCustomer, type Customer } from "@/lib/mock/sales";
 import { useSalesData } from "@/components/sales/sales-data-context";
 
-function customerToForm(editing: Customer | null) {
-  if (!editing) return { ...emptyCustomer };
+function customerToForm(editing: Customer | null, prefill?: Partial<typeof emptyCustomer>) {
+  if (!editing) return { ...emptyCustomer, ...prefill };
   return {
     firstName: editing.firstName,
     lastName: editing.lastName,
@@ -34,16 +34,18 @@ function customerToForm(editing: Customer | null) {
 function CustomerModalForm({
   editing,
   manager,
+  prefill,
   onClose,
   onSaved,
 }: {
   editing: Customer | null;
   manager: boolean;
+  prefill?: Partial<typeof emptyCustomer>;
   onClose: () => void;
   onSaved: (id: string) => void;
 }) {
   const { saveCustomer, findDuplicates, addDocument } = useSalesData();
-  const [form, setForm] = useState(() => customerToForm(editing));
+  const [form, setForm] = useState(() => customerToForm(editing, prefill));
   const [docName, setDocName] = useState("");
   const [error, setError] = useState("");
   const [duplicates, setDuplicates] = useState<Customer[]>([]);
@@ -194,12 +196,14 @@ export function CustomerModal({
   onOpenChange,
   editing,
   manager,
+  prefill,
   onSaved,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   editing: Customer | null;
   manager: boolean;
+  prefill?: Partial<typeof emptyCustomer>;
   onSaved: (id: string) => void;
 }) {
   return (
@@ -210,6 +214,7 @@ export function CustomerModal({
             key={editing?.id ?? "new"}
             editing={editing}
             manager={manager}
+            prefill={prefill}
             onClose={() => onOpenChange(false)}
             onSaved={onSaved}
           />

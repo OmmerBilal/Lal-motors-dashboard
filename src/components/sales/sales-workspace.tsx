@@ -5,7 +5,7 @@ import { ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { User } from "@/lib/types";
 import { SalesDataProvider, useSalesData } from "@/components/sales/sales-data-context";
-import { DeskView } from "@/components/sales/views/desk-view";
+import { PosDeskView } from "@/components/sales/pos/pos-desk-view";
 import { CustomersView } from "@/components/sales/views/customers-view";
 import { CustomerDetailView } from "@/components/sales/views/customer-detail-view";
 import { ListPanel } from "@/components/sales/shared";
@@ -22,8 +22,8 @@ function WorkspaceBody({ user, initialCustomerId }: { user: User; initialCustome
   const manager = user.role !== "employee";
   const { quotes, sales, payments, getCustomer } = useSalesData();
   const [view, setView] = useState<View>(initialCustomerId ? "customer" : "desk");
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [activeCustomerId, setActiveCustomerId] = useState<string | null>(initialCustomerId ?? null);
+  const [deskCustomerId, setDeskCustomerId] = useState<string | null>(null);
   const [activeQuoteId, setActiveQuoteId] = useState<string | null>(null);
   const [activeSaleId, setActiveSaleId] = useState<string | null>(null);
   const [customerModalOpen, setCustomerModalOpen] = useState(false);
@@ -56,31 +56,21 @@ function WorkspaceBody({ user, initialCustomerId }: { user: User; initialCustome
 
       <div className="flex flex-wrap gap-2">
         {tabs.map((t) => (
-          <Button key={t.id} size="sm" variant={view === t.id ? "default" : "outline"} onClick={() => setView(t.id)}>
+          <Button
+            key={t.id}
+            size="sm"
+            variant={view === t.id ? "default" : "outline"}
+            onClick={() => {
+              if (t.id === "desk" && view !== "desk") setDeskCustomerId(null);
+              setView(t.id);
+            }}
+          >
             {t.label}
           </Button>
         ))}
       </div>
 
-      {view === "desk" && (
-        <DeskView
-          manager={manager}
-          selectedCustomer={selectedCustomer}
-          onSelectCustomer={setSelectedCustomer}
-          onNewCustomer={() => {
-            setEditingCustomer(null);
-            setCustomerModalOpen(true);
-          }}
-          onQuoteCreated={(id) => {
-            setActiveQuoteId(id);
-            setView("quote");
-          }}
-          onSaleCreated={(id) => {
-            setActiveSaleId(id);
-            setView("sale");
-          }}
-        />
-      )}
+      {view === "desk" && <PosDeskView key={deskCustomerId ?? "desk"} initialCustomerId={deskCustomerId} />}
 
       {view === "customers" && (
         <CustomersView
@@ -101,11 +91,8 @@ function WorkspaceBody({ user, initialCustomerId }: { user: User; initialCustome
             setCustomerModalOpen(true);
           }}
           onStartSale={() => {
-            const c = getCustomer(activeCustomerId);
-            if (c) {
-              setSelectedCustomer(c);
-              setView("desk");
-            }
+            setDeskCustomerId(activeCustomerId);
+            setView("desk");
           }}
           onOpenQuote={(id) => {
             setActiveQuoteId(id);

@@ -83,7 +83,7 @@ export type Quote = {
   createdAt: string;
 };
 
-export type PaymentMethod = "CASH" | "CARD" | "CHECK" | "OTHER";
+export type PaymentMethod = "CASH" | "CARD" | "CHECK" | "BANK_TRANSFER" | "QR_CODE" | "PAYMENT_LINK" | "OTHER";
 
 export type Payment = {
   id: string;
@@ -105,17 +105,21 @@ export type SaleRecord = {
   discount: number;
   taxRate: number;
   createdAt: string;
+  coreCharge?: number;
+  depositApplied?: number;
+  notes?: string;
 };
 
-export function itemTotals(items: SaleItem[], discount: number, taxRate: number) {
+export function itemTotals(items: SaleItem[], discount: number, taxRate: number, coreCharge = 0) {
   const subtotal = items.reduce((s, i) => s + i.quantity * i.unitPrice - (i.discount || 0), 0);
-  const tax = subtotal * (taxRate / 100);
-  return { subtotal, discount, tax, total: subtotal - discount + tax };
+  const taxable = Math.max(0, subtotal - discount);
+  const tax = taxable * (taxRate / 100);
+  return { subtotal, discount, coreCharge, tax, total: subtotal - discount + coreCharge + tax };
 }
 
 export function saleBalance(sale: SaleRecord, payments: Payment[]) {
-  const { total } = itemTotals(sale.items, sale.discount, sale.taxRate);
-  const paid = payments.filter((p) => p.saleId === sale.id).reduce((s, p) => s + p.amount, 0);
+  const { total } = itemTotals(sale.items, sale.discount, sale.taxRate, sale.coreCharge || 0);
+  const paid = payments.filter((p) => p.saleId === sale.id).reduce((s, p) => s + p.amount, 0) + (sale.depositApplied || 0);
   const balanceDue = Math.max(0, total - paid);
   const paymentStatus = balanceDue <= 0 ? "PAID" : paid > 0 ? "PARTIAL" : "UNPAID";
   return { total, paid, balanceDue, paymentStatus };
