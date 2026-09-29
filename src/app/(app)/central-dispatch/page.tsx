@@ -1,11 +1,9 @@
-import { ModulePlaceholder } from "@/components/patterns/module-placeholder";
+"use client";
 
-export default function Page() {
-  return (
-    <ModulePlaceholder
-      eyebrow="TRANSPORT"
-      title="Central Dispatch"
-      description="Carrier management, dispatch creation, vehicle assignment and BOL documents."
-    />
-  );
+import { CentralDispatch } from "@/components/central-dispatch/central-dispatch";
+import { useEffectiveUser } from "@/lib/effective-user";
+
+export default function CentralDispatchPage() {
+  const { user } = useEffectiveUser();
+  return <CentralDispatch user={user} />;
 }
