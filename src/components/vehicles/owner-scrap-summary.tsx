@@ -3,13 +3,21 @@
 import { useRouter } from "next/navigation";
 import { Camera, ChevronRight, Truck } from "lucide-react";
 import { cash } from "@/lib/mock/vehicles";
-import { scrapLoadsToday, scrapTotalsToday } from "@/lib/mock/scrap-today";
+import { localDay, scrapLoads } from "@/lib/mock/scrap";
 
 const displayTime = (iso: string) =>
   new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 
 export function OwnerScrapSummary() {
   const router = useRouter();
+  const today = localDay();
+  const scrapLoadsToday = scrapLoads.filter((l) => l.loadDate === today).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  const scrapTotalsToday = {
+    loads: scrapLoadsToday.length,
+    pendingTickets: scrapLoadsToday.filter((l) => !l.ticketUploadedAt).length,
+    weight: scrapLoadsToday.reduce((n, l) => n + (l.weightAmount || 0), 0),
+    amount: scrapLoadsToday.reduce((n, l) => n + (l.amount || 0), 0),
+  };
 
   return (
     <section className="mb-6 rounded-lg border border-border bg-card p-5" aria-label="Scrap Load Activity">
