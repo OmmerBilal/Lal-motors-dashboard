@@ -18,7 +18,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [userId, setUserId] = useState(mockUsers[0].id);
 
   useEffect(() => {
+    // Reads browser storage on mount to restore the last-used demo account;
+    // this can't run during SSR/initial render, so an effect is required here.
     const stored = window.localStorage.getItem(STORAGE_KEY);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (stored && mockUsers.some((u) => u.id === stored)) setUserId(stored);
   }, []);
 
