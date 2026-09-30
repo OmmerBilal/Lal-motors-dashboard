@@ -148,9 +148,9 @@ export function PosDeskView({ initialCustomerId }: { initialCustomerId?: string 
   const draftQuotes = quotes.filter((q) => q.status === "DRAFT" || q.status === "SENT");
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-5 lg:grid-cols-2 2xl:grid-cols-12">
-        <div className="2xl:col-span-3">
+    <div className="space-y-5">
+      <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-12">
+        <div className="xl:col-span-3">
           <CustomerStep
             selectedCustomer={selectedCustomer}
             onSelectCustomer={setSelectedCustomer}
@@ -167,10 +167,10 @@ export function PosDeskView({ initialCustomerId }: { initialCustomerId?: string 
             onViewHistory={() => setHistoryOpen(true)}
           />
         </div>
-        <div className="2xl:col-span-4">
+        <div className="xl:col-span-4">
           <FindPartsStep selectedPartId={selectedPart?.part.id ?? null} onSelectPart={setSelectedPart} onAddPart={addPart} />
         </div>
-        <div className="2xl:col-span-3">
+        <div className="xl:col-span-3">
           <CurrentSaleStep
             items={items}
             onUpdateQuantity={(id, qty) => setItems((xs) => xs.map((i) => (i.id === id ? { ...i, quantity: Math.max(1, qty) } : i)))}
@@ -192,7 +192,7 @@ export function PosDeskView({ initialCustomerId }: { initialCustomerId?: string 
             onLoadQuote={() => setLoadQuoteOpen(true)}
           />
         </div>
-        <div className="space-y-5 2xl:col-span-2">
+        <div className="space-y-4 xl:col-span-2">
           <ManualItemPanel onAdd={addManualItem} />
           <ReturnsPanel />
         </div>

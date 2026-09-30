@@ -52,14 +52,15 @@ export function ReturnsPanel() {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="flex w-full items-center gap-3 rounded-lg border border-destructive/25 bg-destructive/5 p-4 text-left shadow-xs transition-colors hover:bg-destructive/10"
+        className="flex w-full items-center gap-2.5 rounded-lg border border-destructive/25 bg-destructive/5 p-3 text-left shadow-xs transition-colors hover:bg-destructive/10"
       >
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-destructive/15 text-destructive">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-destructive/15 text-destructive">
           <RotateCcw className="size-4" />
         </span>
-        <span className="min-w-0 flex-1">
-          <b className="block text-sm text-destructive">Returns / Refunds</b>
-          <span className="block text-xs text-muted-foreground">Process a return against an existing invoice</span>
+        <span className="min-w-0 flex-1 text-xs leading-tight font-semibold text-destructive">
+          Returns
+          <br />
+          Refunds
         </span>
         <ChevronRight className="size-4 shrink-0 text-destructive/60" />
       </button>

@@ -3,10 +3,12 @@
 import { toast } from "sonner";
 import {
   ArrowLeftRight,
+  BarChart3,
   History,
   Lock,
   Printer,
   Settings,
+  Shield,
   ShieldOff,
   Timer,
   Unlock,
@@ -53,10 +55,15 @@ export function AdvancedActionsBar({
         <UserCog className="size-3.5" /> Open Register
       </Button>
       <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => mock("End of day summary generated")}>
-        <Timer className="size-3.5" /> End of Day
+        <BarChart3 className="size-3.5" /> End of Day
       </Button>
-      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => mock("Manager tools require a PIN")}>
-        <UserCog className="size-3.5" /> Manager Tools
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-7 px-2 text-xs text-indigo-600 hover:bg-indigo-500/10 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-400"
+        onClick={() => mock("Manager tools require a PIN")}
+      >
+        <Shield className="size-3.5" /> Manager Tools
       </Button>
       <Button
         size="sm"

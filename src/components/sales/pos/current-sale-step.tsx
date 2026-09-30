@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CircleDollarSign, FileDown, HandCoins, Landmark, Package, Percent, ShoppingCart, StickyNote, Trash2, Wrench, X } from "lucide-react";
+import { BadgePercent, FileText, Package, Percent, Recycle, ShoppingCart, StickyNote, Trash2, WalletCards, Wrench, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -94,18 +94,25 @@ export function CurrentSaleStep({
   const totals = computePosTotals({ items, discount, coreCharge, taxRate, depositApplied, amountPaid });
 
   return (
-    <div className="flex h-full flex-col rounded-lg border border-border bg-card p-5 shadow-xs">
+    <div className="flex h-full flex-col rounded-lg border border-border bg-card p-4 shadow-xs">
       <StepHeader
         step={3}
         icon={ShoppingCart}
         title="Current Sale"
         action={
-          <div className="flex gap-1.5">
-            <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={onLoadQuote}>
-              <FileDown className="size-3.5" /> Load Quote
+          <div className="flex shrink-0 gap-1">
+            <Button variant="outline" size="icon-sm" title="Load Quote" aria-label="Load Quote" onClick={onLoadQuote}>
+              <FileText className="size-3.5" />
             </Button>
-            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={onClearSale}>
-              <Trash2 className="size-3.5" /> Clear
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              title="Clear sale"
+              aria-label="Clear sale"
+              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+              onClick={onClearSale}
+            >
+              <Trash2 className="size-3.5" />
             </Button>
           </div>
         }
@@ -156,8 +163,8 @@ export function CurrentSaleStep({
 
       <div className="mt-4 flex flex-wrap gap-1.5 border-t border-border pt-4">
         <AmountPopoverButton label="Add Discount" icon={Percent} value={discount} onApply={onSetDiscount} />
-        <AmountPopoverButton label="Core Charge" icon={CircleDollarSign} value={coreCharge} onApply={onSetCoreCharge} />
-        <AmountPopoverButton label="Deposit" icon={HandCoins} value={depositApplied} onApply={onSetDeposit} />
+        <AmountPopoverButton label="Core Charge" icon={Recycle} value={coreCharge} onApply={onSetCoreCharge} />
+        <AmountPopoverButton label="Deposit" icon={WalletCards} value={depositApplied} onApply={onSetDeposit} />
         <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => document.getElementById("sale-notes")?.focus()}>
           <StickyNote className="size-3.5" /> Note
         </Button>
@@ -184,7 +191,7 @@ export function CurrentSaleStep({
         )}
         <div className="flex items-center justify-between">
           <span className="flex items-center gap-1 text-muted-foreground">
-            <Landmark className="size-3" /> Tax ({taxRate}%)
+            <BadgePercent className="size-3" /> Tax ({taxRate}%)
           </span>
           <b className="tabular-nums">{usd(totals.tax)}</b>
         </div>

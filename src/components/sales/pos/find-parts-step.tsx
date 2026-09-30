@@ -42,10 +42,10 @@ export function FindPartsStep({
   const results = tab === "inventory" ? filtered : aiResults;
 
   return (
-    <div className="flex h-full flex-col rounded-lg border border-border bg-card p-5 shadow-xs">
+    <div className="flex h-full flex-col rounded-lg border border-border bg-card p-4 shadow-xs">
       <StepHeader step={2} icon={Package} title="Find Parts" />
 
-      <div className="mb-4 grid grid-cols-2 gap-1.5 rounded-md bg-muted p-1">
+      <div className="mb-3 grid grid-cols-2 gap-1.5 rounded-md bg-muted p-1">
         <button onClick={() => setTab("inventory")} className={`flex items-center justify-center gap-1.5 rounded px-2 py-1.5 text-xs font-semibold transition-colors ${tab === "inventory" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
           <Search className="size-3.5" /> Inventory Search
         </button>

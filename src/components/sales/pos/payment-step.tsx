@@ -1,7 +1,7 @@
 "use client";
 
 import { toast } from "sonner";
-import { Banknote, CheckCircle2, CreditCard, Landmark, Link2, Mail, MessageSquare, Printer, QrCode, ReceiptText, Wallet } from "lucide-react";
+import { Banknote, CheckCircle2, CreditCard, Landmark, Link, Mail, MessageSquare, Printer, QrCode, ReceiptText, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/patterns/status-badge";
@@ -14,7 +14,7 @@ const methods: { id: PaymentMethod; label: string; icon: typeof Banknote }[] = [
   { id: "CHECK", label: "Check", icon: ReceiptText },
   { id: "BANK_TRANSFER", label: "Bank Transfer", icon: Landmark },
   { id: "QR_CODE", label: "QR Code", icon: QrCode },
-  { id: "PAYMENT_LINK", label: "Payment Link", icon: Link2 },
+  { id: "PAYMENT_LINK", label: "Payment Link", icon: Link },
 ];
 
 export function PaymentStep({
@@ -48,7 +48,7 @@ export function PaymentStep({
 
   if (completedSaleId) {
     return (
-      <div className="rounded-lg border border-success/30 bg-success/5 p-5 shadow-xs">
+      <div className="rounded-lg border border-success/30 bg-success/5 p-4 shadow-xs">
         <div className="flex items-center gap-3">
           <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-success text-success-foreground">
             <CheckCircle2 className="size-5" />
@@ -78,7 +78,7 @@ export function PaymentStep({
   }
 
   return (
-    <div className="rounded-lg border border-border bg-card p-5 shadow-xs">
+    <div className="rounded-lg border border-border bg-card p-4 shadow-xs">
       <StepHeader
         step={4}
         icon={Wallet}

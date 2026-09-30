@@ -1,18 +1,22 @@
 "use client";
 
 import { Package, Plus } from "lucide-react";
-import { StatusBadge } from "@/components/patterns/status-badge";
+import { StatusBadge, type StatusTone } from "@/components/patterns/status-badge";
 import { usd } from "@/lib/mock/sales";
 import type { PartSearchResult } from "@/lib/mock/pos";
 
 export function PartResultCard({ result, onSelect, onAdd, selected }: { result: PartSearchResult; onSelect: () => void; onAdd: () => void; selected?: boolean }) {
   const { part, donor, donorLabel } = result;
   const available = part.operationalStatus === "AVAILABLE" && part.quantity > 0;
+  const reserved = part.operationalStatus === "RESERVED";
+  const tone: StatusTone = available ? "success" : reserved ? "warning" : part.operationalStatus === "SOLD" ? "danger" : "neutral";
+  const label = available ? "Available" : reserved ? "Reserved" : part.operationalStatus.charAt(0) + part.operationalStatus.slice(1).toLowerCase();
+  const iconTone = available ? "bg-success/10 text-success" : reserved ? "bg-warning/15 text-warning-foreground" : "bg-muted text-muted-foreground";
 
   return (
     <div className={`flex items-center gap-3 rounded-lg border p-3 transition-colors ${selected ? "border-primary/50 bg-primary/5 shadow-sm" : "border-border hover:border-primary/25"}`}>
       <button onClick={onSelect} className="flex min-w-0 flex-1 items-center gap-3 text-left">
-        <div className={`flex size-12 shrink-0 items-center justify-center rounded-md ${available ? "bg-success/10 text-success" : "bg-muted text-muted-foreground"}`}>
+        <div className={`flex size-12 shrink-0 items-center justify-center rounded-md ${iconTone}`}>
           <Package className="size-5" />
         </div>
         <span className="min-w-0 flex-1">
@@ -23,7 +27,7 @@ export function PartResultCard({ result, onSelect, onAdd, selected }: { result: 
           </small>
         </span>
         <span className="hidden shrink-0 text-right sm:block">
-          <StatusBadge tone={available ? "success" : "neutral"}>{available ? "Available" : part.operationalStatus}</StatusBadge>
+          <StatusBadge tone={tone}>{label}</StatusBadge>
           <b className="mt-1 block text-sm">{usd(part.draft.price)}</b>
         </span>
       </button>

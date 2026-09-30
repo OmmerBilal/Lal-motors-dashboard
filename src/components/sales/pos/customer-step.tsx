@@ -45,10 +45,10 @@ export function CustomerStep({
   const hasTaxDoc = selectedCustomer?.documents.some((d) => d.type === "tax_document");
 
   return (
-    <div className="flex h-full flex-col rounded-lg border border-border bg-card p-5 shadow-xs">
+    <div className="flex h-full flex-col rounded-lg border border-border bg-card p-4 shadow-xs">
       <StepHeader step={1} icon={UserRound} title="Customer" />
 
-      <div className="mb-4 grid grid-cols-2 gap-1.5 rounded-md bg-muted p-1">
+      <div className="mb-3 grid grid-cols-2 gap-1.5 rounded-md bg-muted p-1">
         <button
           onClick={() => setMode("existing")}
           className={`rounded px-2 py-1.5 text-xs font-semibold transition-colors ${mode === "existing" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
@@ -152,7 +152,7 @@ export function CustomerStep({
         </>
       )}
 
-      <div className="mt-5 border-t border-border pt-4">
+      <div className="mt-4 border-t border-border pt-3.5">
         <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
           <ShieldCheck className="size-3.5" /> Customer document / AI
         </p>
@@ -198,7 +198,7 @@ export function CustomerStep({
         )}
       </div>
 
-      <div className="mt-5 border-t border-border pt-4">
+      <div className="mt-4 border-t border-border pt-3.5">
         <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
           <Users className="size-3.5" /> Recent Customers
         </p>

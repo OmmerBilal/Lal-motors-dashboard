@@ -22,7 +22,7 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
-      <div className="flex items-center gap-3 border-b border-sidebar-border px-5 py-5">
+      <div className="flex items-center gap-3 border-b border-sidebar-border bg-black/10 px-5 py-5">
         <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-accent-gold text-lg font-bold text-accent-gold-foreground shadow-sm">
           L
         </div>
@@ -33,7 +33,7 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
           </p>
         </div>
       </div>
-      <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-2">
+      <nav className="sidebar-scroll flex-1 space-y-0.5 overflow-y-auto px-3 py-2">
         {nav.map((item) => {
           const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
           const Icon = item.icon;
@@ -76,7 +76,7 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
         </div>
       </div>
       <div className="px-5 pb-5">
-        <Button variant="outline" size="sm" className="w-full bg-transparent text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground" onClick={signOut}>
+        <Button variant="outline" size="sm" className="w-full border-sidebar-border bg-transparent text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground" onClick={signOut}>
           Sign out
         </Button>
       </div>

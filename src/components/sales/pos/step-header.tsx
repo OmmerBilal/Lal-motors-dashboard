@@ -17,8 +17,8 @@ export function StepHeader({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="mb-4 flex items-center justify-between gap-2 border-b border-border pb-3">
-      <div className="flex items-center gap-2.5">
+    <div className="mb-3 flex items-center justify-between gap-2 border-b border-border pb-2.5">
+      <div className="flex min-w-0 items-center gap-2.5">
         {step && (
           <span
             className={cn(
@@ -37,7 +37,7 @@ export function StepHeader({
         >
           <Icon className="size-4" />
         </span>
-        <h3 className="text-base font-semibold tracking-tight">{title}</h3>
+        <h3 className="truncate text-base font-semibold tracking-tight">{title}</h3>
       </div>
       {action}
     </div>

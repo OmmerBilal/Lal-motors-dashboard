@@ -19,7 +19,7 @@ function PanelHeading({ icon: Icon, title }: { icon: typeof Package; title: stri
 export function LowerInfoArea({ selected }: { selected: PartSearchResult | null }) {
   if (!selected) {
     return (
-      <div className="rounded-lg border border-border bg-card p-5 shadow-xs">
+      <div className="rounded-lg border border-border bg-card p-4 shadow-xs">
         <EmptyState icon={Package} title="Select a part to see its details, donor vehicle and documents." />
       </div>
     );
@@ -28,8 +28,8 @@ export function LowerInfoArea({ selected }: { selected: PartSearchResult | null 
   const { part, donor } = selected;
 
   return (
-    <div className="grid gap-5 lg:grid-cols-3">
-      <div className="rounded-lg border border-border bg-card p-5 shadow-xs">
+    <div className="grid gap-4 lg:grid-cols-3">
+      <div className="rounded-lg border border-border bg-card p-4 shadow-xs">
         <PanelHeading icon={Package} title="Selected Part Details" />
         <b className="block text-sm">{part.draft.partName || part.draft.title}</b>
         <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
@@ -50,7 +50,7 @@ export function LowerInfoArea({ selected }: { selected: PartSearchResult | null 
         </div>
       </div>
 
-      <div className="rounded-lg border border-border bg-card p-5 shadow-xs">
+      <div className="rounded-lg border border-border bg-card p-4 shadow-xs">
         <PanelHeading icon={CarFront} title="Donor Vehicle" />
         {donor ? (
           <>
@@ -73,7 +73,7 @@ export function LowerInfoArea({ selected }: { selected: PartSearchResult | null 
         )}
       </div>
 
-      <div className="rounded-lg border border-border bg-card p-5 shadow-xs">
+      <div className="rounded-lg border border-border bg-card p-4 shadow-xs">
         <PanelHeading icon={FileText} title="Documents & Photos" />
         <div className="grid grid-cols-3 gap-2">
           {part.photos.map((p) => (
