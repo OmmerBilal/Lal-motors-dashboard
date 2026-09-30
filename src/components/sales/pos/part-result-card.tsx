@@ -16,8 +16,8 @@ export function PartResultCard({ result, onSelect, onAdd, selected }: { result: 
   return (
     <div className={`flex items-center gap-3 rounded-lg border p-3 transition-colors ${selected ? "border-primary/50 bg-primary/5 shadow-sm" : "border-border hover:border-primary/25"}`}>
       <button onClick={onSelect} className="flex min-w-0 flex-1 items-center gap-3 text-left">
-        <div className={`flex size-12 shrink-0 items-center justify-center rounded-md ${iconTone}`}>
-          <Package className="size-5" />
+        <div className={`flex size-14 shrink-0 items-center justify-center rounded-md border ${selected ? "border-primary/30" : "border-border"} ${iconTone}`}>
+          <Package className="size-6" />
         </div>
         <span className="min-w-0 flex-1">
           <b className="block truncate text-sm">{part.draft.partName || part.draft.title}</b>
@@ -28,15 +28,15 @@ export function PartResultCard({ result, onSelect, onAdd, selected }: { result: 
         </span>
         <span className="hidden shrink-0 text-right sm:block">
           <StatusBadge tone={tone}>{label}</StatusBadge>
-          <b className="mt-1 block text-sm">{usd(part.draft.price)}</b>
+          <b className="mt-1 block text-base tabular-nums text-primary">{usd(part.draft.price)}</b>
         </span>
       </button>
       <button
         onClick={onAdd}
         disabled={!available}
-        className="flex shrink-0 items-center gap-1 rounded-md bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:opacity-40 disabled:shadow-none"
+        className="flex shrink-0 items-center gap-1 rounded-md bg-primary px-3.5 py-2.5 text-xs font-bold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 hover:shadow-md disabled:opacity-40 disabled:shadow-none"
       >
-        <Plus className="size-3.5" /> Add
+        <Plus className="size-4" /> Add
       </button>
     </div>
   );

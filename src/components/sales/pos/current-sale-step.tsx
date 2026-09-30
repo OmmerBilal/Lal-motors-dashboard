@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { BadgePercent, FileText, Package, Percent, Recycle, ShoppingCart, StickyNote, Trash2, WalletCards, Wrench, X } from "lucide-react";
+import { BadgePercent, Box, FileText, Package, Recycle, ShoppingCart, StickyNote, Trash2, Wallet, WalletCards, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -10,7 +10,7 @@ import { StepHeader } from "@/components/sales/pos/step-header";
 import { usd, type SaleItem } from "@/lib/mock/sales";
 import { computePosTotals } from "@/lib/mock/pos";
 
-function AmountPopoverButton({ label, icon: Icon, value, onApply }: { label: string; icon: typeof Percent; value: number; onApply: (n: number) => void }) {
+function AmountPopoverButton({ label, icon: Icon, value, onApply }: { label: string; icon: typeof BadgePercent; value: number; onApply: (n: number) => void }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(String(value || ""));
 
@@ -120,14 +120,14 @@ export function CurrentSaleStep({
 
       <div className="max-h-56 flex-1 space-y-2 overflow-y-auto">
         {items.map((item) => (
-          <div key={item.id} className="flex items-center gap-2 rounded-lg border border-border p-2.5">
-            <div className={`flex size-9 shrink-0 items-center justify-center rounded-md ${item.manual ? "bg-accent-gold/20 text-accent-gold-foreground" : "bg-primary/10 text-primary"}`}>
-              {item.manual ? <Wrench className="size-4" /> : <Package className="size-4" />}
+          <div key={item.id} className={`flex items-center gap-2 rounded-lg border p-2.5 ${item.manual ? "border-accent-rose/25 bg-accent-rose/5" : "border-border"}`}>
+            <div className={`flex size-9 shrink-0 items-center justify-center rounded-md ${item.manual ? "bg-accent-rose/20 text-accent-rose-foreground" : "bg-primary/10 text-primary"}`}>
+              {item.manual ? <Box className="size-4" /> : <Package className="size-4" />}
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
                 <b className="truncate text-xs">{item.description}</b>
-                {item.manual && <span className="shrink-0 rounded bg-accent-gold/20 px-1.5 py-0.5 text-[10px] font-semibold text-accent-gold-foreground">MANUAL</span>}
+                {item.manual && <span className="shrink-0 rounded bg-accent-rose/20 px-1.5 py-0.5 text-[10px] font-semibold text-accent-rose-foreground">MANUAL</span>}
               </div>
               <small className="text-[11px] text-muted-foreground">{item.stockSku}</small>
             </div>
@@ -153,7 +153,11 @@ export function CurrentSaleStep({
             ) : (
               <b className="w-16 shrink-0 text-right text-xs">{usd(item.quantity * item.unitPrice)}</b>
             )}
-            <button onClick={() => onRemove(item.id)} className="shrink-0 text-muted-foreground hover:text-destructive">
+            <button
+              onClick={() => onRemove(item.id)}
+              aria-label="Remove item"
+              className="flex shrink-0 items-center justify-center rounded-md p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+            >
               <X className="size-4" />
             </button>
           </div>
@@ -162,7 +166,7 @@ export function CurrentSaleStep({
       </div>
 
       <div className="mt-4 flex flex-wrap gap-1.5 border-t border-border pt-4">
-        <AmountPopoverButton label="Add Discount" icon={Percent} value={discount} onApply={onSetDiscount} />
+        <AmountPopoverButton label="Add Discount" icon={BadgePercent} value={discount} onApply={onSetDiscount} />
         <AmountPopoverButton label="Core Charge" icon={Recycle} value={coreCharge} onApply={onSetCoreCharge} />
         <AmountPopoverButton label="Deposit" icon={WalletCards} value={depositApplied} onApply={onSetDeposit} />
         <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => document.getElementById("sale-notes")?.focus()}>
@@ -207,13 +211,15 @@ export function CurrentSaleStep({
             <b className="tabular-nums text-success">-{usd(amountPaid)}</b>
           </div>
         )}
-        <div className="flex justify-between border-t border-border pt-1.5 text-xs text-muted-foreground">
-          <span>Grand Total</span>
+        <div className="flex justify-between border-t border-border pt-1.5 text-sm font-medium">
+          <span className="text-foreground">Grand Total</span>
           <span className="tabular-nums">{usd(totals.grandTotal)}</span>
         </div>
-        <div className="flex items-center justify-between rounded-md bg-primary/10 px-2.5 py-2">
-          <strong className="text-sm">Balance Due</strong>
-          <b className="text-lg tabular-nums text-primary">{usd(totals.balanceDue)}</b>
+        <div className="flex items-center justify-between rounded-md border border-primary/25 bg-primary/10 px-3 py-2.5 shadow-xs">
+          <strong className="flex items-center gap-1.5 text-sm">
+            <Wallet className="size-4 text-primary" /> Balance Due
+          </strong>
+          <b className="text-xl tabular-nums text-primary">{usd(totals.balanceDue)}</b>
         </div>
       </div>
 

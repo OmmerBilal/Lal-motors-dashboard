@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Camera, Package, Search, SlidersHorizontal, Sparkles } from "lucide-react";
+import { Boxes, Camera, PackageSearch, Search, SlidersHorizontal, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -43,11 +43,11 @@ export function FindPartsStep({
 
   return (
     <div className="flex h-full flex-col rounded-lg border border-border bg-card p-4 shadow-xs">
-      <StepHeader step={2} icon={Package} title="Find Parts" />
+      <StepHeader step={2} icon={PackageSearch} title="Find Parts" />
 
       <div className="mb-3 grid grid-cols-2 gap-1.5 rounded-md bg-muted p-1">
         <button onClick={() => setTab("inventory")} className={`flex items-center justify-center gap-1.5 rounded px-2 py-1.5 text-xs font-semibold transition-colors ${tab === "inventory" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
-          <Search className="size-3.5" /> Inventory Search
+          <Boxes className="size-3.5" /> Inventory Search
         </button>
         <button onClick={() => setTab("ai")} className={`flex items-center justify-center gap-1.5 rounded px-2 py-1.5 text-xs font-semibold transition-colors ${tab === "ai" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
           <Sparkles className="size-3.5" /> AI Search / Photo

@@ -39,6 +39,7 @@ export function AdvancedActionsBar({
   return (
     <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-border bg-muted/30 p-3">
       <span className="mr-1 text-[11px] font-bold tracking-wide text-muted-foreground uppercase">Advanced</span>
+
       <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => mock("Exchange")}>
         <ArrowLeftRight className="size-3.5" /> Exchange
       </Button>
@@ -51,6 +52,9 @@ export function AdvancedActionsBar({
       <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => window.print()}>
         <Printer className="size-3.5" /> Print Last Invoice
       </Button>
+
+      <span className="mx-1 h-5 w-px shrink-0 bg-border" aria-hidden />
+
       <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => mock("Register opened")}>
         <UserCog className="size-3.5" /> Open Register
       </Button>
@@ -65,6 +69,9 @@ export function AdvancedActionsBar({
       >
         <Shield className="size-3.5" /> Manager Tools
       </Button>
+
+      <span className="mx-1 h-5 w-px shrink-0 bg-border" aria-hidden />
+
       <Button
         size="sm"
         className={cn("h-7 px-2 text-xs", overridePrice ? "bg-primary text-primary-foreground hover:bg-primary/90" : "bg-transparent text-muted-foreground hover:bg-accent")}
@@ -79,6 +86,9 @@ export function AdvancedActionsBar({
       >
         <ShieldOff className="size-3.5" /> Tax Exempt
       </Button>
+
+      <span className="mx-1 h-5 w-px shrink-0 bg-border" aria-hidden />
+
       <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={onVoidSale}>
         <ShieldOff className="size-3.5" /> Void Sale
       </Button>

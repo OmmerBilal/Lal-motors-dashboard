@@ -52,10 +52,10 @@ export function ReturnsPanel() {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="flex w-full items-center gap-2.5 rounded-lg border border-destructive/25 bg-destructive/5 p-3 text-left shadow-xs transition-colors hover:bg-destructive/10"
+        className="flex w-full items-center gap-2.5 rounded-lg border border-destructive/30 bg-destructive/8 p-3 text-left shadow-xs transition-colors hover:border-destructive/45 hover:bg-destructive/15"
       >
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-destructive/15 text-destructive">
-          <RotateCcw className="size-4" />
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-destructive/15 text-destructive">
+          <RotateCcw className="size-4.5" />
         </span>
         <span className="min-w-0 flex-1 text-xs leading-tight font-semibold text-destructive">
           Returns

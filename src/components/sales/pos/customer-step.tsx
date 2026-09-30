@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Camera, Check, FileText, History, Search, ShieldCheck, UserPlus, UserRound, Upload, Users } from "lucide-react";
+import { Camera, Check, FileText, History, IdCard, Search, UserPlus, UserRound, Upload, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StepHeader } from "@/components/sales/pos/step-header";
@@ -67,11 +67,11 @@ export function CustomerStep({
       </div>
 
       {selectedCustomer ? (
-        <div className="rounded-lg border border-primary/30 bg-primary/5 p-3.5">
+        <div className="rounded-lg border border-primary/35 bg-primary/6 p-3.5 shadow-xs">
           <div className="mb-2.5 flex items-start justify-between gap-2">
             <div className="flex items-center gap-2.5">
-              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                <Check className="size-3.5" />
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm">
+                <Check className="size-4" />
               </span>
               <div>
                 <b className="block text-sm leading-tight">{selectedCustomer.companyName || `${selectedCustomer.firstName} ${selectedCustomer.lastName}`}</b>
@@ -154,7 +154,7 @@ export function CustomerStep({
 
       <div className="mt-4 border-t border-border pt-3.5">
         <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-          <ShieldCheck className="size-3.5" /> Customer document / AI
+          <IdCard className="size-3.5" /> Customer document / AI
         </p>
         <div className="flex flex-wrap gap-1.5">
           <label className="flex cursor-pointer items-center gap-1.5 rounded-md border border-dashed border-primary/40 bg-primary/5 px-2.5 py-1.5 text-[11px] font-semibold text-primary hover:bg-primary/10">

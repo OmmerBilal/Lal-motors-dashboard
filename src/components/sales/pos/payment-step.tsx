@@ -1,7 +1,7 @@
 "use client";
 
 import { toast } from "sonner";
-import { Banknote, CheckCircle2, CreditCard, Landmark, Link, Mail, MessageSquare, Printer, QrCode, ReceiptText, Wallet } from "lucide-react";
+import { Banknote, CheckCircle2, CircleDollarSign, CreditCard, Landmark, Link, Mail, MessageSquare, Printer, QrCode, ReceiptText, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/patterns/status-badge";
@@ -88,36 +88,47 @@ export function PaymentStep({
       />
 
       <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-6">
-        {methods.map((m) => (
-          <button
-            key={m.id}
-            onClick={() => onSelectMethod(m.id)}
-            className={`flex flex-col items-center gap-1.5 rounded-lg border p-3 text-xs font-semibold transition-colors ${method === m.id ? "border-primary bg-primary text-primary-foreground shadow-sm" : "border-border text-muted-foreground hover:border-primary/30 hover:bg-primary/5 hover:text-primary"}`}
-          >
-            <m.icon className="size-5" />
-            {m.label}
-          </button>
-        ))}
+        {methods.map((m) => {
+          const active = method === m.id;
+          return (
+            <button
+              key={m.id}
+              onClick={() => onSelectMethod(m.id)}
+              className={`flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-xs font-semibold transition-colors ${active ? "border-primary bg-primary text-primary-foreground shadow-sm" : "border-border bg-card text-muted-foreground hover:border-primary/30 hover:bg-primary/5 hover:text-primary"}`}
+            >
+              <span className={`flex size-9 items-center justify-center rounded-full ${active ? "bg-white/15" : "bg-muted"}`}>
+                <m.icon className="size-4.5" />
+              </span>
+              {m.label}
+            </button>
+          );
+        })}
       </div>
 
       {method === "CASH" && (
         <div className="mt-4 grid grid-cols-3 gap-3 rounded-lg border border-border bg-muted/30 p-3.5">
           <div>
-            <p className="text-xs text-muted-foreground">Amount Due</p>
+            <p className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Wallet className="size-3" /> Amount Due
+            </p>
             <b className="text-lg tabular-nums">{usd(balanceDue)}</b>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Amount Tendered</p>
+            <p className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Banknote className="size-3" /> Amount Tendered
+            </p>
             <Input type="number" min={0} step="0.01" value={tendered} onChange={(e) => onChangeTendered(e.target.value)} className="h-9" />
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Change Due</p>
+            <p className="flex items-center gap-1 text-xs text-muted-foreground">
+              <CircleDollarSign className="size-3" /> Change Due
+            </p>
             <b className="text-lg tabular-nums text-success">{usd(changeDue)}</b>
           </div>
         </div>
       )}
 
-      <Button className="mt-5 w-full shadow-sm" size="lg" disabled={!canComplete} onClick={onCompleteSale}>
+      <Button className="mt-5 w-full text-base font-bold shadow-sm" size="lg" disabled={!canComplete} onClick={onCompleteSale}>
         <Wallet /> Complete Sale &amp; Print Invoice
       </Button>
     </div>

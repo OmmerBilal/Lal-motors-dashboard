@@ -28,9 +28,9 @@ export function ManualItemPanel({ onAdd }: { onAdd: (input: { description: strin
   }
 
   return (
-    <div className="rounded-lg border border-accent-gold/30 bg-card p-4 shadow-xs">
-      <div className="mb-3 flex items-center gap-2.5 border-b border-border pb-3">
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-accent-gold/20 text-accent-gold-foreground">
+    <div className="rounded-lg border border-accent-rose/35 bg-accent-rose/5 p-4 shadow-xs">
+      <div className="mb-3 flex items-center gap-2.5 border-b border-accent-rose/20 pb-3">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-accent-rose/20 text-accent-rose-foreground">
           <PackagePlus className="size-4" />
         </span>
         <h3 className="text-sm font-semibold">Manual Item</h3>
@@ -61,8 +61,8 @@ export function ManualItemPanel({ onAdd }: { onAdd: (input: { description: strin
           </label>
         </div>
         {photoName && <p className="text-xs text-muted-foreground">{photoName}</p>}
-        <Button className="w-full shadow-sm" onClick={add}>
-          <Plus className="size-3.5" /> Add to Sale
+        <Button className="w-full font-semibold shadow-sm" onClick={add}>
+          <Plus className="size-4" /> Add to Sale
         </Button>
         <p className="text-[11px] text-muted-foreground">Manual items are marked separately from inventory-linked items.</p>
       </div>
