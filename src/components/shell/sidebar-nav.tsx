@@ -22,8 +22,8 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
-      <div className="flex items-center gap-3 px-5 py-5">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-accent-gold text-lg font-bold text-accent-gold-foreground">
+      <div className="flex items-center gap-3 border-b border-sidebar-border px-5 py-5">
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-accent-gold text-lg font-bold text-accent-gold-foreground shadow-sm">
           L
         </div>
         <div className="min-w-0">
@@ -43,13 +43,13 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
               href={item.href}
               onClick={onNavigate}
               className={cn(
-                "flex h-10 items-center gap-3 rounded-md px-3 text-sm font-medium transition-colors",
+                "flex h-10 items-center gap-3 rounded-md border-l-2 px-3 text-sm font-medium transition-colors",
                 active
-                  ? "bg-sidebar-primary text-sidebar-accent-foreground"
-                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  ? "border-accent-gold bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
+                  : "border-transparent text-sidebar-foreground/65 hover:border-sidebar-foreground/20 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
               )}
             >
-              <Icon className="size-4 shrink-0" />
+              <Icon className={cn("size-4 shrink-0", active ? "text-sidebar-primary-foreground" : "text-sidebar-foreground/50")} />
               <span className="truncate">{item.label}</span>
             </Link>
           );

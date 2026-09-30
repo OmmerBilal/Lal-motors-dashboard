@@ -5,6 +5,7 @@ import { Banknote, CheckCircle2, CreditCard, Landmark, Link2, Mail, MessageSquar
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/patterns/status-badge";
+import { StepHeader } from "@/components/sales/pos/step-header";
 import { usd, type PaymentMethod } from "@/lib/mock/sales";
 
 const methods: { id: PaymentMethod; label: string; icon: typeof Banknote }[] = [
@@ -47,28 +48,28 @@ export function PaymentStep({
 
   if (completedSaleId) {
     return (
-      <div className="rounded-lg border border-success/30 bg-success/5 p-4">
-        <div className="flex items-center gap-2">
-          <CheckCircle2 className="size-5 text-success" />
+      <div className="rounded-lg border border-success/30 bg-success/5 p-5 shadow-xs">
+        <div className="flex items-center gap-3">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-success text-success-foreground">
+            <CheckCircle2 className="size-5" />
+          </span>
           <div>
-            <b className="block text-sm">Sale completed</b>
+            <b className="block text-base">Sale completed</b>
             <small className="text-xs text-muted-foreground">Reference {completedSaleId} · demo record, no real payment was captured</small>
           </div>
         </div>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Button size="sm" onClick={onNewSale}>
-            New Sale
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => mockAction("Email receipt")}>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button onClick={onNewSale}>New Sale</Button>
+          <Button variant="outline" onClick={() => mockAction("Email receipt")}>
             <Mail className="size-3.5" /> Email Receipt
           </Button>
-          <Button variant="outline" size="sm" onClick={() => mockAction("Text receipt")}>
+          <Button variant="outline" onClick={() => mockAction("Text receipt")}>
             <MessageSquare className="size-3.5" /> Text Receipt
           </Button>
-          <Button variant="outline" size="sm" onClick={() => window.print()}>
+          <Button variant="outline" onClick={() => window.print()}>
             <Printer className="size-3.5" /> Print Small Receipt
           </Button>
-          <Button variant="outline" size="sm" onClick={() => window.print()}>
+          <Button variant="outline" onClick={() => window.print()}>
             <Printer className="size-3.5" /> Print Full Invoice
           </Button>
         </div>
@@ -77,43 +78,46 @@ export function PaymentStep({
   }
 
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
-      <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-semibold">4. Payment &amp; Checkout</h3>
-        <StatusBadge tone={status === "Paid" ? "success" : status === "Partial" ? "warning" : "neutral"}>{status}</StatusBadge>
-      </div>
+    <div className="rounded-lg border border-border bg-card p-5 shadow-xs">
+      <StepHeader
+        step={4}
+        icon={Wallet}
+        title="Payment & Checkout"
+        tone="success"
+        action={<StatusBadge tone={status === "Paid" ? "success" : status === "Partial" ? "warning" : "neutral"}>{status}</StatusBadge>}
+      />
 
-      <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+      <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-6">
         {methods.map((m) => (
           <button
             key={m.id}
             onClick={() => onSelectMethod(m.id)}
-            className={`flex flex-col items-center gap-1 rounded-md border p-2.5 text-xs font-medium ${method === m.id ? "border-primary bg-primary/5 text-primary" : "border-border text-muted-foreground hover:bg-accent/30"}`}
+            className={`flex flex-col items-center gap-1.5 rounded-lg border p-3 text-xs font-semibold transition-colors ${method === m.id ? "border-primary bg-primary text-primary-foreground shadow-sm" : "border-border text-muted-foreground hover:border-primary/30 hover:bg-primary/5 hover:text-primary"}`}
           >
-            <m.icon className="size-4" />
+            <m.icon className="size-5" />
             {m.label}
           </button>
         ))}
       </div>
 
       {method === "CASH" && (
-        <div className="mt-3 grid grid-cols-3 gap-3">
+        <div className="mt-4 grid grid-cols-3 gap-3 rounded-lg border border-border bg-muted/30 p-3.5">
           <div>
             <p className="text-xs text-muted-foreground">Amount Due</p>
-            <b className="text-lg">{usd(balanceDue)}</b>
+            <b className="text-lg tabular-nums">{usd(balanceDue)}</b>
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Amount Tendered</p>
-            <Input type="number" min={0} step="0.01" value={tendered} onChange={(e) => onChangeTendered(e.target.value)} className="h-8" />
+            <Input type="number" min={0} step="0.01" value={tendered} onChange={(e) => onChangeTendered(e.target.value)} className="h-9" />
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Change Due</p>
-            <b className="text-lg text-success">{usd(changeDue)}</b>
+            <b className="text-lg tabular-nums text-success">{usd(changeDue)}</b>
           </div>
         </div>
       )}
 
-      <Button className="mt-4 w-full" size="lg" disabled={!canComplete} onClick={onCompleteSale}>
+      <Button className="mt-5 w-full shadow-sm" size="lg" disabled={!canComplete} onClick={onCompleteSale}>
         <Wallet /> Complete Sale &amp; Print Invoice
       </Button>
     </div>

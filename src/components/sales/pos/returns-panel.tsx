@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { RotateCcw } from "lucide-react";
+import { ChevronRight, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -50,9 +50,19 @@ export function ReturnsPanel() {
 
   return (
     <>
-      <Button variant="outline" size="sm" className="w-full" onClick={() => setOpen(true)}>
-        <RotateCcw className="size-3.5" /> Returns / Refunds
-      </Button>
+      <button
+        onClick={() => setOpen(true)}
+        className="flex w-full items-center gap-3 rounded-lg border border-destructive/25 bg-destructive/5 p-4 text-left shadow-xs transition-colors hover:bg-destructive/10"
+      >
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-destructive/15 text-destructive">
+          <RotateCcw className="size-4" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <b className="block text-sm text-destructive">Returns / Refunds</b>
+          <span className="block text-xs text-muted-foreground">Process a return against an existing invoice</span>
+        </span>
+        <ChevronRight className="size-4 shrink-0 text-destructive/60" />
+      </button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>

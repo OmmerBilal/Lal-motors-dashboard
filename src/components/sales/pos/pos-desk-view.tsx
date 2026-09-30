@@ -148,50 +148,53 @@ export function PosDeskView({ initialCustomerId }: { initialCustomerId?: string 
   const draftQuotes = quotes.filter((q) => q.status === "DRAFT" || q.status === "SENT");
 
   return (
-    <div className="space-y-4">
-      <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
-        <CustomerStep
-          selectedCustomer={selectedCustomer}
-          onSelectCustomer={setSelectedCustomer}
-          onNewCustomer={(prefill) => {
-            setEditingCustomer(null);
-            setCustomerPrefill(prefill as Record<string, string> | undefined);
-            setCustomerModalOpen(true);
-          }}
-          onEditCustomer={() => {
-            setEditingCustomer(selectedCustomer);
-            setCustomerPrefill(undefined);
-            setCustomerModalOpen(true);
-          }}
-          onViewHistory={() => setHistoryOpen(true)}
-        />
-        <FindPartsStep selectedPartId={selectedPart?.part.id ?? null} onSelectPart={setSelectedPart} onAddPart={addPart} />
-        <CurrentSaleStep
-          items={items}
-          onUpdateQuantity={(id, qty) => setItems((xs) => xs.map((i) => (i.id === id ? { ...i, quantity: Math.max(1, qty) } : i)))}
-          onRemove={(id) => setItems((xs) => xs.filter((i) => i.id !== id))}
-          onUpdatePrice={(id, price) => setItems((xs) => xs.map((i) => (i.id === id ? { ...i, unitPrice: Math.max(0, price) } : i)))}
-          overridePrice={overridePrice}
-          discount={discount}
-          coreCharge={coreCharge}
-          depositApplied={depositApplied}
-          notes={notes}
-          taxRate={taxRate}
-          amountPaid={0}
-          onSetDiscount={setDiscount}
-          onSetCoreCharge={setCoreCharge}
-          onSetDeposit={setDepositApplied}
-          onSetNotes={setNotes}
-          onClearSale={clearSale}
-          onSaveQuote={saveQuote}
-          onLoadQuote={() => setLoadQuoteOpen(true)}
-        />
-        <div className="space-y-4">
+    <div className="space-y-6">
+      <div className="grid gap-5 lg:grid-cols-2 2xl:grid-cols-12">
+        <div className="2xl:col-span-3">
+          <CustomerStep
+            selectedCustomer={selectedCustomer}
+            onSelectCustomer={setSelectedCustomer}
+            onNewCustomer={(prefill) => {
+              setEditingCustomer(null);
+              setCustomerPrefill(prefill as Record<string, string> | undefined);
+              setCustomerModalOpen(true);
+            }}
+            onEditCustomer={() => {
+              setEditingCustomer(selectedCustomer);
+              setCustomerPrefill(undefined);
+              setCustomerModalOpen(true);
+            }}
+            onViewHistory={() => setHistoryOpen(true)}
+          />
+        </div>
+        <div className="2xl:col-span-4">
+          <FindPartsStep selectedPartId={selectedPart?.part.id ?? null} onSelectPart={setSelectedPart} onAddPart={addPart} />
+        </div>
+        <div className="2xl:col-span-3">
+          <CurrentSaleStep
+            items={items}
+            onUpdateQuantity={(id, qty) => setItems((xs) => xs.map((i) => (i.id === id ? { ...i, quantity: Math.max(1, qty) } : i)))}
+            onRemove={(id) => setItems((xs) => xs.filter((i) => i.id !== id))}
+            onUpdatePrice={(id, price) => setItems((xs) => xs.map((i) => (i.id === id ? { ...i, unitPrice: Math.max(0, price) } : i)))}
+            overridePrice={overridePrice}
+            discount={discount}
+            coreCharge={coreCharge}
+            depositApplied={depositApplied}
+            notes={notes}
+            taxRate={taxRate}
+            amountPaid={0}
+            onSetDiscount={setDiscount}
+            onSetCoreCharge={setCoreCharge}
+            onSetDeposit={setDepositApplied}
+            onSetNotes={setNotes}
+            onClearSale={clearSale}
+            onSaveQuote={saveQuote}
+            onLoadQuote={() => setLoadQuoteOpen(true)}
+          />
+        </div>
+        <div className="space-y-5 2xl:col-span-2">
           <ManualItemPanel onAdd={addManualItem} />
-          <div className="rounded-lg border border-border bg-card p-4">
-            <h3 className="mb-2 text-sm font-semibold">Quick Access</h3>
-            <ReturnsPanel />
-          </div>
+          <ReturnsPanel />
         </div>
       </div>
 

@@ -13,6 +13,7 @@ import {
   UserCog,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "cn";
 
 export function AdvancedActionsBar({
   taxExempt,
@@ -34,8 +35,8 @@ export function AdvancedActionsBar({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-dashed border-border bg-muted/20 p-2.5">
-      <span className="mr-1 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">Advanced</span>
+    <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-border bg-muted/30 p-3">
+      <span className="mr-1 text-[11px] font-bold tracking-wide text-muted-foreground uppercase">Advanced</span>
       <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => mock("Exchange")}>
         <ArrowLeftRight className="size-3.5" /> Exchange
       </Button>
@@ -57,13 +58,21 @@ export function AdvancedActionsBar({
       <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => mock("Manager tools require a PIN")}>
         <UserCog className="size-3.5" /> Manager Tools
       </Button>
-      <Button variant={overridePrice ? "secondary" : "ghost"} size="sm" className="h-7 px-2 text-xs" onClick={onToggleOverridePrice}>
+      <Button
+        size="sm"
+        className={cn("h-7 px-2 text-xs", overridePrice ? "bg-primary text-primary-foreground hover:bg-primary/90" : "bg-transparent text-muted-foreground hover:bg-accent")}
+        onClick={onToggleOverridePrice}
+      >
         {overridePrice ? <Unlock className="size-3.5" /> : <Lock className="size-3.5" />} Override Price
       </Button>
-      <Button variant={taxExempt ? "secondary" : "ghost"} size="sm" className="h-7 px-2 text-xs" onClick={onToggleTaxExempt}>
+      <Button
+        size="sm"
+        className={cn("h-7 px-2 text-xs", taxExempt ? "bg-accent-gold text-accent-gold-foreground hover:bg-accent-gold/90" : "bg-transparent text-muted-foreground hover:bg-accent")}
+        onClick={onToggleTaxExempt}
+      >
         <ShieldOff className="size-3.5" /> Tax Exempt
       </Button>
-      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-destructive hover:text-destructive" onClick={onVoidSale}>
+      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={onVoidSale}>
         <ShieldOff className="size-3.5" /> Void Sale
       </Button>
       <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => mock("Settings")}>

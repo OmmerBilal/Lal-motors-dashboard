@@ -10,9 +10,9 @@ export function PartResultCard({ result, onSelect, onAdd, selected }: { result: 
   const available = part.operationalStatus === "AVAILABLE" && part.quantity > 0;
 
   return (
-    <div className={`flex items-center gap-3 rounded-md border p-2.5 ${selected ? "border-primary/40 bg-primary/5" : "border-border"}`}>
+    <div className={`flex items-center gap-3 rounded-lg border p-3 transition-colors ${selected ? "border-primary/50 bg-primary/5 shadow-sm" : "border-border hover:border-primary/25"}`}>
       <button onClick={onSelect} className="flex min-w-0 flex-1 items-center gap-3 text-left">
-        <div className="flex size-12 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+        <div className={`flex size-12 shrink-0 items-center justify-center rounded-md ${available ? "bg-success/10 text-success" : "bg-muted text-muted-foreground"}`}>
           <Package className="size-5" />
         </div>
         <span className="min-w-0 flex-1">
@@ -30,7 +30,7 @@ export function PartResultCard({ result, onSelect, onAdd, selected }: { result: 
       <button
         onClick={onAdd}
         disabled={!available}
-        className="flex shrink-0 items-center gap-1 rounded-md bg-primary px-2.5 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-40"
+        className="flex shrink-0 items-center gap-1 rounded-md bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:opacity-40 disabled:shadow-none"
       >
         <Plus className="size-3.5" /> Add
       </button>
