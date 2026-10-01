@@ -12,6 +12,7 @@ const previewSectionRole: Record<string, { role: Role; label: string }> = {
   loading: { role: "employee", label: "Container Loading Employee" },
   "scrap-driver": { role: "scrap_driver", label: "Scrap Driver App" },
   "vehicle-receiving": { role: "receiving", label: "Vehicle Receiving Employee" },
+  dismantling: { role: "dismantling", label: "Dismantling Employee" },
 };
 
 export function useEffectiveUser(): {

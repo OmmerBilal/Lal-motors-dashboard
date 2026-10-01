@@ -141,6 +141,7 @@ export const vehicleStatusOptions = [
   "Available at Yard",
   "Ready for Processing",
   "Processing",
+  "Dismantled",
 ];
 
 export const vehicleTitle = (v: Partial<VehicleRecord>) =>
@@ -690,7 +691,8 @@ export type VehicleEventAction =
   | "COMPLETION_NEEDS_CORRECTION"
   | "COMPLETION_APPROVED"
   | "COMPLETION_CREDIT"
-  | "DISPOSITION";
+  | "DISPOSITION"
+  | "ISSUE_FLAGGED";
 
 export type VehicleEvent = {
   id: string;

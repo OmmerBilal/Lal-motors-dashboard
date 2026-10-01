@@ -6,6 +6,7 @@ export type Role =
   | "auction"
   | "yard"
   | "receiving"
+  | "dismantling"
   | "scrap_driver";
 
 export type User = {
@@ -23,6 +24,7 @@ export const roleLabels: Record<Role, string> = {
   auction: "Auction Vehicle Inventory",
   yard: "Yard Employee",
   receiving: "Vehicle Receiving Employee",
+  dismantling: "Dismantling Employee",
   scrap_driver: "Scrap Driver",
 };
 
@@ -33,6 +35,7 @@ export const rolePhaseLabels: Record<Role, string> = {
   auction: "Auction Inventory",
   yard: "Yard Vehicle Work",
   receiving: "Vehicle Receiving",
+  dismantling: "Dismantling",
   scrap_driver: "Scrap Driver",
   employee: "Warehouse App",
 };

@@ -6,8 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { mockUsers } from "@/lib/mock/users";
-import { roleLabels } from "@/lib/types";
+import { roleLabels, type Role } from "@/lib/types";
 import { useSession } from "@/lib/session";
+
+const roleLandingRoute: Partial<Record<Role, string>> = {
+  owner: "/dashboard",
+  receiving: "/vehicle-receiving",
+  dismantling: "/dismantling",
+};
 
 export default function LoginPage() {
   const router = useRouter();
@@ -19,7 +25,7 @@ export default function LoginPage() {
   function signInAs(id: string) {
     setUserId(id);
     const match = mockUsers.find((u) => u.id === id);
-    router.push(match?.role === "owner" ? "/dashboard" : "/vehicles");
+    router.push((match && roleLandingRoute[match.role]) || "/vehicles");
   }
 
   function submit(e: React.FormEvent) {
