@@ -61,20 +61,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
         {isPreview && (
-          <div className="mx-4 mt-4 flex flex-col gap-3 rounded-lg border border-primary/25 bg-primary/5 p-4 text-sm sm:mx-6 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="font-semibold text-primary">Owner testing · {previewLabel}</p>
-              <p className="mt-0.5 text-muted-foreground">
-                Use this role&apos;s screen and actions. Changes are saved under your Owner account.
-              </p>
-            </div>
+          <div className="mx-4 mt-2 flex flex-wrap items-center gap-2 rounded-md border border-primary/25 bg-primary/5 px-3 py-1.5 text-xs sm:mx-6">
+            <span className="font-semibold text-primary">Owner testing · {previewLabel}</span>
+            <span className="text-muted-foreground">Changes save under your Owner account.</span>
             <Button
               variant="outline"
-              size="sm"
-              className="shrink-0"
+              size="xs"
+              className="ml-auto shrink-0"
               onClick={() => router.push("/dashboard")}
             >
-              Return to Owner Dashboard
+              Return to Dashboard
             </Button>
           </div>
         )}
