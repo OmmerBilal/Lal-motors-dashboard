@@ -11,14 +11,13 @@ import {
   CircleCheck,
   CloudOff,
   Flag,
-  Loader2,
   LogOut,
+  Plus,
   RotateCcw,
   ScanLine,
   Search,
   Send,
   TriangleAlert,
-  UserRound,
   Wrench,
   X,
 } from "lucide-react";
@@ -282,22 +281,24 @@ export function DismantlingWorkspace({ user }: { user: User }) {
   return (
     <div className="space-y-4 pb-10">
       {/* Header */}
-      <div className="-mx-4 -mt-6 flex flex-wrap items-center justify-between gap-3 bg-brand px-4 py-4 text-brand-foreground sm:-mx-6 sm:px-6">
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-accent-gold text-accent-gold-foreground">
-            <Wrench className="size-6" />
-          </span>
-          <div className="min-w-0">
-            <p className="text-[11px] font-bold tracking-[0.14em] text-brand-foreground/60 uppercase">LAL Motors</p>
-            <h2 className="text-lg font-bold sm:text-xl">Employee Dismantling</h2>
+      <div className="-mx-4 -mt-6 border-b-4 border-accent-gold bg-brand px-4 py-4 text-brand-foreground sm:-mx-6 sm:px-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-accent-gold text-accent-gold-foreground">
+              <Wrench className="size-6" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold tracking-[0.14em] text-brand-foreground/60 uppercase">LAL Motors</p>
+              <h2 className="text-lg font-bold sm:text-xl">Employee Dismantling</h2>
+            </div>
           </div>
-        </div>
-        <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-brand-foreground/10 py-1 pr-3 pl-1.5 text-sm">
-          <span className="flex size-6 items-center justify-center rounded-full bg-brand-foreground/15">
-            <UserRound className="size-3.5" />
+          <span className="flex shrink-0 items-center gap-2 rounded-full bg-brand-foreground/10 py-1 pr-3 pl-1 text-sm font-semibold">
+            <span className="flex size-7 items-center justify-center rounded-full bg-accent-gold text-xs font-bold text-accent-gold-foreground">
+              {user.name.charAt(0)}
+            </span>
+            {user.name}
           </span>
-          {user.name}
-        </span>
+        </div>
       </div>
 
       <div className="mx-auto w-full max-w-xl space-y-4">
@@ -307,39 +308,40 @@ export function DismantlingWorkspace({ user }: { user: User }) {
             <h3 className="text-xl font-bold">Find Vehicle</h3>
             <p className="mt-1 text-sm text-muted-foreground">Scan or search to load a vehicle.</p>
 
-            <div className="mt-4 grid grid-cols-2 gap-3">
+            <div className="mt-4 grid grid-cols-3 gap-2">
               <button
                 onClick={() => simulateScan("vin")}
-                className="flex flex-col items-center gap-2 rounded-xl border border-primary/25 bg-primary/8 py-6 text-primary transition-colors hover:bg-primary/15"
+                className="flex flex-col items-center gap-1.5 rounded-lg border border-primary/25 bg-primary/8 py-4 text-primary transition-colors hover:bg-primary/15"
               >
-                <ScanLine className="size-8" />
-                <span className="text-sm font-bold">Scan VIN</span>
+                <ScanLine className="size-6" />
+                <span className="text-xs font-bold sm:text-sm">Scan VIN</span>
               </button>
               <button
                 onClick={() => simulateScan("lot")}
-                className="flex flex-col items-center gap-2 rounded-xl border border-primary/25 bg-primary/8 py-6 text-primary transition-colors hover:bg-primary/15"
+                className="flex flex-col items-center gap-1.5 rounded-lg border border-primary/25 bg-primary/8 py-4 text-primary transition-colors hover:bg-primary/15"
               >
-                <Barcode className="size-8" />
-                <span className="text-sm font-bold">Scan Lot #</span>
+                <Barcode className="size-6" />
+                <span className="text-xs font-bold sm:text-sm">Scan Lot #</span>
               </button>
               <button
                 onClick={() => simulateScan("stock")}
-                className="flex flex-col items-center gap-2 rounded-xl border border-primary/25 bg-primary/8 py-6 text-primary transition-colors hover:bg-primary/15"
+                className="flex flex-col items-center gap-1.5 rounded-lg border border-primary/25 bg-primary/8 py-4 text-primary transition-colors hover:bg-primary/15"
               >
-                <Barcode className="size-8" />
-                <span className="text-sm font-bold">Scan Stock #</span>
-              </button>
-              <button
-                onClick={() => manualInputRef.current?.focus()}
-                className="flex flex-col items-center gap-2 rounded-xl border border-border bg-muted/40 py-6 text-foreground transition-colors hover:bg-muted"
-              >
-                <CarFront className="size-8" />
-                <span className="text-sm font-bold">Enter Manually</span>
+                <Barcode className="size-6" />
+                <span className="text-xs font-bold sm:text-sm">Scan Stock #</span>
               </button>
             </div>
 
             <div className="mt-5 space-y-1.5">
-              <Label htmlFor="manual-search">VIN / Lot # / Stock #</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="manual-search">VIN / Lot # / Stock #</Label>
+                <button
+                  onClick={() => manualInputRef.current?.focus()}
+                  className="flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+                >
+                  <CarFront className="size-3.5" /> Or Enter Manually
+                </button>
+              </div>
               <Input
                 id="manual-search"
                 ref={manualInputRef}
@@ -399,7 +401,10 @@ export function DismantlingWorkspace({ user }: { user: User }) {
             <div className="mt-4 rounded-lg bg-muted/40 p-3 text-left">
               <Field label="Vehicle" value={`${foundVehicle.year} ${foundVehicle.make} ${foundVehicle.model}`} />
               <Field label="VIN" value={foundVehicle.vin} />
-              <Field label="Status" value="Dismantled" />
+              <Field
+                label="Status"
+                value={<span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-bold text-muted-foreground">Dismantled</span>}
+              />
             </div>
             <PrimaryButton className="mt-4" onClick={resetToFind}>
               <ScanLine className="size-5" /> Scan Next Vehicle
@@ -436,23 +441,20 @@ export function DismantlingWorkspace({ user }: { user: User }) {
           <div className="rounded-xl border border-success/30 bg-card p-5 shadow-xs">
             <div className="flex items-center gap-2 text-success">
               <CircleCheck className="size-6" />
-              <h3 className="text-xl font-bold">VEHICLE FOUND</h3>
+              <h3 className="text-xl font-bold">Vehicle Confirmed</h3>
             </div>
-            <div className="mt-3 flex items-center gap-3 rounded-lg bg-success/8 p-3">
-              <span className="flex size-14 shrink-0 items-center justify-center rounded-lg bg-success/15 text-success">
-                <CarFront className="size-7" />
-              </span>
-              <div className="min-w-0">
-                <b className="block truncate text-base">
-                  {foundVehicle.year} {foundVehicle.make} {foundVehicle.model}
-                </b>
-                <small className="block truncate text-xs text-muted-foreground">{foundVehicle.vin}</small>
-              </div>
+
+            <div className="mt-3 flex aspect-[4/3] w-full items-center justify-center rounded-xl bg-success/10 text-success">
+              <CarFront className="size-20" />
             </div>
-            <div className="mt-3 rounded-lg bg-muted/40 p-3">
-              <Field label="Stock / Lot #" value={foundVehicle.stockNumber || foundVehicle.lotNumber || "—"} />
-              <Field label="Yard Status" value={foundVehicle.status} />
-              <Field label="Location" value={foundVehicle.location || "LAL Motors Yard"} />
+
+            <div className="mt-3 space-y-0.5">
+              <b className="block text-lg">
+                {foundVehicle.year} {foundVehicle.make} {foundVehicle.model}
+              </b>
+              <p className="text-sm text-muted-foreground">VIN: {foundVehicle.vin}</p>
+              <p className="text-sm text-muted-foreground">Stock #: {foundVehicle.stockNumber || foundVehicle.lotNumber || "—"}</p>
+              <p className="text-sm text-muted-foreground">Location: {foundVehicle.location || "LAL Motors Yard"}</p>
             </div>
 
             {!vehiclePhotoTaken ? (
@@ -461,13 +463,14 @@ export function DismantlingWorkspace({ user }: { user: User }) {
                 <input type="file" accept="image/*" capture="environment" className="hidden" onChange={() => setVehiclePhotoTaken(true)} />
               </label>
             ) : (
-              <div className="mt-4 flex items-center gap-2 rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm font-semibold text-success">
-                <CheckCircle2 className="size-4" /> Vehicle photo captured
-              </div>
+              <label className="mt-4 flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-border text-sm font-semibold text-muted-foreground hover:bg-muted/50">
+                <Camera className="size-4" /> Retake Vehicle Photo
+                <input type="file" accept="image/*" capture="environment" className="hidden" onChange={() => setVehiclePhotoTaken(true)} />
+              </label>
             )}
 
             <PrimaryButton className="mt-3" disabled={!vehiclePhotoTaken} onClick={startDismantling}>
-              <CircleCheck className="size-5" /> Confirm Vehicle / Start
+              Start Taking Part Photos
             </PrimaryButton>
             <Button variant="ghost" className="mt-2 w-full text-muted-foreground" onClick={resetToFind}>
               Not the right vehicle? Scan again
@@ -490,11 +493,15 @@ export function DismantlingWorkspace({ user }: { user: User }) {
               <h3 className="text-lg font-bold">Take Part Photos</h3>
               <p className="mt-0.5 text-sm text-muted-foreground">Photograph every useful part. No labeling needed.</p>
 
-              <label className="mt-4 flex h-40 w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-lg bg-muted text-muted-foreground transition-colors hover:bg-muted/70">
+              <label className="relative mt-4 flex aspect-[4/3] w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-xl bg-muted text-muted-foreground transition-colors hover:bg-muted/70">
                 <input type="file" accept="image/*" capture="environment" className="hidden" onChange={addPartPhoto} />
-                <Camera className="size-10" />
-                <span className="text-sm font-bold">Tap to Take Photo</span>
-                <span className="text-xs">Photo {partPhotos.length + 1}</span>
+                {partPhotos.length > 0 && (
+                  <span className="absolute top-2.5 left-2.5 rounded-full bg-brand px-2.5 py-1 text-xs font-bold text-brand-foreground shadow-sm">
+                    {partPhotos.length} photo{partPhotos.length === 1 ? "" : "s"} saved
+                  </span>
+                )}
+                {partPhotos.length > 0 ? <Wrench className="size-14 opacity-60" /> : <Camera className="size-12" />}
+                <span className="text-sm font-bold">{partPhotos.length > 0 ? "Taking Photos..." : "Tap to Take Photo"}</span>
               </label>
 
               {partPhotos.length > 0 && (
@@ -512,13 +519,13 @@ export function DismantlingWorkspace({ user }: { user: User }) {
                       </button>
                     </div>
                   ))}
+                  <label className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-0.5 rounded-md border border-dashed border-primary/40 bg-primary/5 text-primary hover:bg-primary/10">
+                    <input type="file" accept="image/*" capture="environment" className="hidden" onChange={addPartPhoto} />
+                    <Plus className="size-4" />
+                    <span className="text-[10px] font-bold">Add More</span>
+                  </label>
                 </div>
               )}
-
-              <label className="mt-3 flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-md border border-dashed border-border px-3 py-2 text-sm font-medium text-primary hover:bg-primary/5">
-                <input type="file" accept="image/*" capture="environment" className="hidden" onChange={addPartPhoto} />
-                <Camera className="size-4" /> Add More Photos
-              </label>
             </div>
 
             <Button variant="outline" className="h-12 w-full text-destructive" onClick={() => setIssueOpen(true)}>
@@ -534,8 +541,10 @@ export function DismantlingWorkspace({ user }: { user: User }) {
         {/* STEP 5: PROCESSING */}
         {phase === "processing" && (
           <div className="rounded-xl border border-border bg-card p-6 text-center shadow-xs">
-            <Loader2 className="mx-auto size-12 animate-spin text-primary" />
-            <h3 className="mt-3 text-lg font-bold">PROCESSING PHOTOS...</h3>
+            <span className="mx-auto flex size-16 animate-pulse items-center justify-center rounded-full bg-brand text-brand-foreground">
+              <span className="text-xl font-extrabold tracking-tight">AI</span>
+            </span>
+            <h3 className="mt-3 text-lg font-bold">Processing Photos...</h3>
             <div className="mt-4 space-y-2 text-left">
               {processingChecklist.map((item, i) => (
                 <div key={item} className={`flex items-center gap-2 text-sm ${i < checklistStep ? "text-foreground" : "text-muted-foreground/50"}`}>
@@ -544,6 +553,13 @@ export function DismantlingWorkspace({ user }: { user: User }) {
                 </div>
               ))}
             </div>
+            <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-success transition-all duration-500"
+                style={{ width: `${(checklistStep / processingChecklist.length) * 100}%` }}
+              />
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">Please wait...</p>
           </div>
         )}
 
@@ -572,14 +588,21 @@ export function DismantlingWorkspace({ user }: { user: User }) {
             <span className="mx-auto flex size-16 items-center justify-center rounded-full bg-success text-success-foreground">
               <CheckCircle2 className="size-8" />
             </span>
-            <h3 className="mt-3 text-xl font-bold text-success">VEHICLE COMPLETED</h3>
+            <h3 className="mt-3 text-xl font-bold text-success">Vehicle Completed!</h3>
+            <p className="mt-0.5 text-sm text-muted-foreground">All photos saved and processed.</p>
             <div className="mt-4 rounded-lg bg-muted/40 p-3 text-left">
+              <p className="mb-1.5 text-[11px] font-bold tracking-[0.1em] text-muted-foreground uppercase">Summary</p>
               <Field label="Vehicle" value={`${completedSummary.vehicle.year} ${completedSummary.vehicle.make} ${completedSummary.vehicle.model}`} />
               <Field label="VIN" value={completedSummary.vehicle.vin} />
               <Field label="Photos Saved" value={completedSummary.photosSaved} />
               <Field label="Parts Processed" value={completedSummary.partsProcessed} />
               <Field label="Needs Review" value={completedSummary.needsReview} />
-              <Field label="Status" value="Dismantled" />
+              <Field
+                label="Status"
+                value={
+                  <span className="rounded-full bg-success/15 px-2.5 py-0.5 text-xs font-bold text-success">Dismantled</span>
+                }
+              />
             </div>
             <PrimaryButton className="mt-4" onClick={resetToFind}>
               <ScanLine className="size-5" /> Scan Next Vehicle
