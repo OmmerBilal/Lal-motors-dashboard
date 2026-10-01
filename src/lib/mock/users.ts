@@ -9,6 +9,11 @@ export const mockUsers: User[] = [
   { id: "u-yard", name: "Tyler Brooks", email: "tyler@lalmotors.com", role: "yard" },
   { id: "u-receiving", name: "John Smith", email: "john@lalmotors.com", role: "receiving" },
   { id: "u-dismantling", name: "Mike Torres", email: "mike@lalmotors.com", role: "dismantling" },
+  { id: "u-dismantling-2", name: "John Alvarez", email: "john.alvarez@lalmotors.com", role: "dismantling" },
+  { id: "u-dismantling-3", name: "Jonathan Pierce", email: "jonathan.pierce@lalmotors.com", role: "dismantling" },
+  { id: "u-dismantling-4", name: "Ali Hassan", email: "ali.hassan@lalmotors.com", role: "dismantling" },
+  { id: "u-dismantling-5", name: "Mahmood Siddiqui", email: "mahmood.siddiqui@lalmotors.com", role: "dismantling" },
+  { id: "u-dismantling-6", name: "Carlos Reyes", email: "carlos.reyes@lalmotors.com", role: "dismantling" },
   { id: "u-driver", name: "Renee Holt", email: "renee@lalmotors.com", role: "scrap_driver" },
 ];
 

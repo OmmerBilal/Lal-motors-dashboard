@@ -2,6 +2,7 @@ import {
   Boxes,
   CarFront,
   Camera,
+  ClipboardCheck,
   ClipboardList,
   History,
   ScanLine,
@@ -30,6 +31,12 @@ export function getPrimaryNav(role: Role): NavItem[] {
         { id: "auction-intake", label: "Auction Vehicle Inventory", href: "/preview/auction", icon: CarFront },
         { id: "vehicle-receiving", label: "Vehicle Receiving & Arrival", href: "/preview/vehicle-receiving", icon: ScanLine },
         { id: "dismantling", label: "Dismantling Employee", href: "/preview/dismantling", icon: Wrench },
+        {
+          id: "dismantling-processing",
+          label: "Vehicle Dismantling Processing",
+          href: "/dismantling-processing",
+          icon: ClipboardCheck,
+        },
         { id: "preview-yard", label: "Yard Employee Workspace", href: "/preview/yard", icon: CarFront },
         { id: "preview-front", label: "Front Desk Manager Portal", href: "/preview/front-desk", icon: ClipboardList },
         { id: "preview-warehouse", label: "Warehouse Employee App", href: "/preview/warehouse", icon: Camera },
@@ -50,6 +57,12 @@ export function getPrimaryNav(role: Role): NavItem[] {
         { id: "central-dispatch", label: "Central Dispatch", href: "/central-dispatch", icon: Truck },
         { id: "vehicle-receiving", label: "Vehicle Receiving & Arrival", href: "/vehicle-receiving", icon: ScanLine },
         { id: "dismantling", label: "Dismantling", href: "/dismantling", icon: Wrench },
+        {
+          id: "dismantling-processing",
+          label: "Vehicle Dismantling Processing",
+          href: "/dismantling-processing",
+          icon: ClipboardCheck,
+        },
         { id: "ai-command-center", label: "AI Command Center", href: "/ai-command-center", icon: Sparkles },
         { id: "parts", label: "Parts Inventory", href: "/parts", icon: ClipboardList },
         { id: "operations", label: "Parts Operations", href: "/operations", icon: Boxes },
@@ -60,6 +73,12 @@ export function getPrimaryNav(role: Role): NavItem[] {
       ];
     case "manager":
       return [
+        {
+          id: "dismantling-processing",
+          label: "Vehicle Dismantling Processing",
+          href: "/dismantling-processing",
+          icon: ClipboardCheck,
+        },
         { id: "vehicle-workspace", label: "Vehicle Operations", href: "/vehicles", icon: CarFront },
         { id: "central-dispatch", label: "Central Dispatch", href: "/central-dispatch", icon: Truck },
         { id: "parts", label: "Pending Parts & Inventory", href: "/parts", icon: ClipboardList },
@@ -101,6 +120,12 @@ export const ownerPreviews: { id: string; label: string; href: string; role: Rol
   { id: "auction-intake", label: "Auction Vehicle Inventory", href: "/preview/auction", role: "auction" },
   { id: "vehicle-receiving", label: "Vehicle Receiving Employee", href: "/preview/vehicle-receiving", role: "receiving" },
   { id: "dismantling", label: "Dismantling Employee", href: "/preview/dismantling", role: "dismantling" },
+  {
+    id: "dismantling-processing",
+    label: "Vehicle Dismantling Processing",
+    href: "/preview/dismantling-processing",
+    role: "manager",
+  },
   { id: "preview-yard", label: "Yard Employee Workspace", href: "/preview/yard", role: "yard" },
   { id: "preview-front", label: "Front Desk Manager Portal", href: "/preview/front-desk", role: "manager" },
   { id: "preview-warehouse", label: "Warehouse Employee App", href: "/preview/warehouse", role: "employee" },

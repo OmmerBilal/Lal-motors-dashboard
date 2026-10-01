@@ -4,6 +4,8 @@
  * Arrival — all three modules read/write the same VehicleRecord via VehicleDataProvider
  * instead of keeping their own disconnected mock datasets.
  */
+import { dismantlingSeedVehicles, dismantlingSeedEvents } from "@/lib/mock/dismantling-processing";
+
 export type TransportStatus =
   | "NEED_TRANSPORT"
   | "READY_TO_POST"
@@ -156,7 +158,7 @@ function daysAgo(n: number) {
   return new Date(Date.now() - n * 86400000).toISOString();
 }
 
-export const vehicles: VehicleRecord[] = [
+const baseVehicles: VehicleRecord[] = [
   {
     id: "veh-1001",
     auctionSource: "Copart",
@@ -535,6 +537,8 @@ export const vehicles: VehicleRecord[] = [
   },
 ];
 
+export const vehicles: VehicleRecord[] = [...baseVehicles, ...dismantlingSeedVehicles];
+
 // --- Shared carrier directory (used by Central Dispatch, referenced by VehicleRecord.carrierId) ---
 
 export type Carrier = {
@@ -692,7 +696,12 @@ export type VehicleEventAction =
   | "COMPLETION_APPROVED"
   | "COMPLETION_CREDIT"
   | "DISPOSITION"
-  | "ISSUE_FLAGGED";
+  | "ISSUE_FLAGGED"
+  | "REVIEW_APPROVED"
+  | "REVIEW_EDITED_APPROVED"
+  | "REVIEW_MARKED_DUPLICATE"
+  | "REVIEW_REJECTED"
+  | "REVIEW_KEPT_FOR_LATER";
 
 export type VehicleEvent = {
   id: string;
@@ -711,7 +720,7 @@ export type VehicleEvent = {
   partId?: string;
 };
 
-export const vehicleEvents: VehicleEvent[] = [
+const baseVehicleEvents: VehicleEvent[] = [
   {
     id: "evt-1",
     vehicleId: "veh-1001",
@@ -803,6 +812,8 @@ export const vehicleEvents: VehicleEvent[] = [
     note: "Vehicle finished, ready for review",
   },
 ];
+
+export const vehicleEvents: VehicleEvent[] = [...baseVehicleEvents, ...dismantlingSeedEvents];
 
 export type CompletionSubmission = {
   submissionId: string;

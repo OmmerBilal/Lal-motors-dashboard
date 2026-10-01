@@ -16,7 +16,7 @@ function useHeaderTitle() {
   const { user } = useSession();
   const pathname = usePathname();
   if (pathname.startsWith("/preview/")) {
-    const preview = ownerPreviews.find((p) => pathname.startsWith(p.href));
+    const preview = ownerPreviews.find((p) => pathname === p.href || pathname.startsWith(`${p.href}/`));
     return preview?.label ?? "LAL Motors";
   }
   const nav = getPrimaryNav(user.role);
