@@ -4,6 +4,7 @@ import {
   Camera,
   ClipboardList,
   History,
+  ScanLine,
   ShoppingCart,
   Sparkles,
   Truck,
@@ -25,7 +26,8 @@ export function getPrimaryNav(role: Role): NavItem[] {
       return [
         { id: "vehicle-workspace", label: "Owner Vehicle Dashboard", href: "/dashboard", icon: CarFront },
         { id: "central-dispatch", label: "Central Dispatch", href: "/central-dispatch", icon: Truck },
-        { id: "auction-intake", label: "Auction Vehicle Employee", href: "/preview/auction", icon: CarFront },
+        { id: "auction-intake", label: "Auction Vehicle Inventory", href: "/preview/auction", icon: CarFront },
+        { id: "vehicle-receiving", label: "Vehicle Receiving & Arrival", href: "/preview/vehicle-receiving", icon: ScanLine },
         { id: "preview-yard", label: "Yard Employee Workspace", href: "/preview/yard", icon: CarFront },
         { id: "preview-front", label: "Front Desk Manager Portal", href: "/preview/front-desk", icon: ClipboardList },
         { id: "preview-warehouse", label: "Warehouse Employee App", href: "/preview/warehouse", icon: Camera },
@@ -44,6 +46,7 @@ export function getPrimaryNav(role: Role): NavItem[] {
       return [
         { id: "vehicle-workspace", label: "Vehicle Operations", href: "/vehicles", icon: CarFront },
         { id: "central-dispatch", label: "Central Dispatch", href: "/central-dispatch", icon: Truck },
+        { id: "vehicle-receiving", label: "Vehicle Receiving & Arrival", href: "/vehicle-receiving", icon: ScanLine },
         { id: "ai-command-center", label: "AI Command Center", href: "/ai-command-center", icon: Sparkles },
         { id: "parts", label: "Parts Inventory", href: "/parts", icon: ClipboardList },
         { id: "operations", label: "Parts Operations", href: "/operations", icon: Boxes },
@@ -74,6 +77,10 @@ export function getPrimaryNav(role: Role): NavItem[] {
         { id: "central-dispatch", label: "Central Dispatch", href: "/central-dispatch", icon: Truck },
         ...(role === "auction" ? [{ id: "scrap", label: "Scrap Loads", href: "/scrap", icon: Truck }] : []),
       ];
+    case "receiving":
+      return [
+        { id: "vehicle-receiving", label: "Vehicle Receiving & Arrival", href: "/vehicle-receiving", icon: ScanLine },
+      ];
     case "scrap_driver":
       return [{ id: "scrap", label: "My Scrap Loads", href: "/scrap", icon: Truck }];
     case "employee":
@@ -86,7 +93,8 @@ export function getPrimaryNav(role: Role): NavItem[] {
 }
 
 export const ownerPreviews: { id: string; label: string; href: string; role: Role }[] = [
-  { id: "auction-intake", label: "Auction Vehicle Employee", href: "/preview/auction", role: "auction" },
+  { id: "auction-intake", label: "Auction Vehicle Inventory", href: "/preview/auction", role: "auction" },
+  { id: "vehicle-receiving", label: "Vehicle Receiving Employee", href: "/preview/vehicle-receiving", role: "receiving" },
   { id: "preview-yard", label: "Yard Employee Workspace", href: "/preview/yard", role: "yard" },
   { id: "preview-front", label: "Front Desk Manager Portal", href: "/preview/front-desk", role: "manager" },
   { id: "preview-warehouse", label: "Warehouse Employee App", href: "/preview/warehouse", role: "employee" },

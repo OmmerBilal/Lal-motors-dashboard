@@ -42,7 +42,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <SidebarNav onNavigate={() => setMobileOpen(false)} />
         </SheetContent>
       </Sheet>
-      <div className="flex min-h-screen flex-1 flex-col md:ml-[272px]">
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col md:ml-[272px]">
         <header className="sticky top-0 z-20 flex h-[72px] items-center gap-4 border-b border-border bg-background px-4 sm:px-6">
           <Button
             variant="ghost"
@@ -78,7 +78,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </Button>
           </div>
         )}
-        <main className="flex-1 px-4 py-6 sm:px-6">{children}</main>
+        <main className="min-w-0 flex-1 px-4 py-6 sm:px-6">{children}</main>
       </div>
     </div>
   );

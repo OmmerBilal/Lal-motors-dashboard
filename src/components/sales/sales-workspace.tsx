@@ -70,7 +70,7 @@ function WorkspaceBody({ user, initialCustomerId }: { user: User; initialCustome
         ))}
       </div>
 
-      {view === "desk" && <PosDeskView key={deskCustomerId ?? "desk"} initialCustomerId={deskCustomerId} />}
+      {view === "desk" && <PosDeskView key={deskCustomerId ?? "desk"} user={user} initialCustomerId={deskCustomerId} />}
 
       {view === "customers" && (
         <CustomersView

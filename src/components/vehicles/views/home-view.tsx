@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Camera, CarFront, FileSearch, Plus, Search } from "lucide-react";
+import { Camera, CarFront, FileSearch, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -11,14 +11,8 @@ import type { User } from "@/lib/types";
 import { computeStats, statMetricLabels, vehicleTitle } from "@/lib/mock/vehicles";
 import { useVehicleData } from "@/components/vehicles/vehicle-data-context";
 import { EmployeeActivityPanel } from "@/components/vehicles/employee-activity-panel";
+import { AuctionInventoryHome } from "@/components/vehicles/views/auction-inventory-home";
 import type { IntakeMethod } from "@/components/vehicles/vehicle-workspace";
-
-const intakeMethods: { id: IntakeMethod; label: string; description: string }[] = [
-  { id: "bulk", label: "Bulk Paste", description: "Paste multiple vehicles" },
-  { id: "single", label: "Single Vehicle Paste", description: "Paste one vehicle" },
-  { id: "scan", label: "AI Photo / Screenshot Scan", description: "Upload or take a picture" },
-  { id: "manual", label: "Manual Entry", description: "Enter without AI" },
-];
 
 const activityMetricEventType: Record<string, string> = {
   partsRemoved: "parts",
@@ -98,21 +92,9 @@ export function HomeView({
 
   return (
     <div className="space-y-6">
-      {canIntake && (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {intakeMethods.map((m) => (
-            <button
-              key={m.id}
-              onClick={() => onStartIntake(m.id)}
-              className="flex flex-col items-start gap-2 rounded-lg border border-border bg-card p-4 text-left transition-colors hover:border-primary/40 hover:bg-accent/30"
-            >
-              <Plus className="size-5 text-primary" />
-              <span className="text-sm font-semibold">{m.label}</span>
-              <span className="text-xs text-muted-foreground">{m.description}</span>
-            </button>
-          ))}
-        </div>
-      )}
+      {canIntake && <AuctionInventoryHome onOpenVehicle={onOpenVehicle} onStartIntake={onStartIntake} />}
+
+      {canIntake && <div className="border-t border-border pt-1" />}
 
       {isYard && (
         <button

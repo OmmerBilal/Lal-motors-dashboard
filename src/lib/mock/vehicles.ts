@@ -1,3 +1,20 @@
+/**
+ * One VIN = one master vehicle record. This type is the single shared shape used by
+ * Auction Vehicle Inventory, Central Dispatch / Transportation, and Vehicle Receiving &
+ * Arrival — all three modules read/write the same VehicleRecord via VehicleDataProvider
+ * instead of keeping their own disconnected mock datasets.
+ */
+export type TransportStatus =
+  | "NEED_TRANSPORT"
+  | "READY_TO_POST"
+  | "POSTED_TO_CD"
+  | "ASSIGNED"
+  | "IN_TRANSIT"
+  | "ARRIVED"
+  | "PROBLEM";
+
+export type ClosedReason = "Scrapped" | "Sold Complete" | "Exported" | "Other";
+
 export type VehicleRecord = {
   id: string;
   auctionSource: string;
@@ -31,6 +48,25 @@ export type VehicleRecord = {
   arrivalDate: string | null;
   createdAt: string;
   unverifiedFields: string[];
+
+  // --- Transportation / Central Dispatch (shared master-record fields) ---
+  pickupLocationName: string;
+  pickupAddress: string;
+  transportStatus: TransportStatus;
+  transportPrice: string;
+  carrierId: string | null;
+  carrierName: string | null;
+  transportProblem: string | null;
+
+  // --- Auction Inventory lifecycle ---
+  closedReason: ClosedReason | null;
+  closedNote: string | null;
+
+  // --- Vehicle Receiving & Arrival ---
+  receivingStatus: "not_received" | "received";
+  receivedBy: string | null;
+  receivedAt: string | null;
+  arrivalPhotos: { id: string; label: string; takenAt: string }[];
 };
 
 export const vehicleFieldOrder = [
@@ -153,6 +189,19 @@ export const vehicles: VehicleRecord[] = [
     arrivalDate: daysAgo(41).slice(0, 10),
     createdAt: daysAgo(46),
     unverifiedFields: [],
+    pickupLocationName: "Copart - Atlanta, GA",
+    pickupAddress: "3850 Highway 41 S, Atlanta, GA 30349",
+    transportStatus: "ARRIVED",
+    transportPrice: "375",
+    carrierId: "car-1",
+    carrierName: "Southeast Auto Transport",
+    transportProblem: null,
+    closedReason: null,
+    closedNote: null,
+    receivingStatus: "received",
+    receivedBy: "Tyler Brooks",
+    receivedAt: daysAgo(41).slice(0, 10),
+    arrivalPhotos: [],
   },
   {
     id: "veh-1002",
@@ -187,6 +236,19 @@ export const vehicles: VehicleRecord[] = [
     arrivalDate: null,
     createdAt: daysAgo(12),
     unverifiedFields: ["pickupPin"],
+    pickupLocationName: "IAA - Orlando, FL",
+    pickupAddress: "5900 Cargo Rd, Orlando, FL 32824",
+    transportStatus: "ASSIGNED",
+    transportPrice: "410",
+    carrierId: "car-2",
+    carrierName: "Interstate Carriers LLC",
+    transportProblem: null,
+    closedReason: null,
+    closedNote: null,
+    receivingStatus: "not_received",
+    receivedBy: null,
+    receivedAt: null,
+    arrivalPhotos: [],
   },
   {
     id: "veh-1003",
@@ -221,6 +283,19 @@ export const vehicles: VehicleRecord[] = [
     arrivalDate: null,
     createdAt: daysAgo(3),
     unverifiedFields: [],
+    pickupLocationName: "Copart - Savannah, GA",
+    pickupAddress: "410 Cargo Loop, Savannah, GA 31408",
+    transportStatus: "IN_TRANSIT",
+    transportPrice: "300",
+    carrierId: "car-2",
+    carrierName: "Interstate Carriers LLC",
+    transportProblem: null,
+    closedReason: null,
+    closedNote: null,
+    receivingStatus: "not_received",
+    receivedBy: null,
+    receivedAt: null,
+    arrivalPhotos: [],
   },
   {
     id: "veh-1004",
@@ -255,6 +330,19 @@ export const vehicles: VehicleRecord[] = [
     arrivalDate: daysAgo(50).slice(0, 10),
     createdAt: daysAgo(60),
     unverifiedFields: [],
+    pickupLocationName: "Copart - Jacksonville, FL",
+    pickupAddress: "9700 Pritchard Rd, Jacksonville, FL 32219",
+    transportStatus: "ARRIVED",
+    transportPrice: "395",
+    carrierId: null,
+    carrierName: "Self Pickup",
+    transportProblem: null,
+    closedReason: null,
+    closedNote: null,
+    receivingStatus: "received",
+    receivedBy: "Tyler Brooks",
+    receivedAt: daysAgo(50).slice(0, 10),
+    arrivalPhotos: [],
   },
   {
     id: "veh-1005",
@@ -289,6 +377,19 @@ export const vehicles: VehicleRecord[] = [
     arrivalDate: null,
     createdAt: daysAgo(1),
     unverifiedFields: ["vin", "lotNumber", "mileage", "invoiceAmount", "balanceDue", "auctionFees"],
+    pickupLocationName: "Manheim - Atlanta, GA",
+    pickupAddress: "6789 Jonesboro Rd, Atlanta, GA 30315",
+    transportStatus: "NEED_TRANSPORT",
+    transportPrice: "",
+    carrierId: null,
+    carrierName: null,
+    transportProblem: null,
+    closedReason: null,
+    closedNote: null,
+    receivingStatus: "not_received",
+    receivedBy: null,
+    receivedAt: null,
+    arrivalPhotos: [],
   },
   {
     id: "veh-1006",
@@ -323,6 +424,19 @@ export const vehicles: VehicleRecord[] = [
     arrivalDate: daysAgo(81).slice(0, 10),
     createdAt: daysAgo(90),
     unverifiedFields: [],
+    pickupLocationName: "Copart - Tampa, FL",
+    pickupAddress: "5220 Orient Rd, Tampa, FL 33578",
+    transportStatus: "ARRIVED",
+    transportPrice: "460",
+    carrierId: "car-1",
+    carrierName: "Southeast Auto Transport",
+    transportProblem: null,
+    closedReason: null,
+    closedNote: null,
+    receivingStatus: "received",
+    receivedBy: "Tyler Brooks",
+    receivedAt: daysAgo(81).slice(0, 10),
+    arrivalPhotos: [],
   },
   {
     id: "veh-1007",
@@ -357,6 +471,19 @@ export const vehicles: VehicleRecord[] = [
     arrivalDate: daysAgo(20).slice(0, 10),
     createdAt: daysAgo(28),
     unverifiedFields: [],
+    pickupLocationName: "IAA - Jacksonville, FL",
+    pickupAddress: "11985 New Kings Rd, Jacksonville, FL 32254",
+    transportStatus: "ARRIVED",
+    transportPrice: "340",
+    carrierId: null,
+    carrierName: "A1 Transport",
+    transportProblem: null,
+    closedReason: null,
+    closedNote: null,
+    receivingStatus: "received",
+    receivedBy: "Tyler Brooks",
+    receivedAt: daysAgo(20).slice(0, 10),
+    arrivalPhotos: [],
   },
   {
     id: "veh-1008",
@@ -391,8 +518,167 @@ export const vehicles: VehicleRecord[] = [
     arrivalDate: daysAgo(44).slice(0, 10),
     createdAt: daysAgo(52),
     unverifiedFields: [],
+    pickupLocationName: "Copart - Atlanta, GA",
+    pickupAddress: "3850 Highway 41 S, Atlanta, GA 30349",
+    transportStatus: "ARRIVED",
+    transportPrice: "320",
+    carrierId: "car-1",
+    carrierName: "Southeast Auto Transport",
+    transportProblem: null,
+    closedReason: null,
+    closedNote: null,
+    receivingStatus: "received",
+    receivedBy: "Tyler Brooks",
+    receivedAt: daysAgo(44).slice(0, 10),
+    arrivalPhotos: [],
   },
 ];
+
+// --- Shared carrier directory (used by Central Dispatch, referenced by VehicleRecord.carrierId) ---
+
+export type Carrier = {
+  id: string;
+  company: string;
+  driver: string;
+  phone: string;
+  email: string;
+  address: string;
+  mcDot: string;
+  notes: string;
+  active: boolean;
+};
+
+export const carriers: Carrier[] = [
+  {
+    id: "car-1",
+    company: "Southeast Auto Transport",
+    driver: "Mike Alvarez",
+    phone: "(904) 555-0142",
+    email: "dispatch@setransport.com",
+    address: "1220 Freight Rd, Jacksonville, FL",
+    mcDot: "MC-882140",
+    notes: "Reliable, prefers morning pickups.",
+    active: true,
+  },
+  {
+    id: "car-2",
+    company: "Interstate Carriers LLC",
+    driver: "Dana Price",
+    phone: "(912) 555-0199",
+    email: "",
+    address: "",
+    mcDot: "MC-441098",
+    notes: "",
+    active: true,
+  },
+];
+
+// --- Transportation / Central Dispatch helpers ---
+
+export const transportStatusLabels: Record<TransportStatus, string> = {
+  NEED_TRANSPORT: "Need Transport",
+  READY_TO_POST: "Ready to Post",
+  POSTED_TO_CD: "Posted to Central Dispatch",
+  ASSIGNED: "Assigned to Carrier",
+  IN_TRANSIT: "In Transit",
+  ARRIVED: "Arrived",
+  PROBLEM: "Problem",
+};
+
+export const transportStatusTone: Record<TransportStatus, "neutral" | "info" | "success" | "warning" | "danger" | "brand"> = {
+  NEED_TRANSPORT: "neutral",
+  READY_TO_POST: "info",
+  POSTED_TO_CD: "info",
+  ASSIGNED: "brand",
+  IN_TRANSIT: "warning",
+  ARRIVED: "success",
+  PROBLEM: "danger",
+};
+
+export const closedReasonOptions: ClosedReason[] = ["Scrapped", "Sold Complete", "Exported", "Other"];
+
+export const transportProblemReasons = [
+  "Carrier canceled",
+  "Carrier did not pick up",
+  "Pickup refused",
+  "Wrong PIN",
+  "Invalid PIN",
+  "Vehicle not ready",
+  "Vehicle cannot be located",
+  "Other transportation problem",
+];
+
+/** Days since purchase/sale — used for both the Auction "Overdue 10+ Days" card and Dispatch's Days column. */
+export function computeTransportDays(v: VehicleRecord) {
+  return Math.max(0, Math.floor((Date.now() - new Date(v.saleDate || v.createdAt).getTime()) / 86400000));
+}
+
+export function isTransportOverdue(v: VehicleRecord) {
+  return (
+    v.transportStatus !== "ARRIVED" &&
+    v.transportStatus !== "PROBLEM" &&
+    !v.closedReason &&
+    computeTransportDays(v) >= 10
+  );
+}
+
+export function computeAuctionInventoryStats(list: VehicleRecord[]) {
+  const open = list.filter((v) => !v.closedReason);
+  return {
+    total: list.length,
+    waitingArrival: open.filter((v) => v.transportStatus !== "ARRIVED" && !isTransportOverdue(v)).length,
+    inTransit: open.filter((v) => v.transportStatus === "IN_TRANSIT").length,
+    availableInYard: open.filter((v) => v.transportStatus === "ARRIVED").length,
+    overdue: open.filter(isTransportOverdue).length,
+    closed: list.filter((v) => v.closedReason).length,
+  };
+}
+
+export function computeDispatchStats(list: VehicleRecord[]) {
+  const open = list.filter((v) => !v.closedReason);
+  return {
+    needTransport: open.filter((v) => v.transportStatus === "NEED_TRANSPORT").length,
+    postedToCd: open.filter((v) => v.transportStatus === "POSTED_TO_CD").length,
+    assigned: open.filter((v) => v.transportStatus === "ASSIGNED").length,
+    inTransit: open.filter((v) => v.transportStatus === "IN_TRANSIT").length,
+    arrived: open.filter((v) => v.transportStatus === "ARRIVED").length,
+    overdue: open.filter(isTransportOverdue).length,
+    problems: open.filter((v) => v.transportStatus === "PROBLEM").length,
+  };
+}
+
+export type PickupGroup = { name: string; address: string; vehicles: VehicleRecord[] };
+
+export function groupByPickupLocation(list: VehicleRecord[]): PickupGroup[] {
+  const map = new Map<string, PickupGroup>();
+  for (const v of list) {
+    const key = v.pickupLocationName || "Unknown Location";
+    if (!map.has(key)) map.set(key, { name: key, address: v.pickupAddress, vehicles: [] });
+    map.get(key)!.vehicles.push(v);
+  }
+  return [...map.values()].sort((a, b) => b.vehicles.length - a.vehicles.length);
+}
+
+export type AuctionStage = "waiting" | "transit" | "available" | "overdue" | "closed";
+
+/** Simplified yard-facing stage for the Auction Inventory status cards/table (distinct from the more granular Central Dispatch transportStatus). */
+export function auctionStageInfo(v: VehicleRecord): {
+  stage: AuctionStage;
+  label: string;
+  tone: "neutral" | "info" | "success" | "warning" | "danger" | "brand";
+} {
+  if (v.closedReason) return { stage: "closed", label: "Closed / Removed", tone: "neutral" };
+  if (isTransportOverdue(v)) return { stage: "overdue", label: "Overdue", tone: "danger" };
+  if (v.transportStatus === "IN_TRANSIT") return { stage: "transit", label: "In Transit", tone: "info" };
+  if (v.transportStatus === "ARRIVED") return { stage: "available", label: "Available", tone: "success" };
+  return { stage: "waiting", label: "Waiting Arrival", tone: "warning" };
+}
+
+/** Copart uses the Lot #, IAA uses the Stock # for the combined transportation table column. */
+export function lotOrStockDisplay(v: VehicleRecord) {
+  const isCopart = v.auctionSource?.toLowerCase().includes("copart");
+  return isCopart ? v.lotNumber || "—" : v.stockNumber || v.lotNumber || "—";
+}
 
 export type VehicleEventAction =
   | "STATUS"

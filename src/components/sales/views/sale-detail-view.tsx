@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { StatusBadge } from "@/components/patterns/status-badge";
 import { ItemsTable, TotalsBlock } from "@/components/sales/shared";
 import { useSalesData } from "@/components/sales/sales-data-context";
+import { InvoicePrint, type PrintSaleData } from "@/components/sales/pos/print/print-document";
 import { itemTotals, saleBalance, usd, type PaymentMethod } from "@/lib/mock/sales";
 
 export function SaleDetailView({ saleId, manager, onBack }: { saleId: string; manager: boolean; onBack: () => void }) {
@@ -17,12 +18,36 @@ export function SaleDetailView({ saleId, manager, onBack }: { saleId: string; ma
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState<PaymentMethod>("CASH");
   const [reference, setReference] = useState("");
+  const [printing, setPrinting] = useState(false);
 
   if (!sale) return null;
   const customer = getCustomer(sale.customerId);
   const totals = itemTotals(sale.items, sale.discount, sale.taxRate);
   const salePayments = payments.filter((p) => p.saleId === sale.id);
   const { balanceDue, paymentStatus } = saleBalance(sale, payments);
+
+  function printInvoice() {
+    setPrinting(true);
+    requestAnimationFrame(() => requestAnimationFrame(() => window.print()));
+  }
+
+  const printData: PrintSaleData = {
+    saleNumber: sale.saleNumber,
+    invoiceNumber: sale.invoiceNumber,
+    date: sale.createdAt,
+    employeeName: "LAL Motors Staff",
+    customer: customer || null,
+    items: sale.items,
+    discount: sale.discount,
+    coreCharge: sale.coreCharge || 0,
+    depositApplied: sale.depositApplied || 0,
+    taxRate: sale.taxRate,
+    notes: sale.notes || "",
+    method: salePayments[0]?.method || "CASH",
+    amountPaid: salePayments.reduce((s, p) => s + p.amount, 0) + (sale.depositApplied || 0),
+    businessName: settings.businessName,
+    taxLabel: settings.taxLabel,
+  };
 
   function confirmPayment() {
     const value = Number(amount);
@@ -50,7 +75,7 @@ export function SaleDetailView({ saleId, manager, onBack }: { saleId: string; ma
               {customer?.companyName || `${customer?.firstName} ${customer?.lastName}`} · <StatusBadge>{paymentStatus}</StatusBadge>
             </p>
           </div>
-          <Button variant="outline" size="sm" className="print:hidden" onClick={() => window.print()}>
+          <Button variant="outline" size="sm" onClick={printInvoice}>
             <Printer /> Print
           </Button>
         </div>
@@ -105,6 +130,8 @@ export function SaleDetailView({ saleId, manager, onBack }: { saleId: string; ma
           </div>
         )}
       </div>
+
+      {printing && <InvoicePrint data={printData} />}
     </div>
   );
 }

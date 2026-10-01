@@ -5,7 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { User } from "@/lib/types";
 import { vehicleTitle } from "@/lib/mock/vehicles";
-import { VehicleDataProvider, useVehicleData } from "@/components/vehicles/vehicle-data-context";
+import { useVehicleData } from "@/components/vehicles/vehicle-data-context";
 import { HomeView } from "@/components/vehicles/views/home-view";
 import { IntakeView } from "@/components/vehicles/views/intake-view";
 import { ReviewView } from "@/components/vehicles/views/review-view";
@@ -77,13 +77,15 @@ function WorkspaceBody({ user, initialVehicleId }: { user: User; initialVehicleI
                   ? "Completed Vehicles"
                   : "Add Purchased Vehicles";
 
+  const showGenericHeader = !isOwnerHome && !(view === "home" && canIntake);
+
   return (
     <div>
-      {!isOwnerHome && (
+      {showGenericHeader && (
         <div className="mb-5 flex items-center justify-between gap-3">
           <div>
             <p className="text-xs font-semibold tracking-[0.12em] text-muted-foreground uppercase">
-              {isYard ? "Yard Vehicle Work" : "Auction Vehicle Intake"}
+              {isYard ? "Yard Vehicle Work" : "Auction Vehicle Inventory"}
             </p>
             <h2 className="mt-1 text-xl font-semibold">{heading}</h2>
           </div>
@@ -181,9 +183,5 @@ function WorkspaceBody({ user, initialVehicleId }: { user: User; initialVehicleI
 }
 
 export function VehicleWorkspace({ user, initialVehicleId }: { user: User; initialVehicleId?: string | null }) {
-  return (
-    <VehicleDataProvider>
-      <WorkspaceBody user={user} initialVehicleId={initialVehicleId} />
-    </VehicleDataProvider>
-  );
+  return <WorkspaceBody user={user} initialVehicleId={initialVehicleId} />;
 }

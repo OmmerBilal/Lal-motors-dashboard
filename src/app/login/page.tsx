@@ -94,7 +94,7 @@ export default function LoginPage() {
                 key={u.id}
                 type="button"
                 onClick={() => signInAs(u.id)}
-                className="flex items-center justify-between rounded-md px-2.5 py-2 text-left text-sm hover:bg-muted"
+                className="flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 rounded-md px-2.5 py-2 text-left text-sm hover:bg-muted"
               >
                 <span className="font-medium">{u.name}</span>
                 <span className="text-xs text-muted-foreground">{roleLabels[u.role]}</span>

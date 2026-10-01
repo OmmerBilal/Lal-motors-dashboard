@@ -17,7 +17,9 @@ import {
 import { StatusBadge } from "@/components/patterns/status-badge";
 import type { User } from "@/lib/types";
 import {
+  auctionStageInfo,
   cash,
+  transportStatusLabels,
   vehicleFieldLabels,
   vehicleFieldOrder,
   vehicleStatusOptions,
@@ -140,6 +142,47 @@ export function DetailView({ user, vehicle }: { user: User; vehicle: VehicleReco
                 Unverified: {vehicle.unverifiedFields.map((k) => vehicleFieldLabels[k] || k).join(", ")}
               </p>
             )}
+            <div className="mt-4 rounded-md border border-border bg-muted/30 p-3">
+              <p className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                Transportation &amp; Arrival
+              </p>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs sm:grid-cols-4">
+                <span className="text-muted-foreground">Pickup location</span>
+                <span className="col-span-1 font-medium sm:col-span-3">{vehicle.pickupLocationName || "—"}</span>
+                <span className="text-muted-foreground">Transport status</span>
+                <span className="font-medium">
+                  <StatusBadge tone={auctionStageInfo(vehicle).tone}>{transportStatusLabels[vehicle.transportStatus]}</StatusBadge>
+                </span>
+                <span className="text-muted-foreground">Carrier</span>
+                <span className="font-medium">{vehicle.carrierName || "Not Assigned"}</span>
+                <span className="text-muted-foreground">Transport price</span>
+                <span className="font-medium">{vehicle.transportPrice ? cash(vehicle.transportPrice) : "—"}</span>
+                <span className="text-muted-foreground">Received by</span>
+                <span className="font-medium">{vehicle.receivedBy || "—"}</span>
+                {vehicle.transportProblem && (
+                  <>
+                    <span className="text-destructive">Problem</span>
+                    <span className="col-span-1 font-medium text-destructive sm:col-span-3">{vehicle.transportProblem}</span>
+                  </>
+                )}
+              </div>
+              <p className="mt-3 mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                Documents &amp; Photos
+              </p>
+              {vehicle.arrivalPhotos.length ? (
+                <div className="grid grid-cols-4 gap-2">
+                  {vehicle.arrivalPhotos.map((p) => (
+                    <div key={p.id} className="flex aspect-square flex-col items-center justify-center gap-1 rounded-md border border-border bg-background text-muted-foreground">
+                      <Camera className="size-4" />
+                      <span className="text-[9px]">{p.label}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">No arrival photos linked yet.</p>
+              )}
+            </div>
+
             <Button variant="outline" size="sm" className="mt-4" onClick={() => setEditing(!editing)}>
               {editing ? "Close editing" : "Edit vehicle information"}
             </Button>

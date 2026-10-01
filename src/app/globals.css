@@ -189,3 +189,40 @@
 .sidebar-scroll::-webkit-scrollbar-thumb:hover {
   background-color: var(--sidebar-scrollbar-thumb-hover);
 }
+
+/*
+ * Print isolation: the app shell (sidebar/header/other cards) must never print.
+ * `.print-area` is invisible and out of flow on screen, and becomes the only
+ * visible content when printing — everything else is hidden via `visibility`
+ * (not `display`) so no extra blank pages are introduced.
+ */
+.print-area {
+  display: none;
+}
+@media print {
+  @page {
+    margin: 12mm;
+  }
+  body * {
+    visibility: hidden;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+  .print-area {
+    display: block !important;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    background: #fff;
+    color: #111;
+  }
+  .print-area table {
+    page-break-inside: auto;
+  }
+  .print-area tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+}

@@ -7,6 +7,7 @@ import {
   completionQueue as seedCompletionQueue,
   yardCorrections as seedCorrections,
   intakeBatches as seedBatches,
+  carriers as seedCarriers,
   type VehicleRecord,
   type VehicleEvent,
   type VehicleEventAction,
@@ -14,6 +15,9 @@ import {
   type YardCorrection,
   type IntakeBatch,
   type IntakeDraft,
+  type Carrier,
+  type TransportStatus,
+  type ClosedReason,
 } from "@/lib/mock/vehicles";
 import { mockUsers } from "@/lib/mock/users";
 
@@ -24,6 +28,7 @@ type VehicleDataValue = {
   completionQueue: CompletionSubmission[];
   corrections: YardCorrection[];
   staff: { id: string; name: string; role: string }[];
+  carriers: Carrier[];
   getVehicle: (id: string) => VehicleRecord | undefined;
   vehicleEvents: (id: string) => VehicleEvent[];
   updateVehicle: (id: string, patch: Partial<VehicleRecord>) => void;
@@ -33,6 +38,16 @@ type VehicleDataValue = {
   ) => void;
   addBatch: (method: IntakeBatch["method"], count: number) => string;
   decideCompletion: (submissionId: string, decision: "approve" | "correction", reason?: string) => void;
+  closeVehicle: (id: string, reason: ClosedReason, note?: string) => void;
+  addCarrier: (carrier: Omit<Carrier, "id" | "active">) => string;
+  postToCentralDispatch: (ids: string[]) => void;
+  assignCarrier: (ids: string[], carrierId: string, prices?: Record<string, string>) => void;
+  setTransportStatus: (id: string, status: TransportStatus) => void;
+  reportTransportProblem: (id: string, reason: string, note?: string) => void;
+  receiveVehicle: (
+    id: string,
+    input: { receivedBy: string; photos?: { id: string; label: string; takenAt: string }[] }
+  ) => void;
 };
 
 const VehicleDataContext = createContext<VehicleDataValue | null>(null);
@@ -43,6 +58,7 @@ export function VehicleDataProvider({ children }: { children: React.ReactNode })
   const [batches, setBatches] = useState<IntakeBatch[]>(seedBatches);
   const [completionQueue, setCompletionQueue] = useState<CompletionSubmission[]>(seedCompletionQueue);
   const [corrections, setCorrections] = useState<YardCorrection[]>(seedCorrections);
+  const [carriers, setCarriers] = useState<Carrier[]>(seedCarriers);
 
   const getVehicle = useCallback((id: string) => vehicles.find((v) => v.id === id), [vehicles]);
   const vehicleEventsFor = useCallback(
@@ -94,6 +110,19 @@ export function VehicleDataProvider({ children }: { children: React.ReactNode })
           arrivalDate: null,
           createdAt: new Date().toISOString(),
           unverifiedFields: unverified,
+          pickupLocationName: [draft.auctionSource, draft.location].filter(Boolean).join(" - ") || "Pending",
+          pickupAddress: "",
+          transportStatus: "NEED_TRANSPORT",
+          transportPrice: "",
+          carrierId: null,
+          carrierName: null,
+          transportProblem: null,
+          closedReason: null,
+          closedNote: null,
+          receivingStatus: "not_received",
+          receivedBy: null,
+          receivedAt: null,
+          arrivalPhotos: [],
         } satisfies VehicleRecord;
       });
       return [...created, ...xs];
@@ -168,6 +197,78 @@ export function VehicleDataProvider({ children }: { children: React.ReactNode })
     [completionQueue, updateVehicle]
   );
 
+  const closeVehicle = useCallback((id: string, reason: ClosedReason, note?: string) => {
+    updateVehicle(id, { closedReason: reason, closedNote: note || null });
+  }, [updateVehicle]);
+
+  const addCarrier = useCallback((carrier: Omit<Carrier, "id" | "active">) => {
+    const id = `car-${Date.now()}`;
+    setCarriers((xs) => [...xs, { ...carrier, id, active: true }]);
+    return id;
+  }, []);
+
+  const postToCentralDispatch = useCallback((ids: string[]) => {
+    setVehicles((xs) => xs.map((v) => (ids.includes(v.id) ? { ...v, transportStatus: "POSTED_TO_CD" } : v)));
+  }, []);
+
+  const assignCarrier = useCallback(
+    (ids: string[], carrierId: string, prices?: Record<string, string>) => {
+      const carrier = carriers.find((c) => c.id === carrierId);
+      setVehicles((xs) =>
+        xs.map((v) =>
+          ids.includes(v.id)
+            ? {
+                ...v,
+                transportStatus: "ASSIGNED",
+                carrierId,
+                carrierName: carrier?.company || v.carrierName,
+                transportPrice: prices?.[v.id] ?? v.transportPrice,
+              }
+            : v
+        )
+      );
+    },
+    [carriers]
+  );
+
+  const setTransportStatus = useCallback((id: string, status: TransportStatus) => {
+    setVehicles((xs) =>
+      xs.map((v) =>
+        v.id === id
+          ? {
+              ...v,
+              transportStatus: status,
+              transportProblem: status === "PROBLEM" ? v.transportProblem : null,
+            }
+          : v
+      )
+    );
+  }, []);
+
+  const reportTransportProblem = useCallback((id: string, reason: string, note?: string) => {
+    setVehicles((xs) =>
+      xs.map((v) =>
+        v.id === id ? { ...v, transportStatus: "PROBLEM", transportProblem: note ? `${reason} — ${note}` : reason } : v
+      )
+    );
+  }, []);
+
+  const receiveVehicle = useCallback(
+    (id: string, input: { receivedBy: string; photos?: { id: string; label: string; takenAt: string }[] }) => {
+      const now = new Date().toISOString();
+      updateVehicle(id, {
+        transportStatus: "ARRIVED",
+        status: "Available at Yard",
+        arrivalDate: now.slice(0, 10),
+        receivingStatus: "received",
+        receivedBy: input.receivedBy,
+        receivedAt: now,
+        arrivalPhotos: input.photos || [],
+      });
+    },
+    [updateVehicle]
+  );
+
   const staff = useMemo(
     () => mockUsers.filter((u) => !["scrap_driver"].includes(u.role)).map((u) => ({ id: u.id, name: u.name, role: u.role })),
     []
@@ -180,6 +281,7 @@ export function VehicleDataProvider({ children }: { children: React.ReactNode })
     completionQueue,
     corrections,
     staff,
+    carriers,
     getVehicle,
     vehicleEvents: vehicleEventsFor,
     updateVehicle,
@@ -187,6 +289,13 @@ export function VehicleDataProvider({ children }: { children: React.ReactNode })
     recordEvent,
     addBatch,
     decideCompletion,
+    closeVehicle,
+    addCarrier,
+    postToCentralDispatch,
+    assignCarrier,
+    setTransportStatus,
+    reportTransportProblem,
+    receiveVehicle,
   };
 
   return <VehicleDataContext.Provider value={value}>{children}</VehicleDataContext.Provider>;

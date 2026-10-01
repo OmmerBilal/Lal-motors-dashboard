@@ -14,12 +14,14 @@ import { LowerInfoArea } from "@/components/sales/pos/lower-info-area";
 import { AdvancedActionsBar } from "@/components/sales/pos/advanced-actions-bar";
 import { ReturnsPanel } from "@/components/sales/pos/returns-panel";
 import { useSalesData } from "@/components/sales/sales-data-context";
+import { ReceiptPrint, InvoicePrint, type PrintSaleData } from "@/components/sales/pos/print/print-document";
 import type { Customer, PaymentMethod, SaleItem } from "@/lib/mock/sales";
 import type { PartSearchResult } from "@/lib/mock/pos";
 import { computePosTotals } from "@/lib/mock/pos";
+import type { User } from "@/lib/types";
 
-export function PosDeskView({ initialCustomerId }: { initialCustomerId?: string | null }) {
-  const { customers, settings, createQuote, quotes, completePosSale, recordPayment } = useSalesData();
+export function PosDeskView({ user, initialCustomerId }: { user: User; initialCustomerId?: string | null }) {
+  const { customers, settings, createQuote, quotes, sales, payments, completePosSale, recordPayment, getCustomer } = useSalesData();
 
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
     () => customers.find((c) => c.id === initialCustomerId) ?? null
@@ -42,6 +44,9 @@ export function PosDeskView({ initialCustomerId }: { initialCustomerId?: string 
   const [method, setMethod] = useState<PaymentMethod>("CASH");
   const [tendered, setTendered] = useState("");
   const [completedSaleId, setCompletedSaleId] = useState<string | null>(null);
+  const [paidAmount, setPaidAmount] = useState(0);
+  const [printMode, setPrintMode] = useState<"receipt" | "invoice" | null>(null);
+  const [overridePrintData, setOverridePrintData] = useState<PrintSaleData | null>(null);
 
   const effectiveTaxExempt = taxExempt || selectedCustomer?.taxStatus === "exempt";
   const taxRate = effectiveTaxExempt ? 0 : settings.taxRate;
@@ -93,6 +98,7 @@ export function PosDeskView({ initialCustomerId }: { initialCustomerId?: string 
     setMethod("CASH");
     setTendered("");
     setCompletedSaleId(null);
+    setPaidAmount(0);
   }
 
   function clearSale() {
@@ -142,8 +148,62 @@ export function PosDeskView({ initialCustomerId }: { initialCustomerId?: string 
     const paid = method === "CASH" ? Math.min(tenderedNum, totals.balanceDue) : totals.balanceDue;
     if (paid > 0) recordPayment(saleId, paid, method, "", notes);
     setCompletedSaleId(saleId);
+    setPaidAmount(paid);
     toast.success("Sale completed (demo record — no real payment captured)");
   }
+
+  function printDocument(mode: "receipt" | "invoice") {
+    setOverridePrintData(null);
+    setPrintMode(mode);
+    requestAnimationFrame(() => requestAnimationFrame(() => window.print()));
+  }
+
+  function printLastInvoice() {
+    const last = [...sales].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))[0];
+    if (!last) {
+      toast.error("No finalized sales yet.");
+      return;
+    }
+    const paid = payments.filter((p) => p.saleId === last.id).reduce((s, p) => s + p.amount, 0) + (last.depositApplied || 0);
+    setOverridePrintData({
+      saleNumber: last.saleNumber,
+      invoiceNumber: last.invoiceNumber,
+      date: last.createdAt,
+      employeeName: user.name,
+      customer: getCustomer(last.customerId) || null,
+      items: last.items,
+      discount: last.discount,
+      coreCharge: last.coreCharge || 0,
+      depositApplied: last.depositApplied || 0,
+      taxRate: last.taxRate,
+      notes: last.notes || "",
+      method: "CASH",
+      amountPaid: paid,
+      businessName: settings.businessName,
+      taxLabel: settings.taxLabel,
+    });
+    setPrintMode("invoice");
+    requestAnimationFrame(() => requestAnimationFrame(() => window.print()));
+  }
+
+  const completedSale = completedSaleId ? sales.find((s) => s.id === completedSaleId) : undefined;
+  const printData: PrintSaleData = overridePrintData || {
+    saleNumber: completedSale?.saleNumber || "—",
+    invoiceNumber: completedSale?.invoiceNumber || "—",
+    date: completedSale?.createdAt || new Date().toISOString(),
+    employeeName: user.name,
+    customer: selectedCustomer,
+    items,
+    discount,
+    coreCharge,
+    depositApplied,
+    taxRate,
+    notes,
+    method,
+    amountPaid: paidAmount,
+    businessName: settings.businessName,
+    taxLabel: settings.taxLabel,
+  };
 
   const draftQuotes = quotes.filter((q) => q.status === "DRAFT" || q.status === "SENT");
 
@@ -208,6 +268,8 @@ export function PosDeskView({ initialCustomerId }: { initialCustomerId?: string 
         onCompleteSale={completeSale}
         onNewSale={resetTransaction}
         canComplete={canComplete}
+        onPrintReceipt={() => printDocument("receipt")}
+        onPrintInvoice={() => printDocument("invoice")}
       />
 
       <LowerInfoArea selected={selectedPart} />
@@ -219,6 +281,7 @@ export function PosDeskView({ initialCustomerId }: { initialCustomerId?: string 
         onToggleOverridePrice={() => setOverridePrice((v) => !v)}
         onVoidSale={voidSale}
         onViewHistory={() => (selectedCustomer ? setHistoryOpen(true) : toast.error("Select a customer first."))}
+        onPrintLastInvoice={printLastInvoice}
       />
 
       <CustomerModal
@@ -282,6 +345,9 @@ export function PosDeskView({ initialCustomerId }: { initialCustomerId?: string 
           </div>
         </DialogContent>
       </Dialog>
+
+      {printMode === "receipt" && <ReceiptPrint data={printData} />}
+      {printMode === "invoice" && <InvoicePrint data={printData} />}
     </div>
   );
 }

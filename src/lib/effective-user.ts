@@ -5,12 +5,13 @@ import { useSession } from "@/lib/session";
 import type { Role, User } from "@/lib/types";
 
 const previewSectionRole: Record<string, { role: Role; label: string }> = {
-  auction: { role: "auction", label: "Auction Vehicle Employee" },
+  auction: { role: "auction", label: "Auction Vehicle Inventory" },
   yard: { role: "yard", label: "Yard Employee Workspace" },
   "front-desk": { role: "manager", label: "Front Desk Manager Portal" },
   warehouse: { role: "employee", label: "Warehouse Employee App" },
   loading: { role: "employee", label: "Container Loading Employee" },
   "scrap-driver": { role: "scrap_driver", label: "Scrap Driver App" },
+  "vehicle-receiving": { role: "receiving", label: "Vehicle Receiving Employee" },
 };
 
 export function useEffectiveUser(): {

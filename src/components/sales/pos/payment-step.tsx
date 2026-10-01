@@ -27,6 +27,8 @@ export function PaymentStep({
   onCompleteSale,
   onNewSale,
   canComplete,
+  onPrintReceipt,
+  onPrintInvoice,
 }: {
   balanceDue: number;
   method: PaymentMethod;
@@ -37,6 +39,8 @@ export function PaymentStep({
   onCompleteSale: () => void;
   onNewSale: () => void;
   canComplete: boolean;
+  onPrintReceipt: () => void;
+  onPrintInvoice: () => void;
 }) {
   const tenderedNum = Number(tendered) || 0;
   const changeDue = method === "CASH" ? Math.max(0, tenderedNum - balanceDue) : 0;
@@ -66,10 +70,10 @@ export function PaymentStep({
           <Button variant="outline" onClick={() => mockAction("Text receipt")}>
             <MessageSquare className="size-3.5" /> Text Receipt
           </Button>
-          <Button variant="outline" onClick={() => window.print()}>
+          <Button variant="outline" onClick={onPrintReceipt}>
             <Printer className="size-3.5" /> Print Small Receipt
           </Button>
-          <Button variant="outline" onClick={() => window.print()}>
+          <Button variant="outline" onClick={onPrintInvoice}>
             <Printer className="size-3.5" /> Print Full Invoice
           </Button>
         </div>

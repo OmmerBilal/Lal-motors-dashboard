@@ -24,6 +24,7 @@ export function AdvancedActionsBar({
   onToggleOverridePrice,
   onVoidSale,
   onViewHistory,
+  onPrintLastInvoice,
 }: {
   taxExempt: boolean;
   onToggleTaxExempt: () => void;
@@ -31,6 +32,7 @@ export function AdvancedActionsBar({
   onToggleOverridePrice: () => void;
   onVoidSale: () => void;
   onViewHistory: () => void;
+  onPrintLastInvoice: () => void;
 }) {
   function mock(label: string) {
     toast.info(`${label} — mocked for this UI-only phase`);
@@ -49,7 +51,7 @@ export function AdvancedActionsBar({
       <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={onViewHistory}>
         <History className="size-3.5" /> Customer History
       </Button>
-      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => window.print()}>
+      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={onPrintLastInvoice}>
         <Printer className="size-3.5" /> Print Last Invoice
       </Button>
 
