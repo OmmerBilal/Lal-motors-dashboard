@@ -13,6 +13,9 @@ const roleLandingRoute: Partial<Record<Role, string>> = {
   owner: "/dashboard",
   receiving: "/vehicle-receiving",
   dismantling: "/dismantling",
+  scrap_driver: "/scrap",
+  container_loading: "/containers",
+  export_manager: "/containers",
 };
 
 export default function LoginPage() {

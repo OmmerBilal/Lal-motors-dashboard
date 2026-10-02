@@ -1,124 +1,202 @@
-import { usd } from "@/lib/mock/sales";
-import type { ContainerJob, ExportInvoice, ExportLine } from "@/lib/mock/containers";
+"use client";
 
+import { useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { usd } from "@/lib/mock/sales";
+import { invoiceTotal, paymentsTotal, derivePaymentStatus, type Consignee, type ContainerJob, type ExportInvoice, type ExportPayment } from "@/lib/mock/containers";
+
+/** Real printable commercial-invoice document — not a screenshot of app UI. Wrapped in
+ * `.print-area` (see globals.css `@media print`), the same isolation pattern used by
+ * `components/sales/pos/print/print-document.tsx`, so printing shows ONLY this document —
+ * no sidebar, header or app chrome. Handles long invoices by letting the rows table paginate
+ * naturally (`page-break-inside: avoid` per row from the shared print CSS) while the totals
+ * block stays with the last rows via `break-inside: avoid`. */
 export function InvoicePrint({
   invoice,
   job,
-  items,
-  preview = false,
+  consignee,
+  payments,
+  onClose,
 }: {
   invoice: ExportInvoice;
   job: ContainerJob;
-  items: ExportLine[];
-  preview?: boolean;
+  consignee: Consignee | undefined;
+  payments: ExportPayment[];
+  onClose: () => void;
 }) {
-  const groups = new Map<string, ExportLine[]>();
-  for (const item of items) {
-    const category = (item.category || "Cargo items").trim() || "Cargo items";
-    groups.set(category, [...(groups.get(category) || []), item]);
-  }
+  useEffect(() => {
+    const id = requestAnimationFrame(() => requestAnimationFrame(() => window.print()));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  useEffect(() => {
+    function afterPrint() {
+      onClose();
+    }
+    window.addEventListener("afterprint", afterPrint);
+    return () => window.removeEventListener("afterprint", afterPrint);
+  }, [onClose]);
+
+  const total = invoiceTotal(invoice.items);
+  const paid = paymentsTotal(payments);
+  const balance = total - paid;
+  const status = derivePaymentStatus(total, paid, payments);
+  const buyer = invoice.consigneeSnapshot || consignee;
   const date = invoice.finalizedAt || invoice.createdAt;
-  const total = items.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0);
 
   return (
-    <article
-      aria-label="Printable export commercial invoice"
-      className={`mx-auto mt-6 max-w-3xl space-y-6 rounded-lg border border-border bg-white p-8 text-sm text-black ${preview ? "" : "hidden print:block"}`}
-    >
-      <div className="flex items-center justify-between border-b border-black/20 pb-3">
-        <strong>LAL MOTORS INC.</strong>
-        <span className="text-xs font-semibold tracking-widest">EXPORT INVOICE</span>
-      </div>
-      <div>
-        <h1 className="text-xl font-bold">EXPORT COMMERCIAL INVOICE</h1>
-        <p className="text-xs text-neutral-600">CONTAINER {job.containerNumber}</p>
-      </div>
-      <div className="grid grid-cols-3 gap-4 text-xs">
-        <div>
-          <b className="block">INVOICE NUMBER</b>
-          <span>{invoice.invoiceNumber}</span>
-        </div>
-        <div>
-          <b className="block">INVOICE DATE</b>
-          <span>{date ? new Date(date).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : "—"}</span>
-        </div>
-        <div>
-          <b className="block">CONTAINER / REFERENCE</b>
-          <span>{job.containerNumber}</span>
+    <>
+      <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-black/40 p-6 print:hidden">
+        <div className="w-full max-w-3xl rounded-lg bg-white p-4 text-black shadow-xl">
+          <div className="mb-3 flex justify-end gap-2">
+            <Button size="sm" onClick={() => window.print()}>
+              Print
+            </Button>
+            <Button size="sm" variant="outline" onClick={onClose}>
+              Close
+            </Button>
+          </div>
+          <InvoiceDocument invoice={invoice} job={job} buyer={buyer} total={total} paid={paid} balance={balance} status={status} date={date} />
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-4 text-xs">
+      <div className="print-area hidden print:block">
+        <InvoiceDocument invoice={invoice} job={job} buyer={buyer} total={total} paid={paid} balance={balance} status={status} date={date} />
+      </div>
+    </>
+  );
+}
+
+function InvoiceDocument({
+  invoice,
+  job,
+  buyer,
+  total,
+  paid,
+  balance,
+  status,
+  date,
+}: {
+  invoice: ExportInvoice;
+  job: ContainerJob;
+  buyer: Consignee | undefined;
+  total: number;
+  paid: number;
+  balance: number;
+  status: string;
+  date: string;
+}) {
+  return (
+    <article aria-label="Commercial invoice" className="mx-auto max-w-[800px] p-6 text-sm text-black">
+      <div className="flex items-start justify-between border-b-2 border-black pb-4">
         <div>
-          <b className="block">EXPORTER / SELLER</b>
-          <p>LAL Motors Inc.</p>
+          <h1 className="text-2xl font-bold">LAL MOTORS INC.</h1>
+          <p className="text-sm">Used Auto Parts Export · Global Parts. Reliable Supply.</p>
         </div>
-        <div>
-          <b className="block">CONSIGNEE / BUYER</b>
-          <p>{invoice.consignee || "To be confirmed"}</p>
+        <div className="text-right">
+          <p className="text-lg font-bold">COMMERCIAL INVOICE</p>
+          <p className="text-xs">{invoice.status.toUpperCase()}</p>
         </div>
       </div>
-      {[...groups].map(([category, lines]) => (
-        <section key={category}>
-          <h2 className="mb-1.5 text-xs font-bold tracking-wide">{category.toUpperCase()}</h2>
-          <table className="w-full border-collapse text-xs">
-            <thead>
-              <tr className="border-b border-black/30 text-left">
-                <th className="py-1">#</th>
-                <th className="py-1">DESCRIPTION</th>
-                <th className="py-1">QTY</th>
-                <th className="py-1">CONDITION / NOTES</th>
-                <th className="py-1">UNIT USD</th>
-                <th className="py-1">AMOUNT USD</th>
-              </tr>
-            </thead>
-            <tbody>
-              {lines.map((line, index) => (
-                <tr key={index} className="border-b border-black/10">
-                  <td className="py-1">{index + 1}</td>
-                  <td className="py-1">{line.description}</td>
-                  <td className="py-1">{line.quantity}</td>
-                  <td className="py-1">{line.condition || ""}</td>
-                  <td className="py-1">{usd(line.unitPrice)}</td>
-                  <td className="py-1">{usd(Number(line.quantity) * Number(line.unitPrice))}</td>
-                </tr>
-              ))}
-              <tr className="font-semibold">
-                <td className="py-1" colSpan={2}>
-                  {category.toUpperCase()} SUBTOTAL
-                </td>
-                <td className="py-1">{lines.reduce((n, l) => n + Number(l.quantity), 0)}</td>
-                <td colSpan={2}></td>
-                <td className="py-1">{usd(lines.reduce((n, l) => n + Number(l.quantity) * Number(l.unitPrice), 0))}</td>
-              </tr>
-            </tbody>
-          </table>
-        </section>
-      ))}
-      <div className="ml-auto max-w-xs space-y-1 text-sm">
-        {[...groups].map(([category, lines]) => (
-          <p key={category} className="flex justify-between">
-            <span>{category}</span>
-            <b>{usd(lines.reduce((n, l) => n + Number(l.quantity) * Number(l.unitPrice), 0))}</b>
-          </p>
-        ))}
-        <p className="flex justify-between border-t border-black/30 pt-1 text-base">
-          <strong>TOTAL INVOICE VALUE (USD)</strong>
-          <strong>{usd(total)}</strong>
-        </p>
+
+      <div className="mt-4 grid grid-cols-4 gap-3 text-xs">
+        <div>
+          <b className="block text-neutral-500">INVOICE #</b>
+          {invoice.invoiceNumber}
+        </div>
+        <div>
+          <b className="block text-neutral-500">INVOICE DATE</b>
+          {date ? new Date(date).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : "—"}
+        </div>
+        <div>
+          <b className="block text-neutral-500">T REFERENCE</b>
+          {job.tRef}
+        </div>
+        <div>
+          <b className="block text-neutral-500">CONTAINER #</b>
+          {job.containerNumber}
+        </div>
       </div>
-      <section className="border-t border-black/20 pt-3 text-xs">
-        <h2 className="mb-1 font-bold">SHIPPING &amp; APPROVAL</h2>
-        <p>
-          Destination port: <strong>{job.destinationPort || "____________________"}</strong> &nbsp; Country:{" "}
-          <strong>{job.destinationCountry || "____________________"}</strong> &nbsp; Currency: <strong>{invoice.currency || "USD"}</strong>
-        </p>
-        <p>Freight / payment terms: ____________________ &nbsp; Country of origin: ____________________</p>
-        <p>Prepared by: ____________________ &nbsp; Approved by: ____________________ &nbsp; Date: ____________________</p>
-        {invoice.notes && <p>Notes: {invoice.notes}</p>}
-      </section>
-      <footer className="flex justify-between border-t border-black/20 pt-2 text-xs text-neutral-500">
-        <span>LAL MOTORS | EXPORT INVOICE</span>
-        <span>Invoice {invoice.invoiceNumber}</span>
+
+      <div className="mt-4 grid grid-cols-2 gap-6 text-xs">
+        <div>
+          <b className="block text-neutral-500">SELLER / EXPORTER</b>
+          <p className="mt-0.5">LAL Motors Inc.</p>
+          <p>Jacksonville, FL, USA</p>
+        </div>
+        <div>
+          <b className="block text-neutral-500">CONSIGNEE / BUYER</b>
+          {buyer ? (
+            <>
+              <p className="mt-0.5">{buyer.company}</p>
+              {buyer.contact && <p>{buyer.contact}</p>}
+              {buyer.address && <p>{buyer.address}</p>}
+              <p>
+                {[buyer.city, buyer.stateProvince, buyer.country].filter(Boolean).join(", ")}
+              </p>
+              {buyer.phone && <p>{buyer.phone}</p>}
+            </>
+          ) : (
+            <p className="mt-0.5">To be confirmed</p>
+          )}
+        </div>
+      </div>
+
+      <table className="mt-6 w-full border-collapse text-xs">
+        <thead>
+          <tr className="border-b-2 border-black text-left">
+            <th className="py-1.5">#</th>
+            <th className="py-1.5">DESCRIPTION</th>
+            <th className="py-1.5 text-right">QTY</th>
+            <th className="py-1.5 text-right">UNIT PRICE</th>
+            <th className="py-1.5 text-right">LINE TOTAL</th>
+          </tr>
+        </thead>
+        <tbody>
+          {invoice.items.map((it, i) => (
+            <tr key={it.id} className="border-b border-black/15" style={{ breakInside: "avoid" }}>
+              <td className="py-1">{i + 1}</td>
+              <td className="py-1">
+                {it.description}
+                {it.condition && <span className="text-neutral-500"> — {it.condition}</span>}
+              </td>
+              <td className="py-1 text-right">{it.quantity}</td>
+              <td className="py-1 text-right">{usd(it.unitPrice)}</td>
+              <td className="py-1 text-right">{usd(it.quantity * it.unitPrice)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <div className="mt-4 flex justify-end" style={{ breakInside: "avoid" }}>
+        <div className="w-72 space-y-1 text-sm">
+          <div className="flex justify-between border-t border-black pt-1 text-base font-bold">
+            <span>Invoice Total ({invoice.currency})</span>
+            <span>{usd(total)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Payments Received</span>
+            <span>{usd(paid)}</span>
+          </div>
+          <div className="flex justify-between font-bold">
+            <span>Balance Due</span>
+            <span>{usd(balance)}</span>
+          </div>
+          <div className="mt-1 text-right text-xs font-semibold uppercase">{status}</div>
+        </div>
+      </div>
+
+      {invoice.notes && (
+        <div className="mt-6 border-t border-black/20 pt-3 text-xs" style={{ breakInside: "avoid" }}>
+          <b>Notes</b>
+          <p>{invoice.notes}</p>
+        </div>
+      )}
+
+      <footer className="mt-8 flex justify-between border-t border-black/20 pt-2 text-xs text-neutral-500" style={{ breakInside: "avoid" }}>
+        <span>LAL MOTORS INC. · COMMERCIAL INVOICE</span>
+        <span>
+          {invoice.invoiceNumber} · {job.tRef}
+        </span>
       </footer>
     </article>
   );

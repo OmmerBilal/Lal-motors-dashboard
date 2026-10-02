@@ -84,9 +84,12 @@ export function getPrimaryNav(role: Role): NavItem[] {
         { id: "parts", label: "Pending Parts & Inventory", href: "/parts", icon: ClipboardList },
         { id: "operations", label: "Parts Operations", href: "/operations", icon: Boxes },
         { id: "sales", label: "Customers & Sales", href: "/sales", icon: ShoppingCart },
-        { id: "containers", label: "Containers & Export", href: "/containers", icon: Boxes },
-        { id: "scrap", label: "Scrap Loads", href: "/scrap", icon: Truck },
+        { id: "scrap", label: "Scrap Module", href: "/scrap", icon: Truck },
       ];
+    case "export_manager":
+      return [{ id: "containers", label: "Containers & Export", href: "/containers", icon: Boxes }];
+    case "container_loading":
+      return [{ id: "containers", label: "Container Loading", href: "/containers", icon: Boxes }];
     case "auction":
     case "yard":
       return [
@@ -109,10 +112,7 @@ export function getPrimaryNav(role: Role): NavItem[] {
       return [{ id: "scrap", label: "My Scrap Loads", href: "/scrap", icon: Truck }];
     case "employee":
     default:
-      return [
-        { id: "parts", label: "Quick Part Capture", href: "/parts", icon: Camera },
-        { id: "containers", label: "My Loading Jobs", href: "/containers", icon: Boxes },
-      ];
+      return [{ id: "parts", label: "Quick Part Capture", href: "/parts", icon: Camera }];
   }
 }
 
@@ -129,6 +129,6 @@ export const ownerPreviews: { id: string; label: string; href: string; role: Rol
   { id: "preview-yard", label: "Yard Employee Workspace", href: "/preview/yard", role: "yard" },
   { id: "preview-front", label: "Front Desk Manager Portal", href: "/preview/front-desk", role: "manager" },
   { id: "preview-warehouse", label: "Warehouse Employee App", href: "/preview/warehouse", role: "employee" },
-  { id: "preview-loading", label: "Container Loading Employee", href: "/preview/loading", role: "employee" },
+  { id: "preview-loading", label: "Container Loading Employee", href: "/preview/loading", role: "container_loading" },
   { id: "preview-driver", label: "Scrap Driver App", href: "/preview/scrap-driver", role: "scrap_driver" },
 ];

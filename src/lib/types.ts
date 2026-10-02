@@ -7,7 +7,9 @@ export type Role =
   | "yard"
   | "receiving"
   | "dismantling"
-  | "scrap_driver";
+  | "scrap_driver"
+  | "container_loading"
+  | "export_manager";
 
 export type User = {
   id: string;
@@ -26,6 +28,8 @@ export const roleLabels: Record<Role, string> = {
   receiving: "Vehicle Receiving Employee",
   dismantling: "Dismantling Employee",
   scrap_driver: "Scrap Driver",
+  container_loading: "Container Loading Employee",
+  export_manager: "Export Manager",
 };
 
 export const rolePhaseLabels: Record<Role, string> = {
@@ -38,4 +42,6 @@ export const rolePhaseLabels: Record<Role, string> = {
   dismantling: "Dismantling",
   scrap_driver: "Scrap Driver",
   employee: "Warehouse App",
+  container_loading: "Container Loading",
+  export_manager: "Export Operations",
 };

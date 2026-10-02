@@ -4,42 +4,59 @@ import { useState } from "react";
 import { PackageCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { User } from "@/lib/types";
-import { PartsDataProvider } from "@/components/parts/parts-data-context";
 import { CaptureView } from "@/components/parts/views/capture-view";
 import { PartsListView } from "@/components/parts/views/parts-list-view";
 import { PartDetailView } from "@/components/parts/views/part-detail-view";
+import { PartsInventoryView } from "@/components/parts/views/parts-inventory-view";
+import { usePartsData } from "@/components/parts/parts-data-context";
+import type { PartStatus } from "@/lib/mock/parts";
 
 type Tab = "capture" | "pending" | "inventory";
 
+const PENDING_STATUSES: PartStatus[] = ["captured", "draft_ready", "manager_review"];
+
 function WorkspaceBody({ user, initialPartId }: { user: User; initialPartId?: string | null }) {
   const manager = user.role !== "employee";
-  const [view, setView] = useState<Tab>(user.role === "manager" || user.role === "engineer_admin" ? "pending" : "capture");
-  const [selectedId, setSelectedId] = useState<string | null>(initialPartId ?? null);
-  const [origin, setOrigin] = useState<"pending" | "inventory">("inventory");
+  const { getPart } = usePartsData();
+  const initialPart = initialPartId ? getPart(initialPartId) : undefined;
+  const initialIsPending = !!initialPart && PENDING_STATUSES.includes(initialPart.status);
 
-  function open(id: string, from: "pending" | "inventory") {
-    setOrigin(from);
-    setSelectedId(id);
-  }
+  const [view, setView] = useState<Tab>(
+    initialPart
+      ? initialIsPending
+        ? "pending"
+        : "inventory"
+      : user.role === "manager" || user.role === "engineer_admin"
+        ? "pending"
+        : "capture"
+  );
+  const [selectedId, setSelectedId] = useState<string | null>(initialIsPending ? (initialPartId ?? null) : null);
 
   if (selectedId) {
-    return <PartDetailView partId={selectedId} manager={manager} origin={origin} onBack={() => setSelectedId(null)} />;
+    return <PartDetailView partId={selectedId} manager={manager} origin="pending" onBack={() => setSelectedId(null)} />;
   }
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between rounded-lg bg-brand p-5 text-brand-foreground">
+      {view === "inventory" ? (
         <div>
-          <p className="text-xs font-semibold tracking-[0.12em] text-accent-gold uppercase">
-            {manager ? "Front Desk Parts Operations" : "Warehouse Employee"}
-          </p>
-          <h2 className="mt-1 text-xl font-semibold">{manager ? "Pending Parts & Inventory" : "Quick Part Capture"}</h2>
-          <p className="mt-1 text-sm text-brand-foreground/70">
-            {manager ? "Review employee captures, use Parts AI, and approve inventory." : "Part photo → VIN/Lot photo → Save & Next"}
-          </p>
+          <h2 className="text-xl font-semibold">Parts Inventory</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Manage, process, and track all salvaged parts</p>
         </div>
-        <PackageCheck className="hidden size-12 text-accent-gold/60 sm:block" />
-      </div>
+      ) : (
+        <div className="flex items-center justify-between rounded-lg bg-brand p-5 text-brand-foreground">
+          <div>
+            <p className="text-xs font-semibold tracking-[0.12em] text-accent-gold uppercase">
+              {manager ? "Front Desk Parts Operations" : "Warehouse Employee"}
+            </p>
+            <h2 className="mt-1 text-xl font-semibold">{manager ? "Pending Parts & Inventory" : "Quick Part Capture"}</h2>
+            <p className="mt-1 text-sm text-brand-foreground/70">
+              {manager ? "Review employee captures, use Parts AI, and approve inventory." : "Part photo → VIN/Lot photo → Save & Next"}
+            </p>
+          </div>
+          <PackageCheck className="hidden size-12 text-accent-gold/60 sm:block" />
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2">
         <Button variant={view === "capture" ? "default" : "outline"} size="sm" onClick={() => setView("capture")}>
@@ -58,16 +75,12 @@ function WorkspaceBody({ user, initialPartId }: { user: User; initialPartId?: st
       </div>
 
       {view === "capture" && <CaptureView />}
-      {view === "pending" && <PartsListView scope="pending" onOpen={(id) => open(id, "pending")} />}
-      {view === "inventory" && <PartsListView scope="inventory" onOpen={(id) => open(id, "inventory")} />}
+      {view === "pending" && <PartsListView scope="pending" onOpen={(id) => setSelectedId(id)} />}
+      {view === "inventory" && <PartsInventoryView manager={manager} initialPartId={initialIsPending ? null : initialPartId} />}
     </div>
   );
 }
 
 export function PartsWorkspace({ user, initialPartId }: { user: User; initialPartId?: string | null }) {
-  return (
-    <PartsDataProvider>
-      <WorkspaceBody user={user} initialPartId={initialPartId} />
-    </PartsDataProvider>
-  );
+  return <WorkspaceBody user={user} initialPartId={initialPartId} />;
 }

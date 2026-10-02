@@ -56,7 +56,7 @@ export function OwnerDashboard({
   const kpis: KpiItem[] = useMemo(() => {
     const partsPulled = scopedEvents.filter((e) => e.action === "PART_REMOVED").length;
     const converters = scopedEvents.filter((e) => e.action === "PART_REMOVED" && e.partType?.toLowerCase().includes("converter")).length;
-    const containersShipped = containerJobs.filter((j) => j.status === "Loaded" || j.status === "Completed").length;
+    const containersShipped = containerJobs.filter((j) => j.status === "on_the_way" || j.status === "closed").length;
     return [
       { label: "Total Vehicles", value: vehicles.length, trend: "+3 this week", icon: CarFront },
       { label: "Total Parts Pulled", value: partsPulled, trend: "+12% vs last month", icon: Cog },

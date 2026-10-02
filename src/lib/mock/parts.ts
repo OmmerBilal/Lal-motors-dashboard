@@ -38,7 +38,57 @@ export type PartStatus = "captured" | "draft_ready" | "manager_review" | "approv
 
 export type PartDraft = Partial<Record<PartFieldKey, string>> & { needsReview?: string[] };
 
-export type PartPhoto = { id: string; type: "capture" | "source" | "final" };
+export type PartPhoto = { id: string; type: "capture" | "source" | "final"; url?: string };
+
+/** Parts Inventory processing lifecycle (post-approval). Independent of the old pre-inventory
+ * capture/draft/review PartStatus pipeline above — a part reaches Parts Inventory with
+ * status "approved" (either through that old pipeline, or auto-sourced from an approved
+ * Dismantling removal) and then moves through this stage machine. */
+export type PartStage = "needs_processing" | "in_processing" | "ready_for_sale" | "not_sellable";
+
+export const partStageLabels: Record<PartStage, string> = {
+  needs_processing: "Needs Processing",
+  in_processing: "In Processing",
+  ready_for_sale: "Ready for Sale",
+  not_sellable: "Not Sellable",
+};
+
+export type TestStatus = "Not Tested" | "Tested" | "Failed";
+export const testStatusOptions: TestStatus[] = ["Not Tested", "Tested", "Failed"];
+
+export const partConditionOptions = ["Excellent", "Good", "Fair", "Damaged"] as const;
+
+export const saleChannelOptions = ["In-Store", "eBay", "Export"] as const;
+
+export const notSellableReasons = [
+  "Damaged beyond use",
+  "Recalled part",
+  "Lost / missing",
+  "Quality hold",
+  "Other",
+] as const;
+
+export type PartDonorInfo = {
+  vehicleId: string;
+  vin: string;
+  stockNumber: string;
+  year: string;
+  make: string;
+  model: string;
+  engine?: string;
+  yardLocation?: string;
+  employeeId: string;
+  employeeName: string;
+  dismantlingEventId: string;
+  approvedAt: string;
+};
+
+export type PartNotSellable = {
+  reason: string;
+  notes?: string;
+  markedBy: string;
+  markedAt: string;
+};
 
 export type PartHistoryEntry = {
   id: string;
@@ -72,6 +122,16 @@ export type PartRecord = {
   bin: string;
   history: PartHistoryEntry[];
   logs: PartLog[];
+  stage: PartStage;
+  partCode: string;
+  donor?: PartDonorInfo | null;
+  partNotes?: string;
+  testStatus?: TestStatus;
+  testNotes?: string;
+  coreCharge?: string;
+  hasCoreCharge?: boolean;
+  saleChannels?: string[];
+  notSellable?: PartNotSellable | null;
 };
 
 function daysAgo(n: number) {
@@ -113,6 +173,8 @@ export function generateAiDraft(): PartDraft {
 export const parts: PartRecord[] = [
   {
     id: "part-1",
+    stage: "needs_processing",
+    partCode: "PC-1001",
     status: "captured",
     capturedByName: "Jamal Reeves",
     createdAt: daysAgo(1),
@@ -133,6 +195,8 @@ export const parts: PartRecord[] = [
   },
   {
     id: "part-2",
+    stage: "needs_processing",
+    partCode: "PC-1002",
     status: "captured",
     capturedByName: "Jamal Reeves",
     createdAt: daysAgo(1),
@@ -153,6 +217,8 @@ export const parts: PartRecord[] = [
   },
   {
     id: "part-3",
+    stage: "needs_processing",
+    partCode: "PC-1003",
     status: "draft_ready",
     capturedByName: "Jamal Reeves",
     createdAt: daysAgo(3),
@@ -191,6 +257,8 @@ export const parts: PartRecord[] = [
   },
   {
     id: "part-4",
+    stage: "needs_processing",
+    partCode: "PC-1004",
     status: "manager_review",
     capturedByName: "Jamal Reeves",
     createdAt: daysAgo(4),
@@ -230,6 +298,8 @@ export const parts: PartRecord[] = [
   },
   {
     id: "part-5",
+    stage: "ready_for_sale",
+    partCode: "SKU-10045",
     status: "approved",
     capturedByName: "Tyler Brooks",
     createdAt: daysAgo(38),
@@ -283,6 +353,8 @@ export const parts: PartRecord[] = [
   },
   {
     id: "part-6",
+    stage: "ready_for_sale",
+    partCode: "SKU-10012",
     status: "approved",
     capturedByName: "Tyler Brooks",
     createdAt: daysAgo(80),
@@ -344,6 +416,193 @@ export const parts: PartRecord[] = [
     logs: [
       { action: "CAPTURED", userName: "Tyler Brooks", createdAt: daysAgo(80), summary: "Part and source photos linked" },
       { action: "APPROVED", userName: "Denise Ford", createdAt: daysAgo(78), summary: "Approved to Parts Inventory · SKU-10012" },
+    ],
+  },
+  {
+    id: "part-7",
+    stage: "ready_for_sale",
+    partCode: "SKU-10001",
+    status: "approved",
+    capturedByName: "Tyler Brooks",
+    createdAt: daysAgo(120),
+    photos: [
+      { id: "p7a", type: "capture" },
+      { id: "p7b", type: "source" },
+      { id: "p7c", type: "final" },
+    ],
+    draft: {
+      sourceVin: "1GKS1BKC5FR123456",
+      partName: "Transmission assembly",
+      category: "Drivetrain",
+      partNumber: "TR-9981",
+      sideLocation: "N/A",
+      condition: "Used",
+      fitment: "Fits 2015-2017 GMC Yukon 5.3L V8",
+      fitmentStatus: "verified",
+      title: "2016 GMC Yukon Transmission Assembly",
+      description: "Tested, shifts cleanly, verified fitment.",
+      keywords: "gmc yukon transmission drivetrain",
+      price: "950",
+      location: "Parts Inventory · Zone B",
+      needsReview: [],
+    },
+    stockSku: "SKU-10001",
+    operationalStatus: "SOLD",
+    quantity: 0,
+    zone: "B",
+    rack: "2",
+    shelf: "1",
+    bin: "C",
+    testStatus: "Tested",
+    history: [
+      {
+        id: "h4",
+        actionType: "APPROVED",
+        previousLocation: null,
+        newLocation: "Parts Inventory · Zone B",
+        previousStatus: null,
+        newStatus: "AVAILABLE",
+        previousQuantity: null,
+        newQuantity: 1,
+        userName: "Denise Ford",
+        createdAt: daysAgo(118),
+      },
+      {
+        id: "h5",
+        actionType: "STATUS_CHANGE",
+        previousLocation: "Parts Inventory · Zone B",
+        newLocation: "Parts Inventory · Zone B",
+        previousStatus: "AVAILABLE",
+        newStatus: "SOLD",
+        previousQuantity: 1,
+        newQuantity: 0,
+        userName: "Denise Ford",
+        createdAt: daysAgo(14),
+        note: "Sold via Sales Desk",
+      },
+    ],
+    logs: [
+      { action: "CAPTURED", userName: "Tyler Brooks", createdAt: daysAgo(120), summary: "Part and source photos linked" },
+      { action: "APPROVED", userName: "Denise Ford", createdAt: daysAgo(118), summary: "Approved to Parts Inventory · SKU-10001" },
+      { action: "SOLD", userName: "Denise Ford", createdAt: daysAgo(14), summary: "Marked sold via Sales Desk" },
+    ],
+  },
+  {
+    id: "part-8",
+    stage: "not_sellable",
+    partCode: "SKU-10002",
+    status: "approved",
+    capturedByName: "Jamal Reeves",
+    createdAt: daysAgo(22),
+    photos: [
+      { id: "p8a", type: "capture" },
+      { id: "p8b", type: "source" },
+      { id: "p8c", type: "final" },
+    ],
+    draft: {
+      sourceVin: "3VWD07AJ5EM123456",
+      partName: "Airbag module",
+      category: "Safety",
+      partNumber: "AB-7712",
+      sideLocation: "Driver side",
+      condition: "Used",
+      fitment: "Fits 2014-2018 Volkswagen Jetta",
+      fitmentStatus: "verified",
+      title: "2015 Volkswagen Jetta Airbag Module",
+      description: "Pulled from a non-deployed unit.",
+      keywords: "volkswagen jetta airbag safety",
+      price: "60",
+      location: "Parts Inventory · Zone D",
+      needsReview: [],
+    },
+    stockSku: "SKU-10002",
+    operationalStatus: "DAMAGED",
+    quantity: 1,
+    zone: "D",
+    rack: "1",
+    shelf: "3",
+    bin: "A",
+    testStatus: "Failed",
+    testNotes: "Fault code present on bench test — unsafe to resell.",
+    notSellable: {
+      reason: "Recalled part",
+      notes: "Manufacturer recall bulletin #AB-7712-R1 — hold until destroyed.",
+      markedBy: "Denise Ford",
+      markedAt: daysAgo(3),
+    },
+    history: [
+      {
+        id: "h6",
+        actionType: "APPROVED",
+        previousLocation: null,
+        newLocation: "Parts Inventory · Zone D",
+        previousStatus: null,
+        newStatus: "AVAILABLE",
+        previousQuantity: null,
+        newQuantity: 1,
+        userName: "Denise Ford",
+        createdAt: daysAgo(20),
+      },
+    ],
+    logs: [
+      { action: "CAPTURED", userName: "Jamal Reeves", createdAt: daysAgo(22), summary: "Part and source photos linked" },
+      { action: "APPROVED", userName: "Denise Ford", createdAt: daysAgo(20), summary: "Approved to Parts Inventory · SKU-10002" },
+      { action: "NOT_SELLABLE", userName: "Denise Ford", createdAt: daysAgo(3), summary: "Removed from sellable inventory — Recalled part" },
+    ],
+  },
+  {
+    id: "part-9",
+    stage: "in_processing",
+    partCode: "SKU-10003",
+    status: "approved",
+    capturedByName: "Tyler Brooks",
+    createdAt: daysAgo(2),
+    photos: [
+      { id: "p9a", type: "capture" },
+      { id: "p9b", type: "source" },
+    ],
+    draft: {
+      sourceVin: "1HGCV1F34LA123456",
+      partName: "Door assembly — front left",
+      category: "Body",
+      partNumber: "",
+      sideLocation: "Driver side",
+      condition: "Used",
+      fitment: "FITMENT VERIFICATION REQUIRED",
+      fitmentStatus: "verification_required",
+      title: "",
+      description: "",
+      keywords: "",
+      price: "",
+      location: "",
+      needsReview: ["partNumber", "fitment", "title", "price"],
+    },
+    stockSku: "SKU-10003",
+    operationalStatus: "AVAILABLE",
+    quantity: 1,
+    zone: "C",
+    rack: "1",
+    shelf: "",
+    bin: "",
+    testStatus: "Not Tested",
+    history: [
+      {
+        id: "h7",
+        actionType: "APPROVED",
+        previousLocation: null,
+        newLocation: null,
+        previousStatus: null,
+        newStatus: "AVAILABLE",
+        previousQuantity: null,
+        newQuantity: 1,
+        userName: "Denise Ford",
+        createdAt: daysAgo(2),
+      },
+    ],
+    logs: [
+      { action: "CAPTURED", userName: "Tyler Brooks", createdAt: daysAgo(2), summary: "Part and source photos linked" },
+      { action: "APPROVED", userName: "Denise Ford", createdAt: daysAgo(2), summary: "Approved to Parts Inventory · SKU-10003" },
+      { action: "IN_PROCESSING", userName: "Denise Ford", createdAt: daysAgo(1), summary: "Condition & location partially recorded" },
     ],
   },
 ];

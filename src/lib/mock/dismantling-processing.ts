@@ -84,7 +84,8 @@ export function detailedCategoryLabel(partType: string): string {
 export const rejectReasons = ["Not Inventory", "Damaged / Not Usable", "Duplicate Photo", "Other"] as const;
 
 export function suggestedOem(partId: string): string {
-  return `OEM-${partId.slice(-6).toUpperCase()}`;
+  const clean = partId.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+  return `OEM-${clean.slice(-6).padStart(6, "0")}`;
 }
 
 // --- Seed roster: today's dismantling crew & activity -----------------------------------

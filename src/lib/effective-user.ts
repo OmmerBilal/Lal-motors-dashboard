@@ -9,7 +9,7 @@ const previewSectionRole: Record<string, { role: Role; label: string }> = {
   yard: { role: "yard", label: "Yard Employee Workspace" },
   "front-desk": { role: "manager", label: "Front Desk Manager Portal" },
   warehouse: { role: "employee", label: "Warehouse Employee App" },
-  loading: { role: "employee", label: "Container Loading Employee" },
+  loading: { role: "container_loading", label: "Container Loading Employee" },
   "scrap-driver": { role: "scrap_driver", label: "Scrap Driver App" },
   "vehicle-receiving": { role: "receiving", label: "Vehicle Receiving Employee" },
   dismantling: { role: "dismantling", label: "Dismantling Employee" },

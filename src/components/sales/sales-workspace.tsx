@@ -4,7 +4,7 @@ import { useState } from "react";
 import { ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { User } from "@/lib/types";
-import { SalesDataProvider, useSalesData } from "@/components/sales/sales-data-context";
+import { useSalesData } from "@/components/sales/sales-data-context";
 import { PosDeskView } from "@/components/sales/pos/pos-desk-view";
 import { CustomersView } from "@/components/sales/views/customers-view";
 import { CustomerDetailView } from "@/components/sales/views/customer-detail-view";
@@ -169,9 +169,5 @@ function WorkspaceBody({ user, initialCustomerId }: { user: User; initialCustome
 }
 
 export function SalesWorkspace({ user, initialCustomerId }: { user: User; initialCustomerId?: string | null }) {
-  return (
-    <SalesDataProvider>
-      <WorkspaceBody user={user} initialCustomerId={initialCustomerId} />
-    </SalesDataProvider>
-  );
+  return <WorkspaceBody user={user} initialCustomerId={initialCustomerId} />;
 }
