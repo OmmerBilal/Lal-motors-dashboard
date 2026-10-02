@@ -131,19 +131,13 @@ export function EmployeeDetail({
         )}
       </div>
 
-      <div className="flex gap-2 border-b border-border">
-        <button
-          onClick={() => setTab("vehicles")}
-          className={`border-b-2 px-1 pb-2 text-sm font-semibold transition-colors ${tab === "vehicles" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
-        >
+      <div className="flex gap-2">
+        <Button type="button" size="sm" variant={tab === "vehicles" ? "default" : "outline"} className="flex-1 sm:flex-none" onClick={() => setTab("vehicles")}>
           Vehicles ({vehicleCompletions.length})
-        </button>
-        <button
-          onClick={() => setTab("parts")}
-          className={`border-b-2 px-1 pb-2 text-sm font-semibold transition-colors ${tab === "parts" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
-        >
+        </Button>
+        <Button type="button" size="sm" variant={tab === "parts" ? "default" : "outline"} className="flex-1 sm:flex-none" onClick={() => setTab("parts")}>
           Parts Summary
-        </button>
+        </Button>
       </div>
 
       {tab === "vehicles" && (

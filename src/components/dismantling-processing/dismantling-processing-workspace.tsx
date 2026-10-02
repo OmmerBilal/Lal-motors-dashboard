@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ChevronRight, ClipboardCheck, Search, TriangleAlert, Wrench } from "lucide-react";
+import { cn } from "cn";
 import { Input } from "@/components/ui/input";
 import { roleLabels, type User } from "@/lib/types";
 import { useDismantlingProcessingData } from "@/components/dismantling-processing/use-dismantling-data";
@@ -37,13 +38,19 @@ export function DismantlingProcessingWorkspace({ user }: { user: User }) {
     setView({ name: "vehicle", vehicleId, back });
   }
 
+  // Desktop shows a right-side detail panel (reference layout) while an employee — or a
+  // vehicle opened from that employee's own list — is selected; the left roster stays visible.
+  const activeEmployeeId =
+    view.name === "employee" ? view.employeeId : view.name === "vehicle" && view.back.name === "employee" ? view.back.employeeId : null;
+  const isSplit = activeEmployeeId !== null;
+
   return (
     <div className="space-y-5 pb-10">
-      <div className="-mx-4 -mt-6 border-b-4 border-accent-gold bg-brand px-4 py-4 text-brand-foreground sm:-mx-6 sm:px-6">
+      <div className="-mx-4 -mt-6 border-b-4 border-accent-gold bg-brand px-4 py-4 text-brand-foreground sm:-mx-6 sm:px-6 sm:py-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-[11px] font-bold tracking-[0.14em] text-brand-foreground/60 uppercase">LAL Motors</p>
-            <h2 className="text-lg font-bold sm:text-xl">Vehicle Dismantling Processing</h2>
+            <h2 className="text-xl font-bold sm:text-2xl">Vehicle Dismantling Processing</h2>
             <p className="text-xs text-brand-foreground/70">Track People. Parts. Progress.</p>
           </div>
           <div className="flex items-center gap-3">
@@ -64,19 +71,22 @@ export function DismantlingProcessingWorkspace({ user }: { user: User }) {
         </div>
       </div>
 
-      {view.name === "home" && (
-        <>
+      <div className={isSplit ? "lg:grid lg:grid-cols-[1.35fr_1fr] lg:items-start lg:gap-6" : undefined}>
+        <div className={view.name === "home" ? "space-y-5" : isSplit ? "hidden space-y-5 lg:block" : "hidden"}>
           <div className="grid gap-4 sm:grid-cols-2">
             <button
               onClick={() => setView({ name: "review" })}
-              className="flex items-center gap-4 rounded-xl border border-destructive/30 bg-destructive/5 p-5 text-left transition-colors hover:bg-destructive/10"
+              className={cn(
+                "flex items-center gap-4 rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-left transition-colors hover:bg-destructive/10",
+                view.name === "review" && "ring-2 ring-destructive/40"
+              )}
             >
-              <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-destructive/15 text-destructive">
-                <TriangleAlert className="size-6" />
+              <span className="flex size-14 shrink-0 items-center justify-center rounded-full bg-destructive/15 text-destructive">
+                <TriangleAlert className="size-7" />
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-semibold text-destructive">Needs Review</span>
-                <span className="block text-3xl font-bold text-destructive">{needsReviewCount}</span>
+                <span className="block text-4xl font-bold text-destructive sm:text-5xl">{needsReviewCount}</span>
                 <span className="block text-xs text-destructive/80">
                   {needsReviewCount} item{needsReviewCount === 1 ? "" : "s"} need review
                 </span>
@@ -86,14 +96,17 @@ export function DismantlingProcessingWorkspace({ user }: { user: User }) {
 
             <button
               onClick={() => setView({ name: "completed" })}
-              className="flex items-center gap-4 rounded-xl border border-success/30 bg-success/5 p-5 text-left transition-colors hover:bg-success/10"
+              className={cn(
+                "flex items-center gap-4 rounded-xl border border-success/30 bg-success/5 p-6 text-left transition-colors hover:bg-success/10",
+                view.name === "completed" && "ring-2 ring-success/40"
+              )}
             >
-              <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-success/15 text-success">
-                <ClipboardCheck className="size-6" />
+              <span className="flex size-14 shrink-0 items-center justify-center rounded-full bg-success/15 text-success">
+                <ClipboardCheck className="size-7" />
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-semibold text-success">Completed Today</span>
-                <span className="block text-3xl font-bold text-success">{completedToday.length}</span>
+                <span className="block text-4xl font-bold text-success sm:text-5xl">{completedToday.length}</span>
                 <span className="block text-xs text-success/80">cars completed</span>
               </span>
               <ChevronRight className="size-5 shrink-0 text-success/60" />
@@ -109,21 +122,25 @@ export function DismantlingProcessingWorkspace({ user }: { user: User }) {
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               {filteredRoster.map((person) => {
                 const count = todayCountForEmployee(person.id);
+                const selected = person.id === activeEmployeeId;
                 return (
                   <button
                     key={person.id}
                     onClick={() => setView({ name: "employee", employeeId: person.id, employeeName: person.name })}
-                    className="flex items-center gap-3 rounded-lg border border-border bg-card p-4 text-left transition-colors hover:border-primary/40"
+                    className={cn(
+                      "flex items-center gap-3 rounded-lg border border-border bg-card p-5 text-left transition-colors hover:border-primary/40",
+                      selected && "border-primary bg-primary/5 ring-1 ring-primary/30"
+                    )}
                   >
-                    <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary/10 font-bold text-primary">
+                    <span className="flex size-14 shrink-0 items-center justify-center rounded-full bg-primary/10 text-lg font-bold text-primary">
                       {person.name.charAt(0)}
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block text-sm font-semibold">{person.name.split(" ")[0]}</span>
-                      <span className="block text-2xl leading-tight font-bold">{count}</span>
+                      <span className="block text-3xl leading-tight font-bold text-primary">{count}</span>
                       <span className="block text-xs text-muted-foreground">car{count === 1 ? "" : "s"} today</span>
                     </span>
                     <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
@@ -137,31 +154,35 @@ export function DismantlingProcessingWorkspace({ user }: { user: User }) {
               )}
             </div>
           </div>
-        </>
-      )}
+        </div>
 
-      {view.name === "employee" && (
-        <EmployeeDetail
-          employeeId={view.employeeId}
-          employeeName={view.employeeName}
-          onBack={() => setView({ name: "home" })}
-          onOpenVehicle={(vehicleId) => openVehicle(vehicleId, view)}
-        />
-      )}
+        {view.name !== "home" && (
+          <div className={isSplit ? "mt-5 lg:mt-0" : ""}>
+            {view.name === "employee" && (
+              <EmployeeDetail
+                employeeId={view.employeeId}
+                employeeName={view.employeeName}
+                onBack={() => setView({ name: "home" })}
+                onOpenVehicle={(vehicleId) => openVehicle(vehicleId, view)}
+              />
+            )}
 
-      {view.name === "review" && (
-        <NeedsReviewQueue
-          user={user}
-          onBack={() => setView({ name: "home" })}
-          onOpenVehicle={(vehicleId) => openVehicle(vehicleId, view)}
-        />
-      )}
+            {view.name === "review" && (
+              <NeedsReviewQueue
+                user={user}
+                onBack={() => setView({ name: "home" })}
+                onOpenVehicle={(vehicleId) => openVehicle(vehicleId, view)}
+              />
+            )}
 
-      {view.name === "completed" && (
-        <CompletedTodayList onBack={() => setView({ name: "home" })} onOpenVehicle={(vehicleId) => openVehicle(vehicleId, view)} />
-      )}
+            {view.name === "completed" && (
+              <CompletedTodayList onBack={() => setView({ name: "home" })} onOpenVehicle={(vehicleId) => openVehicle(vehicleId, view)} />
+            )}
 
-      {view.name === "vehicle" && <VehicleDismantlingDetail vehicleId={view.vehicleId} onBack={() => setView(view.back)} />}
+            {view.name === "vehicle" && <VehicleDismantlingDetail vehicleId={view.vehicleId} onBack={() => setView(view.back)} />}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
