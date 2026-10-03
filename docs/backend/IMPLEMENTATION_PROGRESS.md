@@ -138,4 +138,10 @@ Results on 2026-10-04:
 
 ## Production Build
 
-See the last session report. Lint, typecheck and build are re-run before each commit.
+Last run 2026-10-04 on the commit that added storage (`8a80fd8` and its predecessors):
+
+- `npm run build`: exit 0. All app routes and the media API build. The proxy builds as a Node proxy.
+- `npm run lint`: 0 errors, 0 warnings.
+- `tsc --noEmit`: clean.
+
+Re-run all three before each commit.
