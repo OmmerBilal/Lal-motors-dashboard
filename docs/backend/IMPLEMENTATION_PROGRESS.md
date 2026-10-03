@@ -33,7 +33,7 @@ Rule: all future schema changes are new additive files (`0004_…`). Never edit 
 | Database foundation | DONE | 0001 applied; 45 tables, RLS on all 45, 71 policies |
 | Auth / RBAC | DONE (server + DB), browser UI not yet tested | RLS matrix 114/114; route gate 34/34 |
 | Storage / media | DONE (API + service), upload UI not built | media flow 24/24 |
-| Business RPC foundation | NOT STARTED | Blueprint §15–16 lists the catalog |
+| Business RPC foundation | PARTIAL | Payments and stock/sales RPCs done (0004, 0005), 63/63 tests. Vehicle, receiving, dismantling, part review, scrap, container and export RPCs NOT STARTED |
 | Auction Vehicles | NOT STARTED | UI is still mock data |
 | Central Dispatch | NOT STARTED | |
 | Receiving | NOT STARTED | |
@@ -170,3 +170,35 @@ What changed and why it is safe:
 - `auth.getUser()` remains only in `media-service.ts` (one call per upload, not per navigation).
 
 Remaining: the 51 ms page is mock-data rendering. Re-measure after each module moves to real data.
+
+## Business RPCs — payments and stock (0004, 0005)
+
+All are SECURITY DEFINER, fixed search_path, and check auth.uid() plus role inside the body.
+EXECUTE is granted to authenticated only. Errors use SQLSTATE 42501 forbidden, 22023 invalid input,
+P0001 business rule. Every state change writes write_audit_log().
+
+| RPC | Who | Behaviour |
+|---|---|---|
+| create_payment | sales staff | Creates PENDING only. Idempotent by client_request_id. Does not touch sale money. |
+| allocate_payment | sales staff | Locks payment and sale. Checks same customer, total <= payment amount, <= outstanding (excluding other pending allocations). Idempotent per (payment, sale). |
+| post_payment | sales staff | Requires the full amount allocated. Locks each sale in id order and updates amount_paid, balance_due and payment_status atomically. Rejects overpayment. |
+| void_payment | pending: sales staff; posted: owner or engineer_admin | Requires a reason of 5+ characters. Posted payments are reversed on each sale. Rows are kept as history. |
+| create_sale | sales staff | Modes: draft (no stock change), reserve, fulfill_now. Idempotent by client_request_id. Locks parts in id order and checks availability. Any failure rolls back everything. |
+| reserve_stock | sales staff | Reserves draft part lines of an OPEN sale. Physical quantity unchanged. |
+| release_reservation | sales staff | Releases active reservations and returns lines to draft. |
+| fulfill_sales_order | sales staff | Consumes stock for reserved lines. Retry-safe. Sold-out rows stay visible. |
+
+Money uses NUMERIC with 2-decimal validation. No floating point is used anywhere.
+
+Tests: `scripts/dev-tests/rpc-money-stock.mjs`: **63 / 63** pass. Coverage:
+authorization (employee, scrap driver, export manager, anon), validation, the full payment
+lifecycle (E2E test 4), direct update of a posted payment blocked, owner-only reversal,
+over-allocation, cross-customer allocation, parallel payment race (exactly one succeeds),
+stock E2E test 2 (reserve, oversell refused, release, reserve, fulfill, quantity 0 stays visible),
+fulfill-now immediate consumption (E2E test 3), idempotent retry, multi-line rollback (no sale row,
+no stock consumed), and a parallel reservation race for the last unit (exactly one succeeds).
+
+Regression: `rls-matrix.mjs` still 114/114 after 0004 and 0005.
+
+Not yet covered by an RPC: the Scrap, Container and Export flows, the Finalized-invoice immutability
+test (needs an Export module), and the Vehicle / Receiving / Dismantling / Part-review RPCs.
