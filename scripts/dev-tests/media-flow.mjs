@@ -22,7 +22,7 @@ const PUB = envPub.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 const SECRET = envLocal.secret_key;
 const REF = new URL(SUPA).hostname.split(".")[0];
 const COOKIE = `sb-${REF}-auth-token`;
-const BASE = "http://localhost:3100";
+const BASE = process.env.BASE_URL || "http://localhost:3100";
 const creds = JSON.parse(fs.readFileSync(ROOT + "/dev-test-credentials.json", "utf8"));
 const byRole = Object.fromEntries(creds.map((u) => [u.role, u]));
 const pgc = new pg.Client({ connectionString: envLocal.connection_string, ssl: { rejectUnauthorized: false } });

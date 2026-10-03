@@ -18,8 +18,9 @@ import { createClient } from "@/lib/supabase/server";
 // the database, never here or in middleware — this layout only confirms a session exists.
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
-  if (!data.user) {
+  // Local JWT signature check (no remote call). The proxy already gated the request.
+  const { data } = await supabase.auth.getClaims();
+  if (!data?.claims?.sub) {
     redirect("/login");
   }
 

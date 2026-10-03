@@ -145,3 +145,28 @@ Last run 2026-10-04 on the commit that added storage (`8a80fd8` and its predeces
 - `tsc --noEmit`: clean.
 
 Re-run all three before each commit.
+
+## Performance — auth overhead (measured 2026-10-04, production build, DEV region)
+
+Measured with `scripts/dev-tests/bench-nav.mjs` (real sign-in, real cookie, 15–30 runs, median).
+
+| Measurement | Before | After |
+|---|---|---|
+| Proxy overhead on an authenticated request (fast API route) | 777 ms | 15 ms |
+| Authenticated `/sales` full load (proxy + render) | 1144 ms | 51 ms |
+
+Individual auth calls (`bench-auth-calls.mjs`): `getUser()` remote 394 ms; `getClaims()` local 2 ms;
+`current_access()` 388 ms.
+
+What changed and why it is safe:
+
+- Identity: `getClaims()` verifies the ES256 JWT signature locally, in the proxy, the `(app)` layout,
+  and the browser session. Session refresh still runs in the proxy.
+- Role and status: cached per user for 15 s (`src/lib/auth/access-cache.ts`), used only for the
+  route gate. Forced sign-outs evict the entry immediately.
+- Data access is NOT cached. Every RLS policy and mutation trigger checks `is_active_account()` on
+  each query, so a disabled or de-roled user loses data access at once. The only window is which
+  app shell loads, for at most 15 s. `route-gate.mjs` waits out that window before asserting.
+- `auth.getUser()` remains only in `media-service.ts` (one call per upload, not per navigation).
+
+Remaining: the 51 ms page is mock-data rendering. Re-measure after each module moves to real data.

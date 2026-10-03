@@ -20,7 +20,7 @@ const SUPA = envPub.NEXT_PUBLIC_SUPABASE_URL || envLocal.NEXT_PUBLIC_SUPABASE_UR
 const PUB = envPub.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 const REF = new URL(SUPA).hostname.split(".")[0];
 const COOKIE = `sb-${REF}-auth-token`;
-const BASE = "http://localhost:3100";
+const BASE = process.env.BASE_URL || "http://localhost:3100";
 const creds = JSON.parse(fs.readFileSync(ROOT + "/dev-test-credentials.json", "utf8"));
 const byRole = Object.fromEntries(creds.map((u) => [u.role, u]));
 
@@ -43,7 +43,13 @@ async function sessionFor(u) {
 
 // Returns { status, location } for a GET with the session cookie (no redirects followed).
 function probe(cookie, path) {
-  const out = execFileSync("curl", ["-s", "-o", "NUL", "-w", "%{http_code} %{redirect_url}", "-H", `Cookie: ${cookie}`, BASE + path], { encoding: "utf8" });
+  // Errors are reported without the command line, which contains the session cookie.
+  let out;
+  try {
+    out = execFileSync("curl", ["-s", "-o", "NUL", "-w", "%{http_code} %{redirect_url}", "-H", `Cookie: ${cookie}`, BASE + path], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+  } catch {
+    throw new Error(`curl failed for ${path} (is the server running at ${BASE}?)`);
+  }
   const [status, ...loc] = out.trim().split(" ");
   return { status: Number(status), location: loc.join(" ").replace(BASE, "") };
 }
@@ -84,6 +90,9 @@ await admin.connect();
 const WH = byRole.employee;
 await admin.query("update public.profiles set account_status='disabled' where id=$1", [WH.id]);
 try {
+  // The proxy caches role/status for ACCESS_TTL_MS (15 s). Wait out the window so this asserts
+  // the bounded-staleness guarantee, not a cache hit. Data access is covered separately by rls-matrix.
+  await new Promise((r) => setTimeout(r, 16000));
   const s = await sessionFor(WH); // sign-in still succeeds; the gate must end the session
   const ck = cookieHeader(s);
   const r = probe(ck, "/parts");

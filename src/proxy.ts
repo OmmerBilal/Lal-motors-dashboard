@@ -1,6 +1,7 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { homeForRoles, isRouteAllowed } from "@/lib/auth/route-access";
+import { forget, getCachedAccess, setCachedAccess } from "@/lib/auth/access-cache";
 
 /**
  * Runs on every matched request. Three jobs, in order:
@@ -56,7 +57,11 @@ export async function proxy(request: NextRequest) {
     return finish(NextResponse.redirect(url));
   };
 
-  const { data: { user } } = await supabase.auth.getUser();
+  // getClaims() verifies the JWT signature locally (ES256, cached public keys) and refreshes the
+  // session cookie when needed. It replaces getUser(), which made a remote call on every request.
+  const { data: claimsData } = await supabase.auth.getClaims();
+  const userId = claimsData?.claims?.sub ?? null;
+  const user = userId ? { id: userId } : null;
   const { pathname } = request.nextUrl;
 
   // API callers get a JSON 401, never a login redirect (a redirect would look like success to fetch).
@@ -77,22 +82,28 @@ export async function proxy(request: NextRequest) {
   }
 
   if (user && !isPublicPath(pathname)) {
-    const { data: rows } = await supabase.rpc("current_access");
-    const access = rows?.[0];
+    let access = getCachedAccess(user.id);
+    if (!access) {
+      const { data: rows } = await supabase.rpc("current_access");
+      const row = rows?.[0];
+      access = row ? { accountStatus: row.account_status, roleKeys: row.role_keys } : null;
+      if (access) setCachedAccess(user.id, access);
+    }
 
     // Disabled, removed, missing profile, or no role: end this browser's session. Scope "local"
     // only clears this browser's cookie, it does not revoke the person's other devices.
-    if (!access || access.account_status !== "active" || access.role_keys.length === 0) {
+    if (!access || access.accountStatus !== "active" || access.roleKeys.length === 0) {
+      forget(user.id);
       await supabase.auth.signOut({ scope: "local" });
       if (pathname.startsWith("/api/")) {
         return finish(NextResponse.json({ error: { code: "unauthenticated", message: "Sign in to continue." } }, { status: 401 }));
       }
-      const reason = access?.account_status === "active" ? "no-role" : "disabled";
+      const reason = access?.accountStatus === "active" ? "no-role" : "disabled";
       return redirectTo("/login", `?reason=${reason}`);
     }
 
-    if (!isRouteAllowed(pathname, access.role_keys)) {
-      const home = homeForRoles(access.role_keys);
+    if (!isRouteAllowed(pathname, access.roleKeys)) {
+      const home = homeForRoles(access.roleKeys);
       if (home !== pathname) return redirectTo(home);
     }
   }

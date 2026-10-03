@@ -74,10 +74,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     }
 
-    supabase.auth.getUser().then(({ data }) => {
+    // getSession() reads the local session; the proxy already verified the request server-side,
+    // so this avoids a second remote Auth call on every full page load.
+    supabase.auth.getSession().then(({ data }) => {
       if (!active) return;
-      if (data.user) {
-        loadProfile(data.user.id);
+      if (data.session?.user) {
+        loadProfile(data.session.user.id);
       } else {
         setUser(null);
         setLoading(false);
