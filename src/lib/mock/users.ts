@@ -6,7 +6,7 @@ export const mockUsers: User[] = [
   { id: "u-manager", name: "Denise Ford", email: "denise@lalmotors.com", role: "manager" },
   { id: "u-employee", name: "Jamal Reeves", email: "jamal@lalmotors.com", role: "employee" },
   { id: "u-auction", name: "Carlos Mendez", email: "carlos@lalmotors.com", role: "auction" },
-  { id: "u-yard", name: "Tyler Brooks", email: "tyler@lalmotors.com", role: "yard" },
+  { id: "u-yard", name: "Tyler Brooks", email: "tyler@lalmotors.com", role: "auction" },
   { id: "u-receiving", name: "John Smith", email: "john@lalmotors.com", role: "receiving" },
   { id: "u-dismantling", name: "Mike Torres", email: "mike@lalmotors.com", role: "dismantling" },
   { id: "u-dismantling-2", name: "John Alvarez", email: "john.alvarez@lalmotors.com", role: "dismantling" },

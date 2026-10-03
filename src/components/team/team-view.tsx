@@ -15,7 +15,6 @@ const editableRoles: { value: Role; label: string }[] = [
   { value: "manager", label: "Front Desk Manager" },
   { value: "employee", label: "Warehouse Employee" },
   { value: "auction", label: "Auction Vehicle Employee" },
-  { value: "yard", label: "Yard Employee" },
   { value: "scrap_driver", label: "Scrap Driver" },
 ];
 

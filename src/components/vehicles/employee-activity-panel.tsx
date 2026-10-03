@@ -14,7 +14,6 @@ const periods = [
 ];
 
 const roleLabel: Record<string, string> = {
-  yard: "Yard Employee",
   auction: "Auction Vehicle Employee",
   manager: "Front Desk Manager",
   employee: "Warehouse Employee",

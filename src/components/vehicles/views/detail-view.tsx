@@ -30,7 +30,6 @@ import { useVehicleData } from "@/components/vehicles/vehicle-data-context";
 import type { VehicleEventAction } from "@/lib/mock/vehicles";
 
 const fullActions: VehicleEventAction[] = ["STATUS", "ASSIGN", "START", "PART_REMOVED", "PHOTO", "COMPLETION_SUBMITTED", "DISPOSITION"];
-const yardActions: VehicleEventAction[] = ["START", "PART_REMOVED", "PHOTO", "COMPLETION_SUBMITTED"];
 
 const infoRows: [string, keyof VehicleRecord | ((v: VehicleRecord) => string)][] = [
   ["VIN", "vin"],
@@ -52,7 +51,6 @@ const infoRows: [string, keyof VehicleRecord | ((v: VehicleRecord) => string)][]
 ];
 
 export function DetailView({ user, vehicle }: { user: User; vehicle: VehicleRecord }) {
-  const isYard = user.role === "yard";
   const { updateVehicle, recordEvent, vehicleEvents, staff } = useVehicleData();
   const events = vehicleEvents(vehicle.id);
 
@@ -74,7 +72,7 @@ export function DetailView({ user, vehicle }: { user: User; vehicle: VehicleReco
   const [sourcePhotoName, setSourcePhotoName] = useState("");
   const [message, setMessage] = useState("");
 
-  const actionOptions = isYard ? yardActions : fullActions;
+  const actionOptions = fullActions;
   const highValueRemovals = events.filter((e) => e.action === "PART_REMOVED" && e.highValue);
 
   function saveVehicle() {
@@ -125,8 +123,7 @@ export function DetailView({ user, vehicle }: { user: User; vehicle: VehicleReco
           {vehicle.assignedName || "Unassigned"}
         </p>
 
-        {!isYard && (
-          <>
+        <>
             <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
               {infoRows.map(([label, accessor]) => (
                 <div key={label}>
@@ -202,7 +199,6 @@ export function DetailView({ user, vehicle }: { user: User; vehicle: VehicleReco
               </>
             )}
           </>
-        )}
       </section>
 
       <section className="rounded-lg border border-border bg-card p-4">

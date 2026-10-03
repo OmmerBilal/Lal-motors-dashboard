@@ -24,7 +24,6 @@ const activityMetricEventType: Record<string, string> = {
 export function HomeView({
   user,
   canIntake,
-  isYard,
   onOpenVehicle,
   onStartIntake,
   onGoList,
@@ -34,7 +33,6 @@ export function HomeView({
 }: {
   user: User;
   canIntake: boolean;
-  isYard: boolean;
   onOpenVehicle: (id: string) => void;
   onStartIntake: (method: IntakeMethod) => void;
   onGoList: (filter: string) => void;
@@ -95,34 +93,6 @@ export function HomeView({
       {canIntake && <AuctionInventoryHome onOpenVehicle={onOpenVehicle} onStartIntake={onStartIntake} />}
 
       {canIntake && <div className="border-t border-border pt-1" />}
-
-      {isYard && (
-        <button
-          onClick={() => onGoList("active")}
-          className="flex w-full flex-col items-start gap-2 rounded-lg border border-border bg-card p-4 text-left transition-colors hover:border-primary/40 hover:bg-accent/30 sm:max-w-xs"
-        >
-          <Search className="size-5 text-primary" />
-          <span className="text-sm font-semibold">Find a vehicle</span>
-          <span className="text-xs text-muted-foreground">Search VIN, lot or stock #</span>
-        </button>
-      )}
-
-      {isYard && corrections.length > 0 && (
-        <section className="rounded-lg border border-warning/40 bg-warning/10 p-4">
-          <h3 className="mb-2 text-sm font-semibold">Completion needs correction · {corrections.length}</h3>
-          <div className="space-y-1.5">
-            {corrections.map((c) => (
-              <button
-                key={c.submissionId}
-                onClick={() => onOpenVehicle(c.vehicleId)}
-                className="block w-full rounded-md bg-background px-3 py-2 text-left text-sm hover:bg-accent/40"
-              >
-                <b>{vehicleTitle(c)}</b> · Lot {c.lotNumber || "—"} · {c.reason} · Open vehicle and resubmit
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
 
       {canIntake && (
         <section className="rounded-lg border border-border bg-card p-4">

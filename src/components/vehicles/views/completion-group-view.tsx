@@ -41,7 +41,7 @@ export function CompletionGroupView({
         Completed this {period} · {scoped.length} vehicles
       </h3>
       <p className="text-sm text-muted-foreground">
-        Verified completions, grouped by the yard employee who submitted the completion photo.
+        Verified completions, grouped by the employee who submitted the completion photo.
       </p>
 
       {employeeId ? (

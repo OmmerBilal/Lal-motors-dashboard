@@ -943,7 +943,6 @@ export function computeStats(
   const highValue = events.filter((e) => e.action === "PART_REMOVED" && e.highValue).length;
   const exceptions = openCorrections;
 
-  if (role === "yard") return { active, processing };
   if (role === "auction")
     return {
       total: list.length,

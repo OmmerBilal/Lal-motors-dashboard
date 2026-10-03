@@ -29,8 +29,7 @@ export type VehicleView =
 export type IntakeMethod = "bulk" | "single" | "scan" | "manual";
 
 function WorkspaceBody({ user, initialVehicleId }: { user: User; initialVehicleId?: string | null }) {
-  const isYard = user.role === "yard";
-  const canIntake = !isYard;
+  const canIntake = true;
   const { getVehicle } = useVehicleData();
 
   const [view, setView] = useState<VehicleView>(initialVehicleId ? "detail" : "home");
@@ -85,7 +84,7 @@ function WorkspaceBody({ user, initialVehicleId }: { user: User; initialVehicleI
         <div className="mb-5 flex items-center justify-between gap-3">
           <div>
             <p className="text-xs font-semibold tracking-[0.12em] text-muted-foreground uppercase">
-              {isYard ? "Yard Vehicle Work" : "Auction Vehicle Inventory"}
+              Auction Vehicle Inventory
             </p>
             <h2 className="mt-1 text-xl font-semibold">{heading}</h2>
           </div>
@@ -117,7 +116,6 @@ function WorkspaceBody({ user, initialVehicleId }: { user: User; initialVehicleI
         <HomeView
           user={user}
           canIntake={canIntake}
-          isYard={isYard}
           onOpenVehicle={openVehicle}
           onStartIntake={(method) => {
             setIntakeMethod(method);

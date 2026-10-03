@@ -20,6 +20,7 @@ import {
   TriangleAlert,
   Wrench,
   X,
+  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,9 +41,16 @@ import {
   type ProcessedPartResult,
 } from "@/lib/mock/dismantling";
 
-type Phase = "find" | "notfound" | "alreadyDismantled" | "alreadyInProcess" | "confirm" | "session" | "processing" | "uploadFailed" | "completed";
+type Phase = "home" | "find" | "notfound" | "alreadyDismantled" | "alreadyInProcess" | "confirm" | "session" | "processing" | "uploadFailed" | "completed";
+
+/** "full" = the approved Vehicle Dismantling flow (unchanged). "quick" = Quick Part Capture —
+ * same shared vehicle/session, but each part photo is saved and linked to the current
+ * donor vehicle immediately instead of being batched until the vehicle is finished. */
+type Mode = "full" | "quick";
 
 type PartPhoto = { id: string; takenAt: string };
+
+type QuickCapture = { id: string; partType: string; reviewStatus: ReturnType<typeof guessReviewStatus>; takenAt: string };
 
 type CompletedSummary = {
   vehicle: VehicleRecord;
@@ -74,7 +82,8 @@ export function DismantlingWorkspace({ user }: { user: User }) {
   const { setUserId, users } = useSession();
   const { vehicles, updateVehicle, recordEvent, vehicleEvents } = useVehicleData();
 
-  const [phase, setPhase] = useState<Phase>("find");
+  const [phase, setPhase] = useState<Phase>("home");
+  const [mode, setMode] = useState<Mode>("full");
   const [searchInput, setSearchInput] = useState("");
   const [foundVehicle, setFoundVehicle] = useState<VehicleRecord | null>(null);
   const [vehiclePhotoTaken, setVehiclePhotoTaken] = useState(false);
@@ -82,6 +91,10 @@ export function DismantlingWorkspace({ user }: { user: User }) {
   const [sessionVehicle, setSessionVehicle] = useState<VehicleRecord | null>(null);
   const [sessionStartedAt, setSessionStartedAt] = useState<string>("");
   const [partPhotos, setPartPhotos] = useState<PartPhoto[]>([]);
+
+  const [quickCaptures, setQuickCaptures] = useState<QuickCapture[]>([]);
+  const [quickPendingPhoto, setQuickPendingPhoto] = useState(false);
+  const quickCaptureIndexRef = useRef(0);
 
   const [finishConfirmOpen, setFinishConfirmOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -98,6 +111,7 @@ export function DismantlingWorkspace({ user }: { user: User }) {
 
   function resetToFind() {
     setPhase("find");
+    setMode("full");
     setSearchInput("");
     setFoundVehicle(null);
     setVehiclePhotoTaken(false);
@@ -109,6 +123,21 @@ export function DismantlingWorkspace({ user }: { user: User }) {
     failedOnceRef.current = false;
     setChecklistStep(0);
     setCompletedSummary(null);
+    setQuickCaptures([]);
+    setQuickPendingPhoto(false);
+    quickCaptureIndexRef.current = 0;
+  }
+
+  /** Home menu actions — reuse the active session automatically if one is already open
+   * (per spec: never force a re-scan when a dismantling session is already in progress). */
+  function goToVehicleDismantling() {
+    setMode("full");
+    setPhase(sessionVehicle ? "session" : "find");
+  }
+
+  function goToQuickCapture() {
+    setMode("quick");
+    setPhase(sessionVehicle ? "session" : "find");
   }
 
   function lookupVehicle(raw: string) {
@@ -173,6 +202,37 @@ export function DismantlingWorkspace({ user }: { user: User }) {
     setPartPhotos((xs) => xs.filter((p) => p.id !== id));
   }
 
+  /** Quick Part Capture: no typing, no part ID/SKU/pricing from the employee — just a
+   * photo, saved and linked to the current donor vehicle/session immediately (AI/manager
+   * review organizes it later, same as the approved flow). */
+  function onPickQuickPhoto() {
+    setQuickPendingPhoto(true);
+  }
+
+  function saveQuickCapture() {
+    if (!sessionVehicle) return;
+    const index = quickCaptureIndexRef.current++;
+    const partType = guessPartType(index);
+    const reviewStatus = guessReviewStatus(index);
+    const partId = `qpc-${sessionVehicle.id}-${Date.now()}-${index}`;
+
+    recordEvent({
+      vehicleId: sessionVehicle.id,
+      action: "PART_REMOVED",
+      actorId: user.id,
+      partType,
+      highValue: reviewStatus !== "processed" || highValuePartTypes.has(partType),
+      disposition:
+        reviewStatus === "possible_duplicate" ? "POSSIBLE DUPLICATE — MANAGER REVIEW" : reviewStatus === "processed" ? "IN INVENTORY" : undefined,
+      hasPhoto: true,
+      partId,
+    });
+
+    setQuickCaptures((xs) => [{ id: partId, partType, reviewStatus, takenAt: new Date().toISOString() }, ...xs]);
+    setQuickPendingPhoto(false);
+    toast.success(`${partType} captured · linked to ${sessionVehicle.year} ${sessionVehicle.make} ${sessionVehicle.model}`);
+  }
+
   function runProcessing() {
     setSubmitting(true);
     setPhase("processing");
@@ -228,14 +288,20 @@ export function DismantlingWorkspace({ user }: { user: User }) {
       action: "STATUS",
       status: "Dismantled",
       actorId: user.id,
-      note: `Dismantling completed — ${partPhotos.length} part photo(s) captured`,
+      note: `Dismantling completed — ${partPhotos.length + quickCaptures.length} part photo(s) captured`,
     });
 
+    // Quick Part Captures already recorded their own PART_REMOVED events as they happened —
+    // fold their counts into the summary so it reflects everything captured this session.
     setCompletedSummary({
       vehicle: sessionVehicle,
-      photosSaved: partPhotos.length,
-      partsProcessed: results.filter((r) => r.reviewStatus === "processed").length,
-      needsReview: results.filter((r) => r.reviewStatus !== "processed").length,
+      photosSaved: partPhotos.length + quickCaptures.length,
+      partsProcessed:
+        results.filter((r) => r.reviewStatus === "processed").length +
+        quickCaptures.filter((c) => c.reviewStatus === "processed").length,
+      needsReview:
+        results.filter((r) => r.reviewStatus !== "processed").length +
+        quickCaptures.filter((c) => c.reviewStatus !== "processed").length,
     });
     setSubmitting(false);
     setPhase("completed");
@@ -289,7 +355,7 @@ export function DismantlingWorkspace({ user }: { user: User }) {
             </span>
             <div className="min-w-0">
               <p className="text-[11px] font-bold tracking-[0.14em] text-brand-foreground/60 uppercase">LAL Motors</p>
-              <h2 className="text-lg font-bold sm:text-xl">Employee Dismantling</h2>
+              <h2 className="text-lg font-bold sm:text-xl">Dismantling Employee App</h2>
             </div>
           </div>
           <span className="flex shrink-0 items-center gap-2 rounded-full bg-brand-foreground/10 py-1 pr-3 pl-1 text-sm font-semibold">
@@ -302,6 +368,50 @@ export function DismantlingWorkspace({ user }: { user: User }) {
       </div>
 
       <div className="mx-auto w-full max-w-xl space-y-4">
+        {/* HOME: choose Vehicle Dismantling (full flow) or Quick Part Capture */}
+        {phase === "home" && (
+          <div className="space-y-3">
+            {sessionVehicle && (
+              <div className="flex items-center justify-between rounded-lg bg-brand/95 px-3.5 py-2.5 text-xs font-semibold text-brand-foreground">
+                <span className="truncate">
+                  Active session · {sessionVehicle.year} {sessionVehicle.make} {sessionVehicle.model} · {sessionVehicle.vin.slice(-6)}
+                </span>
+                <span className="shrink-0 rounded-full bg-accent-gold px-2 py-0.5 text-[11px] text-accent-gold-foreground">In Process</span>
+              </div>
+            )}
+
+            <button
+              onClick={goToVehicleDismantling}
+              className="flex w-full items-center gap-4 rounded-xl border border-border bg-card p-5 text-left shadow-xs transition-colors hover:border-primary/40 hover:bg-accent/30"
+            >
+              <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-brand text-brand-foreground">
+                <Wrench className="size-6" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-lg font-bold">Vehicle Dismantling</span>
+                <span className="block text-sm text-muted-foreground">
+                  {sessionVehicle ? "Resume the active session" : "Find a vehicle, take photos, finish it out"}
+                </span>
+              </span>
+            </button>
+
+            <button
+              onClick={goToQuickCapture}
+              className="flex w-full items-center gap-4 rounded-xl border border-accent-gold/40 bg-accent-gold/10 p-5 text-left shadow-xs transition-colors hover:bg-accent-gold/20"
+            >
+              <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-accent-gold text-accent-gold-foreground">
+                <Zap className="size-6" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-lg font-bold">Quick Part Capture</span>
+                <span className="block text-sm text-muted-foreground">
+                  {sessionVehicle ? "Keep capturing parts off this vehicle" : "Photo only — fast repeat capture"}
+                </span>
+              </span>
+            </button>
+          </div>
+        )}
+
         {/* STEP 1: FIND VEHICLE */}
         {phase === "find" && (
           <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
@@ -470,7 +580,7 @@ export function DismantlingWorkspace({ user }: { user: User }) {
             )}
 
             <PrimaryButton className="mt-3" disabled={!vehiclePhotoTaken} onClick={startDismantling}>
-              Start Taking Part Photos
+              {mode === "quick" ? "Start Quick Part Capture" : "Start Taking Part Photos"}
             </PrimaryButton>
             <Button variant="ghost" className="mt-2 w-full text-muted-foreground" onClick={resetToFind}>
               Not the right vehicle? Scan again
@@ -478,8 +588,8 @@ export function DismantlingWorkspace({ user }: { user: User }) {
           </div>
         )}
 
-        {/* STEP 3: TAKE PART PHOTOS (active session) */}
-        {phase === "session" && sessionVehicle && (
+        {/* STEP 3: TAKE PART PHOTOS (active session, approved Vehicle Dismantling flow) */}
+        {phase === "session" && sessionVehicle && mode === "full" && (
           <div className="space-y-3">
             <div className="flex items-center justify-between rounded-lg bg-brand/95 px-3.5 py-2.5 text-xs font-semibold text-brand-foreground">
               <span className="truncate">
@@ -488,6 +598,13 @@ export function DismantlingWorkspace({ user }: { user: User }) {
               </span>
               <span className="shrink-0 rounded-full bg-accent-gold px-2 py-0.5 text-[11px] text-accent-gold-foreground">In Process</span>
             </div>
+
+            <button
+              onClick={() => setMode("quick")}
+              className="flex w-full items-center justify-center gap-1.5 text-xs font-semibold text-accent-gold-foreground hover:underline"
+            >
+              <Zap className="size-3.5" /> Switch to Quick Part Capture for this vehicle
+            </button>
 
             <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
               <h3 className="text-lg font-bold">Take Part Photos</h3>
@@ -535,6 +652,88 @@ export function DismantlingWorkspace({ user }: { user: User }) {
             <PrimaryButton disabled={partPhotos.length === 0} onClick={() => setFinishConfirmOpen(true)}>
               Save &amp; Finish Vehicle
             </PrimaryButton>
+          </div>
+        )}
+
+        {/* QUICK PART CAPTURE (active session) — photo only, no typing, each part saved and
+            linked to the current donor vehicle the moment it's captured. No warehouse fields,
+            no pricing, no SKU — that belongs to later Parts Inventory processing. */}
+        {phase === "session" && sessionVehicle && mode === "quick" && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between rounded-lg bg-brand/95 px-3.5 py-2.5 text-xs font-semibold text-brand-foreground">
+              <span className="truncate">
+                Current Vehicle · {sessionVehicle.year} {sessionVehicle.make} {sessionVehicle.model} · VIN {sessionVehicle.vin.slice(-6)} · Stock/Lot{" "}
+                {sessionVehicle.stockNumber || sessionVehicle.lotNumber || "—"}
+              </span>
+              <span className="shrink-0 rounded-full bg-accent-gold px-2 py-0.5 text-[11px] text-accent-gold-foreground">In Process</span>
+            </div>
+
+            <button
+              onClick={() => setMode("full")}
+              className="flex w-full items-center justify-center gap-1.5 text-xs font-semibold text-primary hover:underline"
+            >
+              <Wrench className="size-3.5" /> Switch to Vehicle Dismantling for this vehicle
+            </button>
+
+            <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-lg font-bold">Quick Part Capture</h3>
+                <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs font-bold text-muted-foreground">
+                  {quickCaptures.length} captured
+                </span>
+              </div>
+              <p className="mt-0.5 text-sm text-muted-foreground">Photo only. No typing. Each part saves instantly to this vehicle.</p>
+
+              {!quickPendingPhoto ? (
+                <label className="mt-4 flex aspect-[4/3] w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-xl bg-muted text-muted-foreground transition-colors hover:bg-muted/70">
+                  <input type="file" accept="image/*" capture="environment" className="hidden" onChange={onPickQuickPhoto} />
+                  <Camera className="size-12" />
+                  <span className="text-sm font-bold">Take Part Photo</span>
+                </label>
+              ) : (
+                <div className="mt-4 space-y-3">
+                  <div className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-success/40 bg-success/5 text-success">
+                    <CheckCircle2 className="size-10" />
+                    <span className="text-sm font-bold">Photo ready</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <label className="flex h-12 cursor-pointer items-center justify-center gap-2 rounded-lg border border-border text-sm font-semibold text-muted-foreground hover:bg-muted/50">
+                      <input type="file" accept="image/*" capture="environment" className="hidden" onChange={onPickQuickPhoto} />
+                      <RotateCcw className="size-4" /> Retake
+                    </label>
+                    <PrimaryButton className="h-12" onClick={saveQuickCapture}>
+                      Save &amp; Next
+                    </PrimaryButton>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {quickCaptures.length > 0 && (
+              <div className="rounded-xl border border-border bg-card p-4">
+                <p className="mb-2 text-xs font-bold tracking-wide text-muted-foreground uppercase">Recent captures</p>
+                <div className="space-y-1.5">
+                  {quickCaptures.slice(0, 6).map((c) => (
+                    <div key={c.id} className="flex items-center justify-between rounded-md bg-muted/40 px-3 py-2 text-sm">
+                      <span className="flex min-w-0 items-center gap-2 font-semibold">
+                        <Wrench className="size-3.5 shrink-0 text-muted-foreground" /> <span className="truncate">{c.partType}</span>
+                      </span>
+                      <span className="shrink-0 text-xs text-muted-foreground">
+                        {new Date(c.takenAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <Button variant="outline" className="h-12 w-full text-destructive" onClick={() => setIssueOpen(true)}>
+              <Flag className="size-4" /> Flag Issue
+            </Button>
+
+            <Button variant="secondary" className="h-12 w-full" onClick={() => setPhase("home")}>
+              Done — Back to Menu
+            </Button>
           </div>
         )}
 
