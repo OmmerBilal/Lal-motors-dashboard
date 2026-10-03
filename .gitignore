@@ -32,7 +32,11 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+.env.local
+.env*.local
 
+# local-only DEV auth test credentials (generated, never committed)
+dev-test-credentials.json
 # vercel
 .vercel
 

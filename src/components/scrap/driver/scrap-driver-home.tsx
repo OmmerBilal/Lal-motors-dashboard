@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/patterns/status-badge";
 import { EmptyState } from "@/components/patterns/empty-state";
 import { useSession } from "@/lib/session";
-import { useRouter } from "next/navigation";
 import type { User } from "@/lib/types";
 import { useScrapData } from "@/components/scrap/scrap-data-context";
 import { CameraStep } from "@/components/scrap/driver/camera-step";
@@ -25,8 +24,7 @@ export function ScrapDriverHome({
   previewDriverId?: string;
 }) {
   const { loads, drivers, createLoad, addTicketPhoto, submitCheckPhoto } = useScrapData();
-  const { setUserId, users } = useSession();
-  const router = useRouter();
+  const { signOut: endSession } = useSession();
   const [view, setView] = useState<DriverView>("home");
   const [pendingTicketLoadId, setPendingTicketLoadId] = useState<string | null>(null);
 
@@ -42,8 +40,7 @@ export function ScrapDriverHome({
   const loadsMissingTicket = myLoads.filter((l) => !l.ticketPhoto);
 
   function signOut() {
-    setUserId(users[0].id);
-    router.push("/login");
+    void endSession();
   }
 
   function startNewLoad() {

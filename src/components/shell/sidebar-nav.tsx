@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
 import { getPrimaryNav } from "@/lib/nav";
@@ -9,14 +9,12 @@ import { useSession } from "@/lib/session";
 import { roleLabels, rolePhaseLabels } from "@/lib/types";
 
 export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
-  const { user, setUserId, users } = useSession();
+  const { user, signOut: endSession } = useSession();
   const pathname = usePathname();
-  const router = useRouter();
   const nav = getPrimaryNav(user.role);
 
-  function signOut() {
-    setUserId(users[0].id);
-    router.push("/login");
+  async function signOut() {
+    await endSession();
     onNavigate?.();
   }
 

@@ -1,44 +1,57 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { mockUsers } from "@/lib/mock/users";
-import { roleLabels, type Role } from "@/lib/types";
-import { useSession } from "@/lib/session";
-
-const roleLandingRoute: Partial<Record<Role, string>> = {
-  owner: "/dashboard",
-  receiving: "/vehicle-receiving",
-  dismantling: "/dismantling",
-  scrap_driver: "/scrap",
-  container_loading: "/containers",
-  export_manager: "/containers",
-};
+import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
-  const { setUserId } = useSession();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  function signInAs(id: string) {
-    setUserId(id);
-    const match = mockUsers.find((u) => u.id === id);
-    router.push((match && roleLandingRoute[match.role]) || "/vehicles");
-  }
+  const reason = searchParams.get("reason");
+  const reasonMessage =
+    reason === "disabled"
+      ? "This account is disabled. Contact an administrator."
+      : reason === "no-role"
+        ? "Your account has no role assigned yet. Contact an administrator."
+        : "";
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
-    const match = mockUsers.find((u) => u.email.toLowerCase() === email.trim().toLowerCase());
-    if (!match) {
-      setError("No matching staff account. Choose a demo account below instead.");
+    setError("");
+    setSubmitting(true);
+
+    const supabase = createClient();
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
+
+    if (signInError) {
+      setSubmitting(false);
+      setError("Invalid email or password.");
       return;
     }
-    signInAs(match.id);
+
+    const next = searchParams.get("next");
+    router.push(next && next.startsWith("/") ? next : "/");
+    router.refresh();
   }
 
   return (
@@ -60,6 +73,11 @@ export default function LoginPage() {
           <p className="mt-1 text-sm text-muted-foreground">
             Use your LAL Motors employee email and password.
           </p>
+          {reasonMessage && (
+            <p role="alert" className="mt-4 text-sm font-medium text-destructive">
+              {reasonMessage}
+            </p>
+          )}
           <form onSubmit={submit} className="mt-6 space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="email">Email</Label>
@@ -88,28 +106,10 @@ export default function LoginPage() {
                 {error}
               </p>
             )}
-            <Button type="submit" className="w-full">
-              Log in
+            <Button type="submit" className="w-full" disabled={submitting}>
+              {submitting ? "Logging in…" : "Log in"}
             </Button>
           </form>
-        </div>
-        <div className="rounded-xl border border-dashed border-border bg-card/60 p-5">
-          <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-            Demo accounts · UI preview only
-          </p>
-          <div className="mt-3 grid gap-1.5">
-            {mockUsers.map((u) => (
-              <button
-                key={u.id}
-                type="button"
-                onClick={() => signInAs(u.id)}
-                className="flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 rounded-md px-2.5 py-2 text-left text-sm hover:bg-muted"
-              >
-                <span className="font-medium">{u.name}</span>
-                <span className="text-xs text-muted-foreground">{roleLabels[u.role]}</span>
-              </button>
-            ))}
-          </div>
         </div>
       </div>
     </main>

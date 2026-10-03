@@ -23,7 +23,6 @@ import { PhotoCapture } from "@/components/containers/photo-capture";
 import { useContainersData } from "@/components/containers/containers-data-context";
 import { containerStatusLabels, type LoaderSafeContainer } from "@/lib/mock/containers";
 import { useSession } from "@/lib/session";
-import { useRouter } from "next/navigation";
 import type { User } from "@/lib/types";
 
 type Screen = "home" | "my-containers" | "select" | "detail" | "number-photo" | "add-photo" | "final-list" | "finish-confirm" | "success";
@@ -43,8 +42,7 @@ function suggestNumber(seed: string): string {
 
 export function ContainerLoadingView({ user, previewMode = false }: { user: User; previewMode?: boolean }) {
   const { loaderJobs, confirmContainerNumber, addFile, markLoadingFinished } = useContainersData();
-  const { setUserId, users } = useSession();
-  const router = useRouter();
+  const { signOut: endSession } = useSession();
 
   const [screen, setScreen] = useState<Screen>("home");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -74,8 +72,7 @@ export function ContainerLoadingView({ user, previewMode = false }: { user: User
   }
 
   function logout() {
-    setUserId(users[0].id);
-    router.push("/login");
+    void endSession();
   }
 
   function saveNumberPhoto() {

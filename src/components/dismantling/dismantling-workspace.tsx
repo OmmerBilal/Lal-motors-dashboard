@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   Barcode,
@@ -78,8 +77,7 @@ function PrimaryButton({ className = "", ...props }: React.ComponentProps<typeof
 }
 
 export function DismantlingWorkspace({ user }: { user: User }) {
-  const router = useRouter();
-  const { setUserId, users } = useSession();
+  const { signOut: endSession } = useSession();
   const { vehicles, updateVehicle, recordEvent, vehicleEvents } = useVehicleData();
 
   const [phase, setPhase] = useState<Phase>("home");
@@ -330,8 +328,7 @@ export function DismantlingWorkspace({ user }: { user: User }) {
   }
 
   function logOut() {
-    setUserId(users[0].id);
-    router.push("/login");
+    void endSession();
   }
 
   const inProcessInfo = (() => {
