@@ -33,8 +33,8 @@ Rule: all future schema changes are new additive files (`0004_…`). Never edit 
 | Database foundation | DONE | 0001 applied; 45 tables, RLS on all 45, 71 policies |
 | Auth / RBAC | DONE (server + DB), browser UI not yet tested | RLS matrix 114/114; route gate 34/34 |
 | Storage / media | DONE (API + service), upload UI not built | media flow 24/24 |
-| Business RPC foundation | PARTIAL | Payments and stock/sales RPCs done (0004, 0005), 63/63 tests. Vehicle, receiving, dismantling, part review, scrap, container and export RPCs NOT STARTED |
-| Auction Vehicles | NOT STARTED | UI is still mock data |
+| Business RPC foundation | PARTIAL (payments, stock, vehicles done) | Payments and stock/sales RPCs done (0004, 0005), 63/63 tests. Vehicle, receiving, dismantling, part review, scrap, container and export RPCs NOT STARTED |
+| Auction Vehicles | BACKEND DONE, UI NOT STARTED | Vehicle RPCs 0006, 55/55 tests. UI still mock data |
 | Central Dispatch | NOT STARTED | |
 | Receiving | NOT STARTED | |
 | Dismantling Employee | NOT STARTED | |
@@ -202,3 +202,14 @@ Regression: `rls-matrix.mjs` still 114/114 after 0004 and 0005.
 
 Not yet covered by an RPC: the Scrap, Container and Export flows, the Finalized-invoice immutability
 test (needs an Export module), and the Vehicle / Receiving / Dismantling / Part-review RPCs.
+
+## Vehicle RPCs (0006) — applied, 55/55
+
+- match_or_create_vehicle(vin, lot, stock, source, fields): VIN, stock, then lot+source matching. Returns created / existing / conflict. Never overwrites. Concurrent intake of the same VIN creates one row (tested with a real race).
+- close_vehicle(id, reason, note): soft close, reviewer roles only (owner, engineer_admin, manager), idempotent, event + audit.
+- assign_carrier(ids[], carrier, price): bulk, all-or-nothing, rejects closed or in-transit vehicles, inactive carriers.
+- update_transport_status(id, to, note): explicit transition table; PROBLEM needs a note; READY_TO_POST needs a price. Central Dispatch external API is NOT called. POSTED_TO_CD is local intent only.
+- receive_vehicle(id): needs 4 original ready media rows with roles arrival_front/rear/left/right. Retry by the same employee is a replay; another employee is refused. Parallel receive: exactly one wins.
+- Guard triggers still block receiving or dismantling from changing price, carrier, purchase fields (direct client attempts tested).
+
+Known: UI for Auction, Dispatch and Receiving is not yet connected. Next item: Vehicle real-data integration.
