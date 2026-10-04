@@ -11,7 +11,8 @@ database before trusting it. Details live in IMPLEMENTATION_PROGRESS.md.
 - [x] Vehicle RPCs (0006): match_or_create, close, assign_carrier, update_transport_status, receive_vehicle — 55/55
 - [~] Vehicle real-data integration: list, search, filters, KPIs, pagination, close, reopen, intake review (duplicate check via find_vehicle_match, commit via match_or_create_vehicle) are DB-backed. STILL MOCK: vehicle detail, completion queue, corrections, and the provider state read by Dispatch, Dismantling and Owner dashboard. Migrations 0007-0011. Tests: read-vehicles 23/23, rpc-vehicles 59/59.
 - [x] Central Dispatch on real data: counts (0012), carrier directory (dispatch-only writes), per-vehicle batch assign (0014), transport status, problem, local post. External API NOT CONNECTED. Tests dispatch.mjs 24/24.
-- [ ] Vehicle Receiving UI (mobile) on receive_vehicle + shared media component
+- [x] Vehicle Receiving on real data: typed lookup (Not Found / Already Received / Ready), 4 arrival photos via shared MediaCapture, receive_vehicle RPC. Scan and OCR NOT connected (typed entry only). Problem reporting NOT connected. Browser/mobile QA NOT run.
+- [x] Shared MediaCapture component (src/components/media/media-capture.tsx) + client upload (src/lib/media/client-upload.ts)
 - [ ] Dismantling RPCs (start/finish/flag)
 - [ ] Dismantling Employee App on real data (+ shared media component)
 - [ ] Part review RPCs (approve / edit-approve / reject / duplicate)

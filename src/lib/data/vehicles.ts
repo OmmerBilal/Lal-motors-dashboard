@@ -21,6 +21,7 @@ export type VehicleListRow = {
   trim: string;
   engine: string;
   arrival_date: string | null;
+  received_at: string | null;
   status: string;
   transport_status: string;
   purchase_date: string;

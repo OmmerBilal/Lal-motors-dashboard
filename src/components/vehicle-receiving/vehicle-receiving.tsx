@@ -24,7 +24,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { StatusBadge } from "@/components/patterns/status-badge";
 import type { User } from "@/lib/types";
 import { transportStatusLabels, type VehicleRecord } from "@/lib/mock/vehicles";
-import { useVehicleData } from "@/components/vehicles/vehicle-data-context";
+import { useDispatchVehicles } from "@/lib/query/dispatch";
+import { useReceiveVehicle } from "@/lib/query/receiving";
+import { lookupForReceiving } from "@/lib/data/receiving";
+import { toVehicleRecord } from "@/lib/data/vehicle-record";
+import { MediaCapture } from "@/components/media/media-capture";
 
 const requiredPhotoSlots = [
   { id: "front", label: "Front View" },
@@ -109,13 +113,15 @@ function Placeholder({ icon: Icon, text }: { icon: typeof CarFront; text: string
 }
 
 export function VehicleReceiving({ user }: { user: User }) {
-  const { vehicles, receiveVehicle } = useVehicleData();
+  const dispatchQuery = useDispatchVehicles();
+  const vehicles = useMemo(() => (dispatchQuery.data ?? []).map(toVehicleRecord), [dispatchQuery.data]);
+  const receiveMutation = useReceiveVehicle();
   const [vinInput, setVinInput] = useState("");
   const [matched, setMatched] = useState<VehicleRecord | null>(null);
   const [alreadyReceived, setAlreadyReceived] = useState<VehicleRecord | null>(null);
   const [noMatch, setNoMatch] = useState(false);
   const [photos, setPhotos] = useState<Record<string, boolean>>({});
-  const [extraPhotoCount, setExtraPhotoCount] = useState(0);
+  const [, setExtraPhotoCount] = useState(0);
   const [vinProblems, setVinProblems] = useState(0);
   const [problemOpen, setProblemOpen] = useState(false);
   const [problemType, setProblemType] = useState(problemOptions[0]);
@@ -144,58 +150,55 @@ export function VehicleReceiving({ user }: { user: User }) {
     setConfirmed(null);
   }
 
-  function lookupVin(vin: string) {
+  async function lookupVin(vin: string) {
     const clean = vin.trim();
     if (!clean) return;
-    const found = vehicles.find((v) => v.vin.toLowerCase() === clean.toLowerCase());
     setConfirmed(null);
     setPhotos({});
     setExtraPhotoCount(0);
-
-    if (!found) {
-      setMatched(null);
-      setAlreadyReceived(null);
-      setNoMatch(true);
-      setVinProblems((n) => n + 1);
-      return;
-    }
-    setNoMatch(false);
-    if (found.receivingStatus === "received") {
-      setAlreadyReceived(found);
-      setMatched(null);
-    } else {
-      setMatched(found);
-      setAlreadyReceived(null);
+    try {
+      const result = await lookupForReceiving(clean);
+      if (result.status === "not_found") {
+        setMatched(null);
+        setAlreadyReceived(null);
+        setNoMatch(true);
+        setVinProblems((n) => n + 1);
+        return;
+      }
+      setNoMatch(false);
+      const record = toVehicleRecord(result.vehicle);
+      if (result.status === "received") {
+        setAlreadyReceived(record);
+        setMatched(null);
+      } else {
+        setMatched(record);
+        setAlreadyReceived(null);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "The lookup failed. Try again.");
     }
   }
 
+  // Barcode and photo scanning are not connected. This focuses the manual entry instead.
   function simulateScan() {
-    const candidate = inbound[0];
-    if (!candidate) {
-      toast.info("No inbound vehicles waiting to be scanned in this demo.");
-      return;
-    }
-    setVinInput(candidate.vin);
-    lookupVin(candidate.vin);
+    toast.info("Barcode and photo scanning are not connected. Type the VIN, lot or stock number.");
+    document.getElementById("vin-manual")?.focus();
   }
 
   const allRequiredCaptured = requiredPhotoSlots.every((s) => photos[s.id]);
 
   function confirmArrival() {
     if (!matched) return;
-    const arrivalPhotos = [
-      ...requiredPhotoSlots.filter((s) => photos[s.id]).map((s) => ({ id: s.id, label: s.label, takenAt: new Date().toISOString() })),
-      ...Array.from({ length: extraPhotoCount }, (_, i) => ({ id: `extra-${i}`, label: "Additional photo", takenAt: new Date().toISOString() })),
-    ];
-    receiveVehicle(matched.id, { receivedBy: user.name, photos: arrivalPhotos });
-    setConfirmed({ vehicle: matched, at: new Date().toISOString() });
+    const vehicle = matched;
+    receiveMutation.mutate(vehicle.id, {
+      onSuccess: () => setConfirmed({ vehicle, at: new Date().toISOString() }),
+      onError: (err) => toast.error(err instanceof Error ? err.message : "Could not confirm receiving. Nothing was saved."),
+    });
   }
 
+  // Problem reporting for receiving has no backend yet. Say so rather than pretend to log it.
   function submitProblem() {
-    toast.success(`${problemType} logged for this vehicle (mock — routed to manager review)`);
-    setProblemOpen(false);
-    setProblemNote("");
-    setProblemType(problemOptions[0]);
+    toast.error("Problem reporting for receiving is not connected yet. Nothing was saved.");
   }
 
   return (
@@ -351,28 +354,20 @@ export function VehicleReceiving({ user }: { user: User }) {
           <CardShell tone="blue" badge={<NumberBadge n={3} tone="blue" />} title="Take Arrival Photos" subtitle="Take clear photos of the vehicle (required)">
             <div className="grid grid-cols-2 gap-3">
               {requiredPhotoSlots.map((slot) => (
-                <label
+                <MediaCapture
                   key={slot.id}
-                  className={`relative flex aspect-video cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border text-center transition-colors ${
-                    photos[slot.id] ? "border-success/40 bg-success/10 text-success" : "border-dashed border-border bg-muted/30 text-muted-foreground hover:border-primary/40"
-                  }`}
-                >
-                  <input type="file" accept="image/*" capture="environment" className="hidden" onChange={() => setPhotos((p) => ({ ...p, [slot.id]: true }))} />
-                  <CarFront className="size-7" />
-                  <span className="text-xs font-medium">{slot.label}</span>
-                  {photos[slot.id] && (
-                    <span className="absolute top-1.5 right-1.5 flex size-5 items-center justify-center rounded-full bg-success text-success-foreground">
-                      <CircleCheckBig className="size-3.5" />
-                    </span>
-                  )}
-                </label>
+                  label={slot.label}
+                  ownerType="vehicle"
+                  ownerId={matched.id}
+                  role={"arrival_" + slot.id}
+                  disabled={receiveMutation.isPending}
+                  onUploaded={() => setPhotos((prev) => ({ ...prev, [slot.id]: true }))}
+                />
               ))}
             </div>
-            <label className="mt-3 flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-md border border-dashed border-border px-3 py-2 text-sm font-medium text-primary hover:bg-primary/5">
-              <Camera className="size-4" /> Add More Photos (Optional)
-              <input type="file" accept="image/*" className="hidden" onChange={() => setExtraPhotoCount((n) => n + 1)} />
-            </label>
-            {extraPhotoCount > 0 && <p className="mt-1.5 text-center text-xs text-muted-foreground">{extraPhotoCount} additional photo(s) added</p>}
+            <div className="mt-3">
+              <MediaCapture label="Additional photo (optional)" ownerType="vehicle" ownerId={matched.id} role="arrival_extra" disabled={receiveMutation.isPending} onUploaded={() => setExtraPhotoCount((n) => n + 1)} />
+            </div>
           </CardShell>
         ) : (
           <CardShell tone="neutral" badge={<NumberBadge n={3} tone="blue" />} title="Take Arrival Photos" subtitle="Take clear photos of the vehicle (required)">

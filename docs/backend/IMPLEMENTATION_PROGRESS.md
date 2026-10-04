@@ -244,3 +244,13 @@ Known: UI for Auction, Dispatch and Receiving is not yet connected. Next item: V
 - Post to Central Dispatch = LOCAL intent only. Central Dispatch external API: NOT CONNECTED. Nothing in code calls an external provider or reports external success.
 - Pickup grouping loads every open vehicle (paged until complete). Fine at DEV scale; a server-side grouped read is the next step if inventory grows.
 - Still mock: vehicle detail, completion queue, corrections, and provider state read by Dismantling and the Owner dashboard.
+
+## Vehicle Receiving + shared media capture (0015) — 2026-10-04
+
+- 0015: list_vehicles adds received_at.
+- Shared MediaCapture (camera or file → preview → upload with progress → retry with the same request id → retake/remove). Upload goes through the existing media API (ticket → signed PUT → complete). Reusable for Dismantling, Scrap and Container Loading.
+- Receiving screen: typed lookup via list_vehicles with exact-identifier classification (Not Found / Already Received / Ready). Confirm calls receive_vehicle. Success is shown only after the RPC returns.
+- Removed: the fabricated scan (picked a fake vehicle) and the mock problem-logged toast. Problem reporting for receiving is NOT connected and says so.
+- Scan / OCR / vision: NOT used and NOT connected. Photos are evidence only.
+- Verification: tsc clean, eslint clean, build exit 0. Browser and mobile viewport QA NOT run (see below).
+- Known gaps: removing a photo after upload is "Retake" (creates a new evidence row; the old row stays as history). Client-side image compression is not implemented (server limit is 15 MB).

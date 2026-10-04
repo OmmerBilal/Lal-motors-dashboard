@@ -51,7 +51,7 @@ export function toVehicleRecord(row: VehicleListRow): VehicleRecord {
     closedNote: null,
     receivingStatus: row.receiving_status as VehicleRecord["receivingStatus"],
     receivedBy: null,
-    receivedAt: null,
+    receivedAt: row.received_at,
     arrivalPhotos: [],
   };
 }
