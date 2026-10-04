@@ -125,7 +125,7 @@ export function OperationsView() {
                 <span className="hidden min-w-0 flex-1 md:block">
                   <b className="block truncate text-sm">{formatPartLocation(p)}</b>
                   <small className="text-xs text-muted-foreground">
-                    {p.operationalStatus} · Qty {p.quantity}
+                    {p.operationalStatus} · {p.quantity === 0 ? "Out of Stock" : "Qty " + p.quantity}
                   </small>
                 </span>
                 <StatusBadge>{p.operationalStatus}</StatusBadge>

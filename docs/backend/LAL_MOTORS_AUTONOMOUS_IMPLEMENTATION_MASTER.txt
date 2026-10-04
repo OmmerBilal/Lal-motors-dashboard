@@ -44,9 +44,16 @@ READ CURRENT STATE
 Do NOT stop because a module, migration, commit, or checkpoint finished.
 Do NOT stop because the session feels long.
 Do NOT ask routine confirmations.
+Do NOT reorder the implementation queue merely because another module is smaller, easier, or
+faster to finish. Work the FIRST unfinished required module in the ordered queue unless a real
+technical dependency requires a temporary detour. If you make such a detour, return immediately
+to the skipped module as soon as the dependency is satisfied.
 If one external integration is blocked, mark only that item [BLOCKED] and continue everything
 else. Stop only when all implementable items are [DONE], or every remaining item is genuinely
 [BLOCKED].
+
+A clean checkpoint is never a reason to return control to the user. After each stable commit,
+read the queue again and immediately begin the next unfinished item.
 
 Persist progress in:
 - docs/backend/IMPLEMENTATION_PROGRESS.md
@@ -294,8 +301,7 @@ MODULE 04 — DISMANTLING EMPLOYEE APP
 STATUS: [PARTIAL]
 Backend (done): migrations 0016-0018; tests rpc-dismantling.mjs 45/45 (role matrix, guard hints, one-active race, retry replay, photo gates, actor check, rollback, protected-field attacks).
 UI (connected, QA pending): dismantling-workspace.tsx reads and writes through the RPCs (lookup guard states, start, resume after reload, evidence and part capture via shared MediaCapture, finish, flag issue). Fabricated scan, fake AI classification, simulated processing and simulated upload-failed card removed.
-Still open before [DONE]: browser QA of the full employee flow, 390/430/768/1366/1440 viewport QA, the quick-capture flow in a browser.
-Backend: migrations 0016 (RPCs), 0017 (abandon -> not sellable), 0018 (completed count excludes abandoned). Tests rpc-dismantling.mjs 45/45 (role matrix, guard hints, one-active race, retry replay, photo gate, actor check, rollback, protected-field attacks). UI NOT yet connected.
+Still open before [DONE]: browser QA of the full employee flow, 390/430/768/1366/1440 viewport QA, and the Quick Part Capture flow in a real browser.
 =====================================
 
 ONE employee app, TWO modes:
@@ -361,9 +367,7 @@ STATUS: [PARTIAL]
 Backend (done): 0019 review RPCs, 0020-0021 queue fixes, 0022 read models (completions, roster), 0023 part_number in review. Tests rpc-processing.mjs 57/57.
 UI (connected, QA pending): needs-review queue actions call the RPCs (approve, edit-approve, reject, duplicate, keep for later); dashboard, completed list, employee detail and vehicle history read the database through use-dismantling-data.ts. Removed: fabricated OEM suggestion, mock event authority for processing, and the notes field that looked saved (now disabled, labelled not stored).
 Known limits: completions and activity cover the last 366 days; custom ranges beyond that are not shown. Captured parts have no category until review, so the employee grouping shows Other. Duplicate target is the most recent approved part on the same vehicle, and the toast says so.
-Still open before [DONE]: browser QA of the manager flows and 390/430/768/1366/1440 viewport QA.
-Backend (done): migrations 0019 (review RPCs, queue, summary), 0020 (queue ambiguous-column fix), 0021 (queue and needs-review count only include captures with a ready photo). Tests rpc-processing.mjs 57/57: role matrix, photo gate, approve idempotency, edit-and-approve validation with rollback, reject and duplicate terminal rules, keep-for-review, parallel double-approve race, queue keyset paging, summary counts.
-UI: not yet connected (dismantling-processing components still on use-dismantling-data mock).
+Still open before [DONE]: browser QA of manager flows and 390/430/768/1366/1440 viewport QA.
 ===========================================
 
 Manager/Owner companion.
@@ -407,7 +411,11 @@ all review actions, idempotency, wrong role, duplicate integrity, rejected not s
 date filters/counts, responsive QA, no duplicate part records.
 
 MODULE 06 — PARTS INVENTORY / OPERATIONS
-STATUS: [NOT STARTED]
+STATUS: [PARTIAL]
+Backend (done): migration 0026 (sellability fix in _available_quantity, list_parts keyset with zero-quantity rows, get_part_detail with donor/session/photo ids/history, update_part_fields by role, set_part_stage with transitions and readiness checks, mark_part_not_sellable refused while reserved, reopen_part_processing, set_part_operational_status), 0027 (wider list read model and remaining draft fields). Each mutation writes part_operations history and one audit row. Tests rpc-parts.mjs 57/57; regression rpc-money-stock.mjs 63/63.
+UI (connected): parts-data-context.tsx reads the database, every change is an RPC and failures are shown. Detail view loads donor, session, photo ids and history on demand. Removed: the fabricated AI draft generator (AI shows not connected), the false saved message on warehouse capture, and the mock authority for Parts.
+Not connected (explicit): warehouse part capture (no donor), photo capture on an existing part from the Parts views (use the dismantling capture flow), barcode scanning and label printing (SKU is stored; scanner and printer are not connected). Quantity is never edited here (sales and stock moves own it).
+Still open before [DONE]: browser QA for the Parts flows and 390/430/768/1366/1440 viewport QA; the inventory list needs an explicit Out of Stock marker (only the operations view has one now).
 ========================================
 
 ONE part row from capture through inventory/sale/history.
@@ -924,6 +932,34 @@ remain Not Connected unless real credentials/code exist.
 Never fake success.
 Complete all internal/local workflows regardless.
 
+LATEST VERIFIED CHECKPOINT — 2026-10-04
+=======================================
+
+Most recent session report:
+- Migrations applied in that run: 0016–0025.
+- Dismantling RPC tests: 45/45.
+- Dismantling Processing tests: 57/57.
+- Customers RPC tests: 36/36.
+- Earlier suites reported green: vehicles 59/59, dispatch 24/24, read model 23/23,
+  RLS 114/114, route gate 34/34, media 24/24, money/stock 63/63.
+- Dismantling Employee UI is connected but not browser/viewport verified.
+- Dismantling Processing UI is connected but not browser/viewport verified.
+- Customer backend is complete but Customer UI is not connected.
+- Module 06 Parts is the next required implementation module.
+- Browser/mobile viewport QA has not yet been completed for the integrated modules.
+- External Central Dispatch, Shopify, eBay, Meta and TikTok remain honestly Not Connected.
+- OpenAI has not yet been used.
+- Latest reported clean commit: 0038d44.
+
+Known limits to preserve/fix deliberately:
+- Processing/completion read windows currently cover 366 days.
+- Pickup grouping may load every open vehicle.
+- rejected/abandoned part currently maps to MISSING because schema has no closer operational state.
+- captured parts have no category until manager review.
+- processing notes input is disabled because no persisted notes target existed in that flow.
+
+This checkpoint is descriptive only. Repository and live DEV state always override it if newer.
+
 FINAL COMPLETION GATE
 =====================
 
@@ -949,32 +985,69 @@ Before declaring overall completion:
 CURRENT NEXT TASK
 =================
 
-Based on the latest verified run, start with:
+Latest verified repository state from the most recent session:
 
-[NOT STARTED] MODULE 04 — DISMANTLING RPC FOUNDATION / EMPLOYEE APP
+- Last clean commit reported: 0038d44.
+- Applied DEV migrations now extend through 0025.
+- Module 04 Dismantling Employee App: [PARTIAL] — backend + UI connected, browser/responsive QA pending.
+- Module 05 Dismantling Processing: [PARTIAL] — backend + UI connected, browser/responsive QA pending.
+- Module 07 Customers: [PARTIAL] — backend complete through 0025 with 36/36 tests; UI still mock/not connected.
+- Module 06 Parts remains the FIRST major implementation item that has not been built.
+- Modules 08–16 remain [NOT STARTED].
+- Cross-cutting mobile/browser/E2E/security/performance work remains incomplete.
 
-Use migration 0016 or the next actual migration number if repo reality differs.
+STRICT NEXT TASK:
+[NOT STARTED] MODULE 06 — PARTS INVENTORY / OPERATIONS
 
-Implement:
-- start_dismantling_session
-- finish_dismantling_session
-- flag_dismantling_issue
+Do NOT skip Module 06 merely because another module is smaller or easier.
 
-Test:
-- success
-- wrong role
-- already active
-- already dismantled
-- retry/idempotency
-- rollback/invariants
+Start by inspecting the current Parts mock/provider implementation and the live parts schema.
+Then implement the missing real backend/read/write layer needed by the approved Parts UI.
 
-Then connect Dismantling Employee App to real DB and shared MediaCapture.
+At minimum complete:
+1. DB-backed Parts list/read model with keyset pagination.
+2. Zero-quantity rows INCLUDED in list/search and rendered as Out of Stock.
+3. Real detail fetch with donor vehicle/session/source context.
+4. Processing mutations for:
+   - stage transitions
+   - condition/test fields
+   - location/zone/rack/shelf/bin
+   - SKU/barcode/label metadata if represented by current schema/UI
+   - price/core charge
+   - notes fields that truly exist in schema
+   - not-sellable flow
+5. Appropriate reviewer/warehouse permissions.
+6. Append part_operations history where business mutations require it.
+7. Real thumbnail/media usage without N+1.
+8. Replace Parts mock authority in production routes.
+9. Persist tests for success, wrong role, invalid transitions, zero-quantity visibility,
+   rejected/duplicate protection, pagination/search, and protected fields.
+10. Connect existing Parts UI to the real data layer.
+11. Run lint, typecheck, production build, and relevant DB tests.
+12. Update this file + progress/queue files.
+13. Commit stable work.
+14. IMMEDIATELY continue to Module 07 Customers UI integration.
 
-AFTER THAT DO NOT STOP.
-Continue Module 05, then 06, then onward until the final completion gate.
+ORDER AFTER MODULE 06:
+A. Finish Module 07 Customers frontend integration and QA.
+B. Module 08 Quotes & Sales.
+C. Module 09 Payments UI.
+D. Module 10 Scrap Driver.
+E. Module 11 Scrap Management.
+F. Module 12 Container Loading Employee.
+G. Module 13 Container Export Management.
+H. Module 14 Owner Dashboard.
+I. Module 15 Management Dashboards.
+J. Module 16 Admin/Manager AI.
+K. Return to all [PARTIAL] Modules 01–05 and 07 and close their browser/responsive/performance gaps.
+L. Finish all cross-cutting items: Supabase types, mock elimination, browser auth QA,
+   security attack matrix, E2E, performance, HEIC behavior, responsive QA.
+M. Run FINAL COMPLETION GATE.
+
+Do not return a partial progress report between these items.
 
 MANDATORY SESSION START INSTRUCTION
-===================================
+==================================
 
 At each new Claude Code session:
 1. Read this entire file.

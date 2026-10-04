@@ -15,9 +15,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { StatusBadge } from "@/components/patterns/status-badge";
-import { usePartsData } from "@/components/parts/parts-data-context";
+import { usePartsData, usePartDetailRecord } from "@/components/parts/parts-data-context";
 import {
-  generateAiDraft,
   operationalStatusOptions,
   partFieldLabels,
   partFieldOrder,
@@ -46,7 +45,7 @@ export function PartDetailView({
   const { getPart, setDraft, setStatus, approve, saveOperations, addFinalPhoto } = usePartsData();
   const part = getPart(partId);
   const [command, setCommand] = useState("Process this part.");
-  const [busy, setBusy] = useState(false);
+  const [busy] = useState(false);
   const [localDraft, setLocalDraft] = useState<PartDraft>(part?.draft ?? {});
   const [opForm, setOpForm] = useState({
     zone: part?.zone ?? "",
@@ -58,6 +57,23 @@ export function PartDetailView({
     note: "",
   });
 
+  const detailQuery = usePartDetailRecord(part?.id ?? "");
+  const detail = detailQuery.data;
+  const photos = (detail?.photos ?? []).map((p) => ({ id: p.media_id, type: "capture" as const }));
+  const history = (detail?.history ?? []).map((h, i) => ({
+    id: String(i),
+    actionType: h.action_type,
+    previousLocation: h.previous_location,
+    newLocation: h.new_location,
+    previousStatus: h.previous_status,
+    newStatus: h.new_status,
+    previousQuantity: null,
+    newQuantity: null,
+    userName: h.actor_name,
+    createdAt: h.created_at,
+    note: h.note,
+  }));
+  const logs: { action: string; userName: string; createdAt: string; summary: string }[] = [];
   if (!part) return null;
 
   const approved = part.status === "approved";
@@ -66,15 +82,7 @@ export function PartDetailView({
   const editable = approved || reviewing;
 
   function processPart() {
-    setBusy(true);
-    window.setTimeout(() => {
-      const draft = generateAiDraft();
-      setDraft(part!.id, draft);
-      setLocalDraft(draft);
-      setStatus(part!.id, "draft_ready", user.name, "AI draft generated from evidence");
-      setBusy(false);
-      toast.success("AI draft ready for manager review");
-    }, 400);
+    toast.info("AI analysis is not connected. Enter the details manually.");
   }
 
   function startReview() {
@@ -114,14 +122,29 @@ export function PartDetailView({
             ID {part.id} · Captured by {part.capturedByName} · {new Date(part.createdAt).toLocaleString()}
           </p>
         </div>
-        <StatusBadge>{`${part.photos.length} linked photos · ${part.status.replaceAll("_", " ")}`}</StatusBadge>
+        <StatusBadge>{`${photos.length} linked photos · ${part.status.replaceAll("_", " ")}`}</StatusBadge>
+      </div>
+
+      <div className="rounded-lg border border-border bg-card p-4">
+        <h3 className="mb-2 text-sm font-semibold">Donor vehicle and capture</h3>
+        {detail?.donor_vehicle ? (
+          <div className="grid gap-2 text-sm sm:grid-cols-2">
+            <p><span className="text-muted-foreground">Vehicle:</span> {detail.donor_vehicle.label}</p>
+            <p><span className="text-muted-foreground">VIN:</span> {detail.donor_vehicle.vin ?? "—"}</p>
+            <p><span className="text-muted-foreground">Lot / stock:</span> {detail.donor_vehicle.lot_number || detail.donor_vehicle.stock_number || "—"}</p>
+            <p><span className="text-muted-foreground">Captured by:</span> {detail.session?.employee_name ?? "—"}</p>
+            <p><span className="text-muted-foreground">Session started:</span> {detail.session ? new Date(detail.session.started_at).toLocaleString() : "—"}</p>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">{detailQuery.isLoading ? "Loading donor details…" : "No donor vehicle recorded for this part."}</p>
+        )}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-lg border border-border bg-card p-4">
           <h3 className="mb-3 text-sm font-semibold">Permanent source evidence</h3>
           <div className="grid grid-cols-2 gap-3">
-            {part.photos.map((p) => (
+            {photos.map((p) => (
               <figure key={p.id} className="overflow-hidden rounded-md border border-border">
                 <div className="flex aspect-[4/3] items-center justify-center bg-muted text-muted-foreground">
                   <Camera className="size-6" />
@@ -148,7 +171,7 @@ export function PartDetailView({
           <div className="mb-3 flex items-start gap-2.5">
             <Sparkles className="mt-0.5 size-5 shrink-0 text-primary" />
             <div>
-              <h3 className="text-sm font-semibold">{approved ? "Part Details" : "LAL Parts AI Manager"}</h3>
+              <h3 className="text-sm font-semibold">Part Details</h3>
               <p className="text-xs text-muted-foreground">
                 {approved ? "View and update this same permanent record." : "The selected record and all linked evidence are sent automatically."}
               </p>
@@ -161,8 +184,8 @@ export function PartDetailView({
                 <Label>Manager command</Label>
                 <Input value={command} onChange={(e) => setCommand(e.target.value)} />
               </div>
-              <Button className="w-full" disabled={busy || command.trim() !== "Process this part."} onClick={processPart}>
-                {busy ? "AI processing exact record…" : "Process this part"}
+              <Button className="w-full" disabled onClick={processPart}>
+                AI analysis not connected
               </Button>
             </div>
           ) : (
@@ -297,21 +320,21 @@ export function PartDetailView({
           <div className="mt-5">
             <h4 className="mb-2 text-sm font-semibold">Movement & operation history</h4>
             <div className="space-y-2">
-              {part.history.map((h) => (
+              {history.map((h) => (
                 <div key={h.id} className="rounded-md border border-border bg-background p-2.5 text-sm">
                   <b>{h.actionType.replaceAll("_", " ")}</b>
                   <span className="ml-2 text-muted-foreground">
                     {h.previousLocation || "Unassigned"} → {h.newLocation || "Unassigned"}
                   </span>
                   <div className="text-xs text-muted-foreground">
-                    {h.previousStatus} → {h.newStatus} · Qty {h.previousQuantity} → {h.newQuantity}
+                    {h.previousStatus} → {h.newStatus}
                     <br />
                     {h.userName} · {new Date(h.createdAt).toLocaleString()}
                     {h.note ? ` · ${h.note}` : ""}
                   </div>
                 </div>
               ))}
-              {!part.history.length && <p className="text-sm text-muted-foreground">No operational changes yet.</p>}
+              {!history.length && <p className="text-sm text-muted-foreground">No operational changes yet.</p>}
             </div>
           </div>
         </div>
@@ -320,7 +343,7 @@ export function PartDetailView({
       <div className="rounded-lg border border-border bg-card p-4">
         <h3 className="mb-3 text-sm font-semibold">Audit history</h3>
         <div className="space-y-2">
-          {part.logs.map((log, i) => (
+          {logs.map((log, i) => (
             <p key={i} className="text-sm">
               <b>{log.action}</b> · {log.userName} · {new Date(log.createdAt).toLocaleString()}
               <br />

@@ -55,11 +55,9 @@ export function CaptureView() {
     if (!partPhoto || !sourcePhoto) return toast.error("Take both required photos.");
     setSaving(true);
     window.setTimeout(() => {
+      // addCapture reports that warehouse capture is not connected. Nothing is saved, so photos stay.
       addCapture();
-      setPartPhoto(null);
-      setSourcePhoto(null);
       setSaving(false);
-      toast.success("Pending part saved. Ready for the next part.");
     }, 300);
   }
 

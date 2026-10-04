@@ -298,3 +298,12 @@ Known: UI for Auction, Dispatch and Receiving is not yet connected. Next item: V
 - Test: scripts/dev-tests/rpc-customers.mjs 36/36.
 - Transient note: one run failed with a pooler auth timeout (EAUTHTIMEOUT), not a test failure. Re-run passed.
 - UI: not connected. Next: customers screens on list_customers, create_customer and customer_history.
+
+## Module 06 Parts Inventory (0026-0027) - 2026-10-04
+
+- Sellability fix (found in review): _available_quantity counted quantity for any part, so a rejected, duplicate or not-sellable part could be reserved. Sellable now requires approved, ready_for_sale and no not-sellable reason. Regression: rpc-money-stock 63/63.
+- Tests: scripts/dev-tests/rpc-parts.mjs 57/57 (roles, warehouse field edits and protected fields, stage transitions and readiness, sellability on the sales path, zero quantity visibility, rejected/duplicate protection, operational state, detail, pagination and search, thumbnail column).
+- Migration-file lesson: SQL generated through shell quoting lost quote characters three times ('' and '%'). Write migration files with the file tool and check them with the apply step.
+- UI: parts-data-context.tsx is DB-backed with the same API. part-detail-view reads donor, session, photo ids and history on demand, and the AI trigger is a not-connected message. capture-view no longer reports a saved part.
+- Not connected: warehouse capture (no donor), photo capture on existing parts from the Parts views, barcode scanning, label printing.
+- Next: browser and viewport QA for Parts, then the Customers UI (Module 07), then Module 08.

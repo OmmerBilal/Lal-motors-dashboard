@@ -51,7 +51,7 @@ function WorkspaceBody({ user, initialPartId }: { user: User; initialPartId?: st
             </p>
             <h2 className="mt-1 text-xl font-semibold">{manager ? "Pending Parts & Inventory" : "Quick Part Capture"}</h2>
             <p className="mt-1 text-sm text-brand-foreground/70">
-              {manager ? "Review employee captures, use Parts AI, and approve inventory." : "Part photo → VIN/Lot photo → Save & Next"}
+              {manager ? "Review employee captures, and approve inventory." : "Part photo → VIN/Lot photo → Save & Next"}
             </p>
           </div>
           <PackageCheck className="hidden size-12 text-accent-gold/60 sm:block" />
