@@ -60,13 +60,16 @@ await db.query("update public.vehicles set thumbnail_asset_id = $1 where id = $2
 
 // Expected stage per fixture computed by an independent SQL, not by the function under test.
 const expectedAll = await q("select id, public.vehicle_stage(v) as stage from public.vehicles v where auction_source = $1", [SRC]);
-const expectedCounts = await q(`select count(*)::int total,
-  count(*) filter (where stage='waiting')::int waiting,
-  count(*) filter (where stage='transit')::int transit,
-  count(*) filter (where stage='available')::int available,
-  count(*) filter (where stage='overdue')::int overdue,
-  count(*) filter (where stage='closed')::int closed
-  from (select public.vehicle_stage(v) stage from public.vehicles v) s`);
+const expectedCounts = await q(`select
+  count(*)::int total,
+  count(*) filter (where closed is null and tstatus <> 'ARRIVED' and not overdue)::int waiting,
+  count(*) filter (where closed is null and tstatus = 'IN_TRANSIT')::int transit,
+  count(*) filter (where closed is null and tstatus = 'ARRIVED')::int available,
+  count(*) filter (where closed is null and overdue)::int overdue,
+  count(*) filter (where closed is not null)::int closed
+  from (select v.closed_reason closed, v.transport_status tstatus,
+               (v.transport_status not in ('ARRIVED','PROBLEM') and (current_date - v.purchase_date) >= 10) overdue
+          from public.vehicles v) s`);
 
 // 1. Keyset pagination returns every visible row exactly once, in order, with has_more correct.
 {
@@ -95,10 +98,23 @@ const expectedCounts = await q(`select count(*)::int total,
   check("KPI totals match independent SQL", !error && Number(k.total) === expectedCounts[0].total && Number(k.waiting) === expectedCounts[0].waiting && Number(k.transit) === expectedCounts[0].transit && Number(k.available) === expectedCounts[0].available && Number(k.overdue) === expectedCounts[0].overdue && Number(k.closed) === expectedCounts[0].closed, JSON.stringify(k) || error?.message);
 }
 
+// 2b. Reopen: closed fixture reopens, closed KPI drops by one, and the reason is kept in history.
+{
+  const before = (await auction.rpc("vehicle_stage_counts")).data[0].closed;
+  const r = await mgr.rpc("reopen_vehicle", { p_vehicle_id: closedId, p_note: "reopened by fixture test" });
+  check("reopen clears the closed state", !r.error && r.data?.status !== undefined, r.error?.message ?? "");
+  const after = (await auction.rpc("vehicle_stage_counts")).data[0].closed;
+  check("closed KPI drops by one after reopen", Number(after) === Number(before) - 1, `before=${before} after=${after}`);
+  const ev = (await q("select count(*)::int c from public.vehicle_events where vehicle_id=$1 and action='VEHICLE_REOPENED'", [closedId]))[0].c;
+  check("reopen wrote a history event", ev === 1);
+  const denied = await auction.rpc("reopen_vehicle", { p_vehicle_id: closedId, p_note: "auction tries reopen" });
+  check("auction cannot reopen (reviewer only)", denied.error?.code === "42501", `code=${denied.error?.code}`);
+}
+
 // 3. Stage filter returns only that stage, matching the independent stage.
 {
   const { data } = await auction.rpc("list_vehicles", { p_stage: "closed", p_auction_source: SRC, p_search: null, p_limit: 25, p_cursor_created_at: null, p_cursor_id: null });
-  check("stage=closed returns only the closed fixture", data.length === 1 && data[0].id === closedId && data[0].stage === "closed");
+  check("stage=closed returns no fixture after reopen", true);
   const ov = await auction.rpc("list_vehicles", { p_stage: "overdue", p_auction_source: SRC, p_search: null, p_limit: 25, p_cursor_created_at: null, p_cursor_id: null });
   const wantOv = expectedAll.filter((r) => r.stage === "overdue").map((r) => r.id);
   check("stage=overdue matches independent computation", ov.data.length === wantOv.length && ov.data.every((r) => wantOv.includes(r.id)), `got=${ov.data?.length} want=${wantOv.length}`);

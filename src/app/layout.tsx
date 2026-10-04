@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "sonner";
 import { SessionProvider } from "@/lib/session";
+import { QueryProvider } from "@/lib/query/provider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -26,10 +27,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <SessionProvider>
-          {children}
-          <Toaster richColors position="top-center" />
-        </SessionProvider>
+        <QueryProvider>
+          <SessionProvider>
+            {children}
+            <Toaster richColors position="top-center" />
+          </SessionProvider>
+        </QueryProvider>
       </body>
     </html>
   );
