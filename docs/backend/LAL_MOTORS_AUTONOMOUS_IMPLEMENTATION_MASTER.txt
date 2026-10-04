@@ -558,8 +558,9 @@ over-allocation block; wrong customer block; concurrency; direct posted mutation
 void flow; responsive.
 
 MODULE 10 — SCRAP DRIVER APP
-STATUS: [NOT STARTED]
+STATUS: IMPLEMENTATION COMPLETE — MANUAL QA PENDING
 =============================
+Built 2026-10-05 (migrations 0035–0039). Evidence-only driver flow: New Load (row created at once), load photo through the media API, Mark Delivered, Add Ticket, Complete Load, Add Check (photo only, no amount). Driver reads are a no-financial view; driver writes are RPCs only. Tests: rpc-scrap 182/182, scrap-smoke 14/14 (390px and 1440px). Manual business QA pending.
 
 MOBILE-FIRST, evidence-only.
 
@@ -588,8 +589,9 @@ full driver flow, retry/duplicate, wrong-driver access, protected fields exclude
 390/430/768, no AI network calls.
 
 MODULE 11 — SCRAP MANAGEMENT
-STATUS: [NOT STARTED]
+STATUS: IMPLEMENTATION COMPLETE — MANUAL QA PENDING
 =============================
+Dashboard from DB summary and keyset load list; load detail (measurement, server-calculated amount, correction with reason, approval, history); payments with mismatch detection, proof, and append-only corrections; structured discrepancies; tire/rim obligations with over-return guard and concurrency lock; daily close with blockers and audited owner/engineer-admin override; date-range reports. Tests: rpc-scrap 182/182; regressions listed in the progress log. Manual business QA pending.
 
 Manager/Owner/authorized office on SAME scrap loads.
 

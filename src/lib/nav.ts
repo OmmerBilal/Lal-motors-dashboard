@@ -40,7 +40,6 @@ export function getPrimaryNav(role: Role): NavItem[] {
         { id: "preview-front", label: "Front Desk Manager Portal", href: "/preview/front-desk", icon: ClipboardList },
         { id: "preview-warehouse", label: "Warehouse Employee App", href: "/preview/warehouse", icon: Camera },
         { id: "preview-loading", label: "Container Loading Employee", href: "/preview/loading", icon: Boxes },
-        { id: "preview-driver", label: "Scrap Driver App", href: "/preview/scrap-driver", icon: Truck },
         { id: "ai-command-center", label: "AI Command Center", href: "/ai-command-center", icon: Sparkles },
         { id: "parts", label: "Parts Inventory", href: "/parts", icon: ClipboardList },
         { id: "operations", label: "Parts Operations", href: "/operations", icon: Boxes },
@@ -122,5 +121,4 @@ export const ownerPreviews: { id: string; label: string; href: string; role: Rol
   { id: "preview-front", label: "Front Desk Manager Portal", href: "/preview/front-desk", role: "manager" },
   { id: "preview-warehouse", label: "Warehouse Employee App", href: "/preview/warehouse", role: "employee" },
   { id: "preview-loading", label: "Container Loading Employee", href: "/preview/loading", role: "container_loading" },
-  { id: "preview-driver", label: "Scrap Driver App", href: "/preview/scrap-driver", role: "scrap_driver" },
 ];

@@ -1,114 +1,115 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
-import { AlertTriangle, CheckCircle2, ClipboardCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/patterns/status-badge";
-import { useScrapData } from "@/components/scrap/scrap-data-context";
-import { effectiveLoadStatus, loadAmount, paymentIsMismatched, localDay } from "@/lib/mock/scrap";
+import { useClosePreview, useManagerMutations } from "@/lib/query/scrap";
+import { lbs, usd } from "@/components/scrap/scrap-shared";
 
-export function DailyClosePanel({ actorName }: { actorName: string }) {
-  const { loads, payments, drivers, dailyCloses, performDailyClose } = useScrapData();
-  const [open, setOpen] = useState(false);
-  const [overrideReason, setOverrideReason] = useState("");
-  const date = localDay();
+const BLOCKER_LABEL: Record<string, string> = {
+  missing_load_photo: "Loads without a load photo",
+  incomplete_workflow: "Loads the driver has not completed",
+  awaiting_review: "Loads awaiting manager review",
+  unresolved_discrepancy: "Unresolved discrepancies",
+};
 
-  const dayLoads = useMemo(() => loads.filter((l) => l.loadDate === date), [loads, date]);
-  const missing = dayLoads.filter((l) => effectiveLoadStatus(l) === "ticket_missing" || !l.loadPhoto);
-  const mismatches = payments.filter((p) => p.linkedLoadIds.some((id) => dayLoads.some((l) => l.id === id)) && paymentIsMismatched(p, loads));
-  const alreadyClosed = dailyCloses.find((c) => c.date === date);
+/**
+ * Daily Close. The server decides: it lists the blocking items for the day, refuses to close while any
+ * remain, and accepts an override only from an owner or engineer admin with a reason (audited).
+ * The override fields here are a convenience; the database enforces the same rule.
+ */
+export function DailyClosePanel({ role, defaultDate }: { role: string; defaultDate: string }) {
+  const [date, setDate] = useState(defaultDate);
+  const [reason, setReason] = useState("");
+  const preview = useClosePreview(date);
+  const { dailyClose } = useManagerMutations();
+  const canOverride = role === "owner" || role === "engineer_admin";
+  const p = preview.data;
+  const blocked = !!p && p.blockers.length > 0;
 
-  const byDriver = drivers.map((d) => {
-    const driverLoads = dayLoads.filter((l) => l.driverId === d.id);
-    return {
-      ...d,
-      loads: driverLoads.length,
-      weight: driverLoads.reduce((n, l) => n + (l.weight || 0), 0),
-      amount: driverLoads.reduce((n, l) => n + loadAmount(l), 0),
-      issues: driverLoads.filter((l) => effectiveLoadStatus(l) === "ticket_missing").length,
-    };
-  });
-
-  function attemptClose(reason?: string) {
-    const result = performDailyClose({ date, closedByName: actorName, overrideReason: reason });
-    if (!result.ok) {
-      toast.error(result.reason || "Cannot close day yet");
-      return;
-    }
-    toast.success(`${date} closed`);
-    setOpen(false);
-    setOverrideReason("");
+  function close() {
+    dailyClose.mutate(
+      { date, overrideReason: blocked ? reason.trim() : null },
+      {
+        onSuccess: (c) => {
+          toast.success(c.override_reason ? "Day closed with an audited override." : "Day closed.");
+          setReason("");
+        },
+        onError: (e) => toast.error(e.message),
+      }
+    );
   }
 
-  const blocked = missing.length > 0 || mismatches.length > 0;
-
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
-      <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-semibold">Daily Summary &amp; Close</h3>
-        <Button size="sm" onClick={() => setOpen(true)} disabled={!!alreadyClosed}>
-          <ClipboardCheck className="size-4" /> {alreadyClosed ? "Day Closed" : "Daily Close"}
-        </Button>
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {byDriver.map((d) => (
-          <div key={d.id} className="rounded-md border border-border p-2.5 text-center">
-            <p className="text-sm font-semibold">{d.loads}</p>
-            <p className="text-[11px] text-muted-foreground">{d.name.split(" ")[0]} loads</p>
-            <p className="text-xs text-muted-foreground">
-              {d.weight.toLocaleString()} lbs · ${d.amount.toFixed(2)}
-            </p>
-          </div>
-        ))}
+    <section className="space-y-4 rounded-lg border border-border bg-card p-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold">Daily close</h3>
+          <p className="text-xs text-muted-foreground">Freezes the day&apos;s totals. Closed days cannot be changed by the driver.</p>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Business day</Label>
+          <Input type="date" className="w-40" value={date} onChange={(e) => setDate(e.target.value)} />
+        </div>
       </div>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Daily Close — {date}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3 text-sm">
-            <Row label="Total loads" value={dayLoads.length} />
-            <Row label="Approved" value={dayLoads.filter((l) => l.status === "approved" || l.status === "closed").length} />
-            <Row label="Missing evidence" value={missing.length} danger={missing.length > 0} />
-            <Row label="Payment mismatches" value={mismatches.length} danger={mismatches.length > 0} />
-            {blocked && (
-              <div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-2.5 text-xs">
-                <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning-foreground" />
-                <span>Unresolved evidence or mismatches exist. Provide an override reason to close anyway (recorded in the audit trail).</span>
-              </div>
-            )}
-            {blocked && <Textarea rows={2} placeholder="Override reason (required)" value={overrideReason} onChange={(e) => setOverrideReason(e.target.value)} />}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>
-              Cancel
-            </Button>
-            <Button disabled={blocked && !overrideReason.trim()} onClick={() => attemptClose(blocked ? overrideReason.trim() : undefined)}>
-              <CheckCircle2 className="size-4" /> Confirm Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {preview.isPending && <p className="text-sm text-muted-foreground">Checking the day…</p>}
+      {preview.isError && <p className="text-sm text-destructive">{preview.error.message}</p>}
 
-      {alreadyClosed && (
-        <p className="mt-3 text-xs text-muted-foreground">
-          <StatusBadge tone="success">CLOSED</StatusBadge> by {alreadyClosed.closedByName} at {new Date(alreadyClosed.closedAt).toLocaleTimeString()}
-          {alreadyClosed.overrideReason && ` — override: ${alreadyClosed.overrideReason}`}
-        </p>
+      {p && (
+        <>
+          <div className="flex flex-wrap items-center gap-2">
+            {p.closed ? <StatusBadge tone="success">CLOSED</StatusBadge> : <StatusBadge tone={blocked ? "warning" : "info"}>{blocked ? "OPEN ITEMS" : "READY TO CLOSE"}</StatusBadge>}
+          </div>
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-5">
+            <dt className="text-xs text-muted-foreground">Loads</dt>
+            <dd className="tabular-nums">{p.loads}</dd>
+            <dt className="text-xs text-muted-foreground">Completed</dt>
+            <dd className="tabular-nums">{p.completed}</dd>
+            <dt className="text-xs text-muted-foreground">Weight</dt>
+            <dd className="tabular-nums">{lbs(p.weight)}</dd>
+            <dt className="text-xs text-muted-foreground">Amount</dt>
+            <dd className="tabular-nums">{usd(p.amount)}</dd>
+            <dt className="text-xs text-muted-foreground">Received</dt>
+            <dd className="tabular-nums">{usd(p.payments_received)}</dd>
+          </dl>
+
+          {blocked && (
+            <div className="space-y-2 rounded-md border border-warning/40 bg-warning/5 p-3">
+              <p className="text-sm font-medium">Open items block the close</p>
+              <ul className="list-inside list-disc text-sm">
+                {p.blockers.map((b) => (
+                  <li key={b.kind}>
+                    {BLOCKER_LABEL[b.kind] ?? b.kind}: <b>{b.count}</b>
+                  </li>
+                ))}
+              </ul>
+              {canOverride ? (
+                <div className="space-y-1">
+                  <Label className="text-xs">Override reason (required, audited)</Label>
+                  <Textarea rows={2} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why the day is closed with open items" />
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">Only an owner or engineer admin can close a day with open items.</p>
+              )}
+            </div>
+          )}
+
+          {!p.closed && (
+            <Button
+              className="w-full sm:w-auto"
+              disabled={dailyClose.isPending || (blocked && (!canOverride || reason.trim().length < 5))}
+              onClick={close}
+            >
+              {dailyClose.isPending ? "Closing…" : blocked ? "Close with override" : "Close the day"}
+            </Button>
+          )}
+        </>
       )}
-    </div>
-  );
-}
-
-function Row({ label, value, danger }: { label: string; value: number; danger?: boolean }) {
-  return (
-    <div className="flex items-center justify-between">
-      <span className="text-muted-foreground">{label}</span>
-      <b className={danger ? "text-destructive" : ""}>{value}</b>
-    </div>
+    </section>
   );
 }

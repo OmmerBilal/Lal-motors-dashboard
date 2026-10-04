@@ -9,53 +9,63 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { StatusBadge } from "@/components/patterns/status-badge";
 import { EmptyState } from "@/components/patterns/empty-state";
 import type { User } from "@/lib/types";
-import { useScrapData } from "@/components/scrap/scrap-data-context";
+import { useManagerLoads, useManagerSummary } from "@/lib/query/scrap";
+import type { LoadBucket, ManagerLoad } from "@/lib/data/scrap";
 import { DriverCard } from "@/components/scrap/manager/driver-card";
 import { LoadDetailSheet } from "@/components/scrap/manager/load-detail-sheet";
-import { PaymentPanel } from "@/components/scrap/manager/payment-panel";
+import { PaymentsPanel } from "@/components/scrap/manager/payment-panel";
 import { TireShopPanel } from "@/components/scrap/manager/tire-shop-panel";
 import { DailyClosePanel } from "@/components/scrap/manager/daily-close-panel";
-import {
-  effectiveLoadStatus,
-  loadAmount,
-  loadStatusLabels,
-  paymentStatusLabel,
-  periodRange,
-  isToday,
-  type PeriodId,
-  type ScrapLoad,
-} from "@/lib/mock/scrap";
+import { ReportsPanel } from "@/components/scrap/manager/reports-panel";
+import { DiscrepanciesPanel } from "@/components/scrap/manager/discrepancies-panel";
+import { lbs, managerStateLabel, paymentStatusLabelText, timeLabel, usd, yardDay } from "@/components/scrap/scrap-shared";
+
+type Period = "today" | "week" | "month" | "custom";
+type Section = "loads" | "payments" | "discrepancies" | "tire_rim" | "daily_close" | "reports";
+
+const BUCKETS: { id: LoadBucket; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "open", label: "Open" },
+  { id: "awaiting_ticket", label: "Awaiting Ticket" },
+  { id: "needs_review", label: "Needs Review" },
+  { id: "completed", label: "Completed" },
+  { id: "discrepancy", label: "Discrepancies" },
+  { id: "unpaid", label: "Unpaid" },
+];
+
+const SECTIONS: { id: Section; label: string }[] = [
+  { id: "loads", label: "Loads" },
+  { id: "payments", label: "Payments" },
+  { id: "discrepancies", label: "Discrepancies" },
+  { id: "tire_rim", label: "Tire / Rim" },
+  { id: "daily_close", label: "Daily Close" },
+  { id: "reports", label: "Reports" },
+];
 
 export function ScrapManagerDashboard({ user, onOpenUsers }: { user: User; onOpenUsers?: () => void }) {
-  const { loads, payments, drivers } = useScrapData();
-  const [period, setPeriod] = useState<PeriodId>("today");
+  const [period, setPeriod] = useState<Period>("today");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
-  const [selectedDriverId, setSelectedDriverId] = useState<string | null>(drivers[0]?.id ?? null);
-  const [selectedLoad, setSelectedLoad] = useState<ScrapLoad | null>(null);
+  const [section, setSection] = useState<Section>("loads");
+  const [bucket, setBucket] = useState<LoadBucket>("all");
+  const [driverId, setDriverId] = useState<string | null>(null);
+  const [selectedLoadId, setSelectedLoadId] = useState<string | null>(null);
 
-  const range = periodRange(period, { from: customFrom, to: customTo });
-  const periodLoads = useMemo(() => loads.filter((l) => l.loadDate >= range.from && l.loadDate <= range.to), [loads, range.from, range.to]);
+  const range = useMemo(() => {
+    if (period === "today") return { from: yardDay(), to: yardDay() };
+    if (period === "week") return { from: yardDay(6), to: yardDay() };
+    if (period === "month") return { from: yardDay(29), to: yardDay() };
+    return { from: customFrom || yardDay(), to: customTo || yardDay() };
+  }, [period, customFrom, customTo]);
+  const rangeValid = range.from <= range.to;
 
-  const todayLoads = loads.filter((l) => isToday(l.createdAt));
-  const openLoads = periodLoads.filter((l) => l.status === "new" || l.status === "ready_for_review");
-  const pendingApprovals = periodLoads.filter((l) => l.status === "ready_for_review");
-  const completedToday = todayLoads.filter((l) => l.status === "approved" || l.status === "closed");
-  const missingEvidence = periodLoads.filter((l) => effectiveLoadStatus(l) === "ticket_missing" || !l.loadPhoto);
-  const weekLoads = loads.filter((l) => l.loadDate >= periodRange("week").from);
-  const paymentPending = loads.filter((l) => paymentStatusLabel(l) === "Payment Pending");
-  const discrepancies = payments.filter((p) => !p.discrepancyReason && Math.abs(p.amountReceived - periodLoads.filter((l) => l.paymentId === p.id).reduce((n, l) => n + loadAmount(l), 0)) > 0.01 && p.linkedLoadIds.length);
-
-  const driverStats = drivers.map((d) => {
-    const dLoads = todayLoads.filter((l) => l.driverId === d.id);
-    return { ...d, loadsToday: dLoads.length, weight: dLoads.reduce((n, l) => n + (l.weight || 0), 0), amount: dLoads.reduce((n, l) => n + loadAmount(l), 0) };
-  });
-
-  const selectedDriver = drivers.find((d) => d.id === selectedDriverId);
-  const driverLoads = useMemo(
-    () => (selectedDriverId ? periodLoads.filter((l) => l.driverId === selectedDriverId).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)) : []),
-    [periodLoads, selectedDriverId]
-  );
+  const summary = useManagerSummary(range.from, range.to);
+  // The driver list covers a year, so a driver with no loads in the chosen period still appears for payments.
+  const yearSummary = useManagerSummary(yardDay(365), yardDay());
+  const drivers = yearSummary.data?.by_driver ?? [];
+  const loads = useManagerLoads({ bucket, from: range.from, to: range.to, driverId });
+  const rows: ManagerLoad[] = loads.data?.pages.flatMap((p) => p.rows) ?? [];
+  const s = summary.data;
 
   return (
     <div className="space-y-5">
@@ -65,23 +75,19 @@ export function ScrapManagerDashboard({ user, onOpenUsers }: { user: User; onOpe
             <Recycle className="size-5" />
           </span>
           <div>
-            <h2 className="text-xl font-semibold">Scrap Module</h2>
-            <p className="text-sm text-muted-foreground">Manage scrap yard loads, driver activity, payments, and tire/rim returns</p>
+            <h2 className="text-xl font-semibold">Scrap Management</h2>
+            <p className="text-sm text-muted-foreground">Loads, reconciliation, discrepancies, tire and rim obligations, and daily close</p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Select value={period} onValueChange={(v) => setPeriod((v as PeriodId) ?? "today")}>
+          <Select value={period} onValueChange={(v) => setPeriod((v as Period) ?? "today")}>
             <SelectTrigger className="w-36">
-              <SelectValue>
-                {(value: PeriodId) =>
-                  ({ today: "Today", week: "This Week", month: "This Month", custom: "Custom" })[value] ?? "Today"
-                }
-              </SelectValue>
+              <SelectValue>{(value: Period) => ({ today: "Today", week: "Last 7 days", month: "Last 30 days", custom: "Custom" })[value] ?? "Today"}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="today">Today</SelectItem>
-              <SelectItem value="week">This Week</SelectItem>
-              <SelectItem value="month">This Month</SelectItem>
+              <SelectItem value="week">Last 7 days</SelectItem>
+              <SelectItem value="month">Last 30 days</SelectItem>
               <SelectItem value="custom">Custom</SelectItem>
             </SelectContent>
           </Select>
@@ -94,109 +100,157 @@ export function ScrapManagerDashboard({ user, onOpenUsers }: { user: User; onOpe
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <SummaryCard icon={Truck} tone="#2563eb" value={openLoads.length} label="Open Loads" hint="Awaiting review" />
-        <SummaryCard icon={Clock} tone="#d97706" value={pendingApprovals.length} label="Pending Approvals" hint="Ticket in, needs review" />
-        <SummaryCard icon={CheckCircle2} tone="#16a34a" value={completedToday.length} label="Completed Today" hint={`${completedToday.reduce((n, l) => n + (l.weight || 0), 0).toLocaleString()} lbs · $${completedToday.reduce((n, l) => n + loadAmount(l), 0).toFixed(2)}`} />
-        <SummaryCard icon={AlertTriangle} tone="#dc2626" value={missingEvidence.length} label="Missing Photos/Tickets" hint="Needs attention" />
-        <SummaryCard icon={DollarSign} tone="#7c3aed" value={weekLoads.length} label="Total This Week" hint={`${weekLoads.reduce((n, l) => n + (l.weight || 0), 0).toLocaleString()} lbs · $${weekLoads.reduce((n, l) => n + loadAmount(l), 0).toFixed(2)}`} />
+      {!rangeValid && <p className="text-sm text-destructive">The end date must be on or after the start date.</p>}
+      {summary.isError && <p className="text-sm text-destructive">{summary.error.message}</p>}
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <SummaryCard icon={Truck} tone="#2563eb" value={s?.open_now ?? "—"} label="Open Loads" hint="New or awaiting review" />
+        <SummaryCard icon={Clock} tone="#d97706" value={s?.awaiting_ticket_now ?? "—"} label="Awaiting Ticket" hint={`${s?.ticket_missing_now ?? 0} past their day`} />
+        <SummaryCard icon={CheckCircle2} tone="#16a34a" value={s?.needs_review_now ?? "—"} label="Needs Review" hint={`${s?.completed_in_range ?? 0} completed in range`} />
+        <SummaryCard icon={AlertTriangle} tone="#dc2626" value={s?.discrepancies_open_now ?? "—"} label="Open Discrepancies" hint={`${s?.payment_pending_now ?? 0} payment(s) pending`} />
+        <SummaryCard icon={DollarSign} tone="#7c3aed" value={usd(s?.amount_in_range ?? null)} label="Completed Amount" hint={`${lbs(s?.weight_in_range ?? null)} · ${s?.loads_in_range ?? 0} loads`} />
+        <SummaryCard icon={DollarSign} tone="#0891b2" value={usd(s?.payments_received_in_range ?? null)} label="Received in Range" hint="Payments, excluding corrections" />
+        <SummaryCard
+          icon={Recycle}
+          tone="#b45309"
+          value={s ? `${s.tire_rim_remaining_aluminum} / ${s.tire_rim_remaining_steel}` : "—"}
+          label="Tire/Rim Outstanding"
+          hint={`${s?.tire_rim_open_obligations ?? 0} open obligation(s) · aluminum / steel`}
+        />
+        <SummaryCard icon={CheckCircle2} tone={s?.day_closed_today ? "#16a34a" : "#64748b"} value={s ? (s.day_closed_today ? "Closed" : "Open") : "—"} label="Today's Close" hint="Owner or engineer admin may override" />
       </div>
 
-      <p className="text-xs text-muted-foreground">
-        Payment Pending: <b className="text-foreground">{paymentPending.length} load(s)</b> · Payment Discrepancies:{" "}
-        <b className={discrepancies.length ? "text-destructive" : "text-foreground"}>{discrepancies.length}</b>
-      </p>
-
-      <div className="rounded-lg border border-border bg-card p-4">
-        <h3 className="mb-3 text-sm font-semibold">Scrap Drivers (Today) · Driver activity and load count</h3>
-        {drivers.length ? (
+      {(s?.by_driver?.length ?? 0) > 0 && (
+        <div className="rounded-lg border border-border bg-card p-4">
+          <h3 className="mb-3 text-sm font-semibold">Drivers in range</h3>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            {driverStats.map((d) => (
+            {s!.by_driver.map((d) => (
               <DriverCard
-                key={d.id}
+                key={d.driver_id}
                 name={d.name}
-                loadsToday={d.loadsToday}
+                loadsToday={d.loads}
                 totalWeight={d.weight}
                 totalAmount={d.amount}
-                active={selectedDriverId === d.id}
-                onViewLoads={() => setSelectedDriverId(d.id)}
+                active={driverId === d.driver_id}
+                onViewLoads={() => {
+                  setDriverId(d.driver_id);
+                  setSection("loads");
+                }}
               />
             ))}
           </div>
-        ) : (
-          <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">No active Scrap Driver account exists yet.</p>
-            {onOpenUsers && (
-              <Button size="sm" onClick={onOpenUsers}>
-                Open Users &amp; Activity
-              </Button>
-            )}
-          </div>
-        )}
-      </div>
-
-      <TireShopPanel actorName={user.name} />
-
-      {selectedDriver && (
-        <div className="rounded-lg border border-border bg-card p-4">
-          <h3 className="mb-3 text-sm font-semibold">{selectedDriver.name.split(" ")[0]} — Loads</h3>
-          {driverLoads.length ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>#</TableHead>
-                  <TableHead>Time</TableHead>
-                  <TableHead>Load Photo</TableHead>
-                  <TableHead>Ticket Photo</TableHead>
-                  <TableHead>Weight</TableHead>
-                  <TableHead>Rate</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Approval</TableHead>
-                  <TableHead>Payment</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {driverLoads.map((l, i) => (
-                  <TableRow key={l.id}>
-                    <TableCell>{driverLoads.length - i}</TableCell>
-                    <TableCell>{new Date(l.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</TableCell>
-                    <TableCell>{l.loadPhoto ? "✓" : "—"}</TableCell>
-                    <TableCell>{l.ticketPhoto ? "✓" : "—"}</TableCell>
-                    <TableCell>{l.weight != null ? l.weight.toLocaleString() : "—"}</TableCell>
-                    <TableCell>{l.rate != null ? `$${l.rate}` : "—"}</TableCell>
-                    <TableCell>{l.amount != null ? `$${loadAmount(l).toFixed(2)}` : "—"}</TableCell>
-                    <TableCell>
-                      <StatusBadge>{loadStatusLabels[effectiveLoadStatus(l)].toUpperCase()}</StatusBadge>
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge>{paymentStatusLabel(l).toUpperCase()}</StatusBadge>
-                    </TableCell>
-                    <TableCell>
-                      <Button size="sm" variant="outline" onClick={() => setSelectedLoad(l)}>
-                        Open
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          ) : (
-            <EmptyState title="No loads in this range for this driver." />
-          )}
-
-          {selectedDriver && <div className="mt-4"><PaymentPanel driverId={selectedDriver.id} driverName={selectedDriver.name} actorName={user.name} /></div>}
+        </div>
+      )}
+      {s && s.by_driver.length === 0 && !onOpenUsers && <p className="text-sm text-muted-foreground">No loads in this range.</p>}
+      {s && s.by_driver.length === 0 && onOpenUsers && (
+        <div className="space-y-2">
+          <p className="text-sm text-muted-foreground">No loads in this range yet.</p>
+          <Button size="sm" onClick={onOpenUsers}>Open Users &amp; Activity</Button>
         </div>
       )}
 
-      <DailyClosePanel actorName={user.name} />
+      <div className="flex flex-wrap gap-1 rounded-lg bg-muted p-1">
+        {SECTIONS.map((x) => (
+          <button
+            key={x.id}
+            onClick={() => setSection(x.id)}
+            className={`rounded px-3 py-1.5 text-xs font-semibold transition-colors ${section === x.id ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            {x.label}
+          </button>
+        ))}
+      </div>
 
-      <LoadDetailSheet load={selectedLoad} open={!!selectedLoad} onOpenChange={(o) => !o && setSelectedLoad(null)} actorName={user.name} />
+      {section === "loads" && (
+        <div className="space-y-3 rounded-lg border border-border bg-card p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            {BUCKETS.map((b) => (
+              <button
+                key={b.id}
+                onClick={() => setBucket(b.id)}
+                className={`rounded-full border px-3 py-1 text-xs font-medium ${bucket === b.id ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground"}`}
+              >
+                {b.label}
+              </button>
+            ))}
+            <Select value={driverId ?? "all"} onValueChange={(v) => setDriverId(!v || v === "all" ? null : v)}>
+              <SelectTrigger className="ml-auto w-44">
+                <SelectValue>{(v: string) => (v === "all" ? "All drivers" : drivers.find((d) => d.driver_id === v)?.name ?? "Driver")}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All drivers</SelectItem>
+                {drivers.map((d) => (
+                  <SelectItem key={d.driver_id} value={d.driver_id}>
+                    {d.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {loads.isPending && <p className="text-sm text-muted-foreground">Loading loads…</p>}
+          {loads.isError && <p className="text-sm text-destructive">{loads.error.message}</p>}
+          {!loads.isPending && rows.length === 0 && <EmptyState title="No loads match this view." />}
+          {rows.length > 0 && (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Time</TableHead>
+                    <TableHead>Driver</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Weight</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead>Payment</TableHead>
+                    <TableHead className="text-right">Open</TableHead>
+                    <TableHead />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rows.map((l) => (
+                    <TableRow key={l.id}>
+                      <TableCell>{l.load_date}</TableCell>
+                      <TableCell>{timeLabel(l.created_at)}</TableCell>
+                      <TableCell>{l.driver_name}</TableCell>
+                      <TableCell>
+                        <StatusBadge>{managerStateLabel[l.state].toUpperCase()}</StatusBadge>
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">{lbs(l.weight)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{usd(l.amount)}</TableCell>
+                      <TableCell>{paymentStatusLabelText[l.payment_status]}</TableCell>
+                      <TableCell className="text-right tabular-nums">{l.open_discrepancies || "—"}</TableCell>
+                      <TableCell>
+                        <Button size="sm" variant="outline" onClick={() => setSelectedLoadId(l.id)}>
+                          Open
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+          {loads.hasNextPage && (
+            <Button variant="outline" className="w-full" disabled={loads.isFetchingNextPage} onClick={() => loads.fetchNextPage()}>
+              {loads.isFetchingNextPage ? "Loading…" : "Load more"}
+            </Button>
+          )}
+        </div>
+      )}
+
+      {section === "payments" && <PaymentsPanel drivers={drivers} />}
+      {section === "discrepancies" && <DiscrepanciesPanel />}
+      {section === "tire_rim" && <TireShopPanel />}
+      {section === "daily_close" && <DailyClosePanel role={user.role} defaultDate={yardDay()} />}
+      {section === "reports" && <ReportsPanel drivers={drivers} />}
+
+      <LoadDetailSheet loadId={selectedLoadId} open={!!selectedLoadId} onOpenChange={(o) => !o && setSelectedLoadId(null)} />
     </div>
   );
 }
 
-function SummaryCard({ icon: Icon, tone, value, label, hint }: { icon: typeof Truck; tone: string; value: number; label: string; hint?: string }) {
+function SummaryCard({ icon: Icon, tone, value, label, hint }: { icon: typeof Truck; tone: string; value: number | string; label: string; hint?: string }) {
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-border p-4" style={{ backgroundColor: `${tone}0f` }}>
       <span className="flex size-9 items-center justify-center rounded-md" style={{ backgroundColor: `${tone}26`, color: tone }}>

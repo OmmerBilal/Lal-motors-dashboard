@@ -41,3 +41,8 @@ External, NOT CONNECTED: Central Dispatch API, eBay, Shopify, Meta, TikTok, Open
 ## Module 08 / 09 final state (2026-10-04)
 - [DONE] Module 08 Quotes and Sales: E2E 185/185 (one full run, 0 failed); POS thumbnail image verified; responsive 390/430/768/1366/1440 green; regressions rpc-quotes-sales 68/68, rpc-money-stock 63/63, rpc-parts 57/57, rpc-customers 36/36, RLS 114/114; tsc, lint, build green.
 - [DONE] Module 09 Payments: same E2E run covers pending, allocate, post, void and access rules; rpc-payments 70/70 (includes the migration 0034 regression); allocate, void and posted state responsive at all five widths.
+
+## Modules 10 and 11 (2026-10-05)
+- [IMPLEMENTATION COMPLETE — MANUAL QA PENDING] Module 10 Scrap Driver.
+- [IMPLEMENTATION COMPLETE — MANUAL QA PENDING] Module 11 Scrap Management.
+- Evidence: see IMPLEMENTATION_PROGRESS.md, section "Modules 10 and 11 technical closure".

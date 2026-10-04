@@ -364,3 +364,18 @@ Fixes made in this pass:
 Known gaps outside Modules 08 and 09 (not changed):
 - customers.customer_number is null for every new customer. create_customer does not assign a number and there is no generator. It shows blank in the POS selection and on printed invoices. A number format is not defined in the docs, so none was invented.
 - Payments have no sequence number yet.
+
+## Modules 10 and 11 technical closure (2026-10-05)
+
+Status: Module 10 = IMPLEMENTATION COMPLETE — MANUAL QA PENDING. Module 11 = IMPLEMENTATION COMPLETE — MANUAL QA PENDING.
+
+Migrations: 0035 (schema, guards, access tightening), 0036 (read views, RPCs), 0037 and 0038 (review fixes), 0039 (payments list carries load ids).
+
+Automated results (DEV, run one at a time):
+- rpc-scrap 182/182; scrap-smoke 14/14 (driver 390px and 1440px, manager 390px and 1440px)
+- rpc-quotes-sales 68/68; rpc-payments 70/70; rpc-money-stock 63/63; rpc-parts 57/57; rpc-customers 36/36
+- RLS matrix 114/114; media-flow 24/24; route-gate 34/34
+- rpc-vehicles 59/59; rpc-processing 57/57; rpc-dismantling 45/45
+- tsc --noEmit exit 0; npm run build exit 0; scrap lint clean
+
+Known out of scope (not changed): PartsDataProvider loads the parts list on every page and gets a 403 for roles without Parts access (visible in console only). customers.customer_number is null for new customers; nothing assigns it.

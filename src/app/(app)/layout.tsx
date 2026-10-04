@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { AppShell } from "@/components/shell/app-shell";
 import { VehicleDataProvider } from "@/components/vehicles/vehicle-data-context";
 import { PartsDataProvider } from "@/components/parts/parts-data-context";
-import { ScrapDataProvider } from "@/components/scrap/scrap-data-context";
 import { ContainersDataProvider } from "@/components/containers/containers-data-context";
 import { createClient } from "@/lib/supabase/server";
 
@@ -26,11 +25,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <VehicleDataProvider>
       <PartsDataProvider>
-        <ScrapDataProvider>
           <ContainersDataProvider>
             <AppShell>{children}</AppShell>
           </ContainersDataProvider>
-        </ScrapDataProvider>
       </PartsDataProvider>
     </VehicleDataProvider>
   );

@@ -329,3 +329,42 @@ export async function getPosPartThumbnailUrls(partIds: string[]): Promise<Result
   }
   return { ok: true, data: out };
 }
+
+/**
+ * Thumbnail URLs for a list of original photos (scrap loads and checks). One RLS-scoped query for
+ * every visible thumbnail, then one signed batch per bucket: no per-card requests. Originals are
+ * never returned here. Photos the caller cannot read simply have no entry.
+ */
+export async function getThumbnailUrlsForOriginals(originalIds: string[]): Promise<Result<Record<string, string>>> {
+  const ids = [...new Set(originalIds)];
+  if (ids.length > 100 || !ids.every((id) => UUID_RE.test(id))) return fail("invalid", "Invalid photo list.");
+  if (ids.length === 0) return { ok: true, data: {} };
+
+  const user = await createUserClient();
+  const { data: rows, error } = await user
+    .from("media_assets")
+    .select("variant_of, bucket, storage_path")
+    .in("variant_of", ids)
+    .eq("variant", "thumbnail")
+    .eq("status", "ready");
+  if (error) return fail("forbidden", "You cannot view these photos.");
+
+  const byBucket = new Map<string, { originalId: string; path: string }[]>();
+  for (const r of (rows ?? []) as { variant_of: string; bucket: string; storage_path: string }[]) {
+    const list = byBucket.get(r.bucket) ?? [];
+    list.push({ originalId: r.variant_of, path: r.storage_path });
+    byBucket.set(r.bucket, list);
+  }
+
+  const admin = createAdminClient();
+  const out: Record<string, string> = {};
+  for (const [bucket, items] of byBucket) {
+    const signed = await admin.storage.from(bucket).createSignedUrls(items.map((i) => i.path), SIGNED_READ_SECONDS);
+    if (signed.error || !signed.data) continue;
+    for (const s of signed.data) {
+      const hit = items.find((i) => i.path === s.path);
+      if (hit && s.signedUrl && !s.error) out[hit.originalId] = s.signedUrl;
+    }
+  }
+  return { ok: true, data: out };
+}

@@ -1,216 +1,102 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
-import { ArrowLeft, Camera, CheckCircle2, ClipboardList, LogOut, Truck } from "lucide-react";
+import { Camera, CheckCircle2, ClipboardList, LogOut, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { StatusBadge } from "@/components/patterns/status-badge";
-import { EmptyState } from "@/components/patterns/empty-state";
 import { useSession } from "@/lib/session";
 import type { User } from "@/lib/types";
-import { useScrapData } from "@/components/scrap/scrap-data-context";
-import { CameraStep } from "@/components/scrap/driver/camera-step";
-import { driverDisplayStatus, isToday, type ScrapLoad } from "@/lib/mock/scrap";
+import type { DriverLoad } from "@/lib/data/scrap";
+import { useDriverLoads } from "@/lib/query/scrap";
+import { CheckFlow, LoadDetailFlow, MyLoadsFlow, NewLoadFlow } from "@/components/scrap/driver/driver-load-flows";
+import { driverStateLabel, yardDay } from "@/components/scrap/scrap-shared";
 
-type DriverView = "home" | "new_load" | "add_ticket" | "add_ticket_pick" | "add_check" | "my_loads";
+type DriverView = { name: "home" } | { name: "new" } | { name: "load"; id: string } | { name: "loads" } | { name: "check" };
 
-export function ScrapDriverHome({
-  user,
-  previewMode = false,
-  previewDriverId,
-}: {
-  user: User;
-  previewMode?: boolean;
-  previewDriverId?: string;
-}) {
-  const { loads, drivers, createLoad, addTicketPhoto, submitCheckPhoto } = useScrapData();
+/**
+ * Scrap Driver home. Evidence only: the driver never sees or enters a weight, rate, amount, payment
+ * or manager note. Every number here is a count of the driver's own loads, read from the database.
+ */
+export function ScrapDriverHome({ user }: { user: User }) {
   const { signOut: endSession } = useSession();
-  const [view, setView] = useState<DriverView>("home");
-  const [pendingTicketLoadId, setPendingTicketLoadId] = useState<string | null>(null);
+  const [view, setView] = useState<DriverView>({ name: "home" });
+  const loads = useDriverLoads();
+  const rows: DriverLoad[] = loads.data?.pages.flatMap((p) => p.rows) ?? [];
 
-  const driverId = previewMode ? previewDriverId || user.id : user.id;
-  const driverName = previewMode ? drivers.find((d) => d.id === driverId)?.name || user.name : user.name;
-  const firstName = driverName.split(" ")[0];
+  const firstName = user.name.split(" ")[0];
+  const today = yardDay();
+  const todays = rows.filter((l) => l.load_date === today);
+  const awaitingTicket = rows.filter((l) => l.driver_state === "awaiting_ticket").length;
+  // The most recent load that is not yet complete is the one to resume.
+  const active = rows.find((l) => l.driver_state !== "complete") ?? null;
 
-  const myLoads = useMemo(
-    () => loads.filter((l) => l.driverId === driverId).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)),
-    [loads, driverId]
-  );
-  const loadsToday = myLoads.filter((l) => isToday(l.createdAt));
-  const loadsMissingTicket = myLoads.filter((l) => !l.ticketPhoto);
-
-  function signOut() {
-    void endSession();
+  if (view.name === "new") {
+    return <NewLoadFlow onBack={() => setView({ name: "home" })} onDone={(id) => { toast.success("Load saved."); setView({ name: "load", id }); }} />;
+  }
+  if (view.name === "load") {
+    return <LoadDetailFlow loadId={view.id} onBack={() => setView({ name: "home" })} onNextLoad={() => setView({ name: "new" })} />;
+  }
+  if (view.name === "loads") {
+    return <MyLoadsFlow onBack={() => setView({ name: "home" })} onOpen={(id) => setView({ name: "load", id })} />;
+  }
+  if (view.name === "check") {
+    return <CheckFlow onBack={() => setView({ name: "home" })} />;
   }
 
-  function startNewLoad() {
-    if (!driverId) return;
-    setView("new_load");
-  }
-
-  function saveNewLoad() {
-    createLoad(driverId, driverName);
-    toast.success("Load saved. Open My Loads to add the yard ticket once you're back.");
-    setView("my_loads");
-  }
-
-  function startAddTicket() {
-    if (loadsMissingTicket.length === 0) {
-      toast.info("No loads are waiting on a ticket photo right now.");
-      return;
-    }
-    if (loadsMissingTicket.length === 1) {
-      setPendingTicketLoadId(loadsMissingTicket[0].id);
-      setView("add_ticket");
-      return;
-    }
-    setView("add_ticket_pick");
-  }
-
-  function saveTicket() {
-    if (!pendingTicketLoadId) return;
-    addTicketPhoto(pendingTicketLoadId);
-    toast.success("Ticket photo saved to this load.");
-    setPendingTicketLoadId(null);
-    setView("my_loads");
-  }
-
-  function saveCheck() {
-    submitCheckPhoto(driverId, driverName);
-    toast.success("Check photo saved. Your manager will reconcile payment.");
-    setView("home");
-  }
-
-  if (view === "home") {
-    return (
-      <div className="mx-auto w-full max-w-md space-y-5 pb-6">
-        <header className="rounded-xl bg-brand p-5 text-brand-foreground">
-          <p className="text-lg font-semibold">Good Morning, {firstName}</p>
-          <p className="text-sm text-brand-foreground/70">Driver</p>
-          <p className="text-xs text-brand-foreground/60">
-            {new Date().toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
-          </p>
-        </header>
-
-        <div className="grid grid-cols-3 gap-2">
-          <StatTile icon={Truck} value={loadsToday.length} label="Loads Today" tone="info" />
-          <StatTile icon={CheckCircle2} value={loadsToday.filter((l) => l.ticketPhoto).length} label="Tickets Added" tone="success" />
-          <StatTile icon={ClipboardList} value={loadsMissingTicket.length} label="Need Ticket" tone="warning" />
-        </div>
-
-        <div className="space-y-3">
-          <ActionCard tone="success" icon={Camera} title="New Load" subtitle="Take photo when loaded" onClick={startNewLoad} />
-          <ActionCard tone="info" icon={ClipboardList} title="Add Ticket" subtitle="Take photo of ticket" onClick={startAddTicket} />
-          <ActionCard tone="brand" icon={CheckCircle2} title="Add Check" subtitle="Take photo of check (end of day)" onClick={() => setView("add_check")} />
-          <ActionCard tone="neutral" icon={Truck} title="My Loads Today" subtitle="View your loads" onClick={() => setView("my_loads")} />
-        </div>
-
-        <Button variant="outline" className="w-full" onClick={signOut}>
-          <LogOut className="size-4" /> Log Out
-        </Button>
-        <p className="pt-2 text-center text-[11px] text-muted-foreground">Drive · Recycle · A Cleaner Tomorrow</p>
-      </div>
-    );
-  }
-
-  const back = (
-    <Button variant="ghost" size="sm" onClick={() => setView("home")}>
-      <ArrowLeft className="size-4" /> Back
-    </Button>
-  );
-
-  if (view === "new_load") {
-    return (
-      <div className="mx-auto w-full max-w-md space-y-4">
-        {back}
-        <div>
-          <h2 className="text-lg font-semibold">New Load</h2>
-          <p className="text-sm text-muted-foreground">Step 1 of 2 · Take Load Photo</p>
-        </div>
-        <CameraStep
-          tone="success"
-          title="Take a photo of your loaded vehicle"
-          instruction="Make sure the whole load is visible"
-          saveLabel="Save Photo"
-          onSave={saveNewLoad}
-        />
-      </div>
-    );
-  }
-
-  if (view === "add_ticket_pick") {
-    return (
-      <div className="mx-auto w-full max-w-md space-y-4">
-        {back}
-        <h2 className="text-lg font-semibold">Select a load</h2>
-        <div className="space-y-2">
-          {loadsMissingTicket.map((l) => (
-            <button
-              key={l.id}
-              onClick={() => {
-                setPendingTicketLoadId(l.id);
-                setView("add_ticket");
-              }}
-              className="flex w-full items-center justify-between rounded-lg border border-border bg-card px-4 py-3 text-left hover:bg-accent/30"
-            >
-              <span className="text-sm font-medium">{new Date(l.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span>
-              <StatusBadge tone="warning">Ticket Needed</StatusBadge>
-            </button>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (view === "add_ticket") {
-    return (
-      <div className="mx-auto w-full max-w-md space-y-4">
-        {back}
-        <div>
-          <h2 className="text-lg font-semibold">Add Ticket</h2>
-          <p className="text-sm text-muted-foreground">Step 2 of 2 · Take Ticket Photo</p>
-        </div>
-        <CameraStep
-          tone="info"
-          title="Take a photo of the scrap ticket"
-          instruction="Make sure all information is visible"
-          saveLabel="Save Ticket"
-          onSave={saveTicket}
-        />
-      </div>
-    );
-  }
-
-  if (view === "add_check") {
-    return (
-      <div className="mx-auto w-full max-w-md space-y-4">
-        {back}
-        <div>
-          <h2 className="text-lg font-semibold">Add Check (End of Day)</h2>
-          <p className="text-sm text-muted-foreground">Take a photo of the check you received</p>
-        </div>
-        <CameraStep tone="brand" title="Photograph the company check" instruction="One check can cover multiple loads" saveLabel="Save Check" onSave={saveCheck} />
-      </div>
-    );
-  }
-
-  // My Loads
   return (
-    <div className="mx-auto w-full max-w-md space-y-4">
-      {back}
-      <div>
-        <h2 className="text-lg font-semibold">My Loads Today</h2>
-        <p className="text-sm text-muted-foreground">View your saved loads</p>
+    <div className="mx-auto w-full max-w-md space-y-5 pb-6">
+      <header className="rounded-xl bg-brand p-5 text-brand-foreground">
+        <p className="text-lg font-semibold">Hello, {firstName}</p>
+        <p className="text-sm text-brand-foreground/70">Scrap Driver</p>
+        <p className="text-xs text-brand-foreground/60">
+          {new Date().toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
+        </p>
+      </header>
+
+      {loads.isError && <p className="text-sm text-destructive">{loads.error.message}</p>}
+
+      <div className="grid grid-cols-3 gap-2">
+        <StatTile icon={Truck} value={todays.length} label="Loads Today" tone="info" />
+        <StatTile icon={CheckCircle2} value={todays.filter((l) => l.driver_state === "complete").length} label="Complete" tone="success" />
+        <StatTile icon={ClipboardList} value={awaitingTicket} label="Need Ticket" tone="warning" />
       </div>
-      {myLoads.length ? (
-        <div className="space-y-2">
-          {myLoads.map((l, i) => (
-            <DriverLoadRow key={l.id} index={myLoads.length - i} load={l} onAddTicket={() => { setPendingTicketLoadId(l.id); setView("add_ticket"); }} />
-          ))}
+
+      {active && (
+        <div className="rounded-xl border border-primary/30 bg-primary/5 p-4">
+          <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Active load</p>
+          <p className="mt-1 text-sm font-medium">{driverStateLabel[active.driver_state]}</p>
+          <Button className="mt-3 w-full" onClick={() => setView({ name: "load", id: active.id })}>
+            Continue Active Load
+          </Button>
         </div>
-      ) : (
-        <EmptyState icon={Truck} title="No loads yet" description="Tap New Load on the home screen to get started." />
       )}
+
+      <div className="space-y-3">
+        <ActionCard tone="success" icon={Camera} title="New Load" subtitle="Take a photo when loaded" onClick={() => setView({ name: "new" })} />
+        <ActionCard
+          tone="info"
+          icon={ClipboardList}
+          title="Add Ticket"
+          subtitle={active && active.driver_state !== "complete" ? "Continue the active load" : "No load is waiting for a ticket"}
+          disabled={!active || active.driver_state === "saved"}
+          onClick={() => active && setView({ name: "load", id: active.id })}
+        />
+        <ActionCard
+          tone="brand"
+          icon={CheckCircle2}
+          title="Complete Load"
+          subtitle="Finish the active load once the ticket is in"
+          disabled={!active || active.driver_state !== "ticket_attached"}
+          onClick={() => active && setView({ name: "load", id: active.id })}
+        />
+        <ActionCard tone="brand" icon={CheckCircle2} title="Add Check" subtitle="Photo of a check you received" onClick={() => setView({ name: "check" })} />
+        <ActionCard tone="neutral" icon={Truck} title="My Loads" subtitle="Your saved loads" onClick={() => setView({ name: "loads" })} />
+      </div>
+
+      <Button variant="outline" className="w-full" onClick={() => void endSession()}>
+        <LogOut className="size-4" /> Log Out
+      </Button>
+      <p className="pt-2 text-center text-[11px] text-muted-foreground">Drive · Recycle · A Cleaner Tomorrow</p>
     </div>
   );
 }
@@ -234,12 +120,14 @@ function ActionCard({
   title,
   subtitle,
   onClick,
+  disabled = false,
 }: {
   tone: "success" | "info" | "brand" | "neutral";
   icon: typeof Truck;
   title: string;
   subtitle: string;
   onClick: () => void;
+  disabled?: boolean;
 }) {
   const toneClasses = {
     success: "bg-success text-success-foreground",
@@ -248,7 +136,11 @@ function ActionCard({
     neutral: "bg-muted text-foreground",
   }[tone];
   return (
-    <button onClick={onClick} className={`flex w-full items-center gap-3 rounded-xl px-4 py-4 text-left shadow-xs transition-opacity hover:opacity-90 ${toneClasses}`}>
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`flex w-full items-center gap-3 rounded-xl px-4 py-4 text-left shadow-xs transition-opacity hover:opacity-90 disabled:opacity-40 ${toneClasses}`}
+    >
       <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-white/20">
         <Icon className="size-5" />
       </span>
@@ -257,27 +149,5 @@ function ActionCard({
         <span className="block text-xs opacity-80">{subtitle}</span>
       </span>
     </button>
-  );
-}
-
-function DriverLoadRow({ index, load, onAddTicket }: { index: number; load: ScrapLoad; onAddTicket: () => void }) {
-  const status = driverDisplayStatus(load);
-  return (
-    <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2.5">
-      <div className="flex size-11 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-        <Camera className="size-5" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium">Load {index}</p>
-        <p className="text-xs text-muted-foreground">{new Date(load.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</p>
-      </div>
-      {status === "Load Photo Saved" ? (
-        <Button size="sm" variant="outline" onClick={onAddTicket}>
-          Add Ticket
-        </Button>
-      ) : (
-        <StatusBadge tone="success">{status}</StatusBadge>
-      )}
-    </div>
   );
 }

@@ -1,303 +1,241 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
-import { Plus, Search } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatusBadge } from "@/components/patterns/status-badge";
 import { EmptyState } from "@/components/patterns/empty-state";
-import { useAllCustomers } from "@/lib/query/customers";
-import { useScrapData } from "@/components/scrap/scrap-data-context";
-import { rimAgingLabel, rimCompletionStatus, rimRemaining, type RimObligation } from "@/lib/mock/scrap";
-import type { Customer } from "@/lib/mock/sales";
+import { useCustomerList } from "@/lib/query/customers";
+import { useRimList, useRimObligation, useManagerMutations } from "@/lib/query/scrap";
+import type { RimObligation } from "@/lib/data/scrap";
+import { dateLabel } from "@/components/scrap/scrap-shared";
 
-const agingTone: Record<string, "success" | "warning" | "danger"> = {
-  "Up to Date": "success",
-  "3 Days": "warning",
-  "6 Days": "warning",
-  "Over 1 Week": "danger",
-};
+/** Tire and rim obligations for existing customers. The server holds the balances; a return is refused if it exceeds what is still owed. */
+export function TireShopPanel() {
+  const [status, setStatus] = useState<"open" | "completed" | "all">("open");
+  const [openId, setOpenId] = useState<string | null>(null);
 
-function customerLabel(c: Customer) {
-  return c.companyName || `${c.firstName} ${c.lastName}`.trim();
-}
-
-export function TireShopPanel({ actorName }: { actorName: string }) {
-  const allCustomers = useAllCustomers().data;
-  const customers = useMemo(() => allCustomers ?? [], [allCustomers]);
-  const { rimObligations, createRimObligation, recordRimReturn } = useScrapData();
-
-  const [newOpen, setNewOpen] = useState(false);
-  const [detailObligation, setDetailObligation] = useState<RimObligation | null>(null);
-
-  // one card per customer that has at least one obligation (most recent first)
-  const customerCards = useMemo(() => {
-    const byCustomer = new Map<string, RimObligation[]>();
-    for (const o of rimObligations) {
-      byCustomer.set(o.customerId, [...(byCustomer.get(o.customerId) || []), o]);
-    }
-    return [...byCustomer.entries()]
-      .map(([customerId, obligations]) => {
-        const customer = customers.find((c) => c.id === customerId);
-        const remaining = obligations.reduce(
-          (acc, o) => {
-            const r = rimRemaining(o);
-            return { aluminum: acc.aluminum + r.aluminum, steel: acc.steel + r.steel };
-          },
-          { aluminum: 0, steel: 0 }
-        );
-        const latest = [...obligations].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))[0];
-        return { customer, obligations, remaining, aging: rimAgingLabel(latest) };
-      })
-      .filter((c) => c.customer);
-  }, [rimObligations, customers]);
-
+  if (openId) return <RimDetail id={openId} onBack={() => setOpenId(null)} />;
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
-      <div className="mb-3 flex items-center justify-between">
-        <div>
-          <h3 className="text-sm font-semibold">Tire Shop Customers (Rim Balances)</h3>
-          <p className="text-xs text-muted-foreground">Track tires and rims taken and returned</p>
-        </div>
-        <Button size="sm" onClick={() => setNewOpen(true)}>
-          <Plus className="size-4" /> Add Customer
-        </Button>
-      </div>
-
-      {customerCards.length ? (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {customerCards.map(({ customer, remaining, aging, obligations }) => (
-            <div key={customer!.id} className="rounded-lg border border-border p-3">
-              <p className="truncate text-sm font-semibold">{customerLabel(customer!)}</p>
-              <p className="text-xs text-muted-foreground">{customer!.phone}</p>
-              <p className="mt-2 text-sm">
-                <span className="font-semibold text-accent-gold-foreground">{remaining.aluminum}</span> Aluminum Rims Owed
-              </p>
-              <p className="text-sm">
-                <span className="font-semibold">{remaining.steel}</span> Steel Rims Owed
-              </p>
-              <div className="mt-2">
-                <StatusBadge tone={agingTone[aging]}>{aging}</StatusBadge>
-              </div>
-              <Button size="sm" variant="outline" className="mt-2 w-full" onClick={() => setDetailObligation(obligations[0])}>
-                View Details
-              </Button>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <EmptyState icon={Search} title="No rim obligations yet" description="Add a customer to start tracking tire/rim balances." />
-      )}
-
-      <NewObligationDialog open={newOpen} onOpenChange={setNewOpen} customers={customers} actorName={actorName} onCreate={createRimObligation} />
-      <ObligationDetailDialog
-        obligation={detailObligation}
-        allForCustomer={detailObligation ? rimObligations.filter((o) => o.customerId === detailObligation.customerId) : []}
-        customer={detailObligation ? customers.find((c) => c.id === detailObligation.customerId) : undefined}
-        onClose={() => setDetailObligation(null)}
-        actorName={actorName}
-        onRecordReturn={recordRimReturn}
-      />
+    <div className="space-y-4">
+      <NewObligationForm />
+      <ObligationList status={status} onStatus={setStatus} onOpen={setOpenId} />
     </div>
   );
 }
 
-function NewObligationDialog({
-  open,
-  onOpenChange,
-  customers,
-  actorName,
-  onCreate,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  customers: Customer[];
-  actorName: string;
-  onCreate: (input: { customerId: string; tiresQty: number; aluminumOwed: number; steelOwed: number; employeeName: string; notes: string }) => void;
-}) {
-  const [query, setQuery] = useState("");
-  const [customerId, setCustomerId] = useState("");
-  const [tires, setTires] = useState("");
-  const [aluminum, setAluminum] = useState("");
+function NewObligationForm() {
+  const { createRim } = useManagerMutations();
+  const [search, setSearch] = useState("");
+  const [customer, setCustomer] = useState<{ id: string; name: string } | null>(null);
+  const [tires, setTires] = useState("0");
+  const [alu, setAlu] = useState("");
   const [steel, setSteel] = useState("");
   const [notes, setNotes] = useState("");
-
-  const matches = query.trim()
-    ? customers.filter((c) => `${c.companyName} ${c.firstName} ${c.lastName} ${c.phone} ${c.customerNumber}`.toLowerCase().includes(query.toLowerCase()))
-    : customers;
+  const [requestId, setRequestId] = useState(() => crypto.randomUUID());
+  const customers = useCustomerList(search.trim());
+  const matches = search.trim() ? (customers.data?.pages[0]?.rows ?? []).slice(0, 6) : [];
 
   function submit() {
-    if (!customerId || (!aluminum && !steel)) return;
-    onCreate({ customerId, tiresQty: Number(tires) || 0, aluminumOwed: Number(aluminum) || 0, steelOwed: Number(steel) || 0, employeeName: actorName, notes });
-    toast.success("Rim obligation recorded");
-    onOpenChange(false);
-    setCustomerId("");
-    setQuery("");
-    setTires("");
-    setAluminum("");
-    setSteel("");
-    setNotes("");
+    if (!customer) return toast.error("Choose a customer.");
+    createRim.mutate(
+      { customerId: customer.id, tires: Number(tires || 0), aluminum: Number(alu || 0), steel: Number(steel || 0), notes, requestId },
+      {
+        onSuccess: () => {
+          toast.success("Tire/rim obligation recorded.");
+          setCustomer(null);
+          setSearch("");
+          setTires("0");
+          setAlu("");
+          setSteel("");
+          setNotes("");
+          setRequestId(crypto.randomUUID());
+        },
+        onError: (e) => toast.error(e.message),
+      }
+    );
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm">
-        <DialogHeader>
-          <DialogTitle>New Rim Obligation</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div className="space-y-1.5">
-            <Label>Customer</Label>
-            <Input placeholder="Search by company, name or phone" value={query} onChange={(e) => setQuery(e.target.value)} />
-            <div className="max-h-32 overflow-y-auto rounded-md border border-border">
-              {matches.slice(0, 6).map((c) => (
-                <button
-                  key={c.id}
-                  onClick={() => setCustomerId(c.id)}
-                  className={`block w-full px-2.5 py-1.5 text-left text-sm hover:bg-accent/30 ${customerId === c.id ? "bg-accent/40 font-medium" : ""}`}
-                >
-                  {customerLabel(c)} <span className="text-xs text-muted-foreground">· {c.phone || c.customerNumber}</span>
-                </button>
-              ))}
-              {!matches.length && <p className="px-2.5 py-2 text-xs text-muted-foreground">No matching customers. Add them under Customers &amp; Sales.</p>}
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Tires qty</Label>
-              <Input type="number" min={0} value={tires} onChange={(e) => setTires(e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Aluminum owed</Label>
-              <Input type="number" min={0} value={aluminum} onChange={(e) => setAluminum(e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Steel owed</Label>
-              <Input type="number" min={0} value={steel} onChange={(e) => setSteel(e.target.value)} />
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Notes (optional)</Label>
-            <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
-          </div>
-          <p className="text-xs text-muted-foreground">Pickup photo is captured automatically in this demo step.</p>
+    <section className="space-y-3 rounded-lg border border-border bg-card p-4">
+      <h3 className="text-sm font-semibold">New tire/rim obligation</h3>
+      {customer ? (
+        <div className="flex items-center justify-between rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
+          <span>{customer.name}</span>
+          <Button size="sm" variant="ghost" onClick={() => setCustomer(null)}>Change</Button>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button disabled={!customerId || (!aluminum && !steel)} onClick={submit}>
-            Save Obligation
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      ) : (
+        <div className="space-y-2">
+          <Input placeholder="Search customer by name or phone" value={search} onChange={(e) => setSearch(e.target.value)} />
+          {matches.map((c) => (
+            <button key={c.id} onClick={() => setCustomer({ id: c.id, name: c.display_name })} className="block w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent/40">
+              {c.display_name} <span className="text-xs text-muted-foreground">{c.phone}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="grid gap-3 sm:grid-cols-4">
+        <div className="space-y-1">
+          <Label className="text-xs">Tires</Label>
+          <Input inputMode="numeric" value={tires} onChange={(e) => setTires(e.target.value)} />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Aluminum rims owed</Label>
+          <Input inputMode="numeric" value={alu} onChange={(e) => setAlu(e.target.value)} />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Steel rims owed</Label>
+          <Input inputMode="numeric" value={steel} onChange={(e) => setSteel(e.target.value)} />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Notes</Label>
+          <Input value={notes} onChange={(e) => setNotes(e.target.value)} />
+        </div>
+      </div>
+      <Button disabled={createRim.isPending || !customer} onClick={submit}>
+        {createRim.isPending ? "Saving…" : "Record obligation"}
+      </Button>
+    </section>
   );
 }
 
-function ObligationDetailDialog({
-  obligation,
-  allForCustomer,
-  customer,
-  onClose,
-  actorName,
-  onRecordReturn,
-}: {
-  obligation: RimObligation | null;
-  allForCustomer: RimObligation[];
-  customer: Customer | undefined;
-  onClose: () => void;
-  actorName: string;
-  onRecordReturn: (obligationId: string, input: { aluminumReturned: number; steelReturned: number; notes: string; employeeName: string }) => void;
-}) {
-  const [aluminum, setAluminum] = useState("");
+function ObligationList({ status, onStatus, onOpen }: { status: "open" | "completed" | "all"; onStatus: (s: "open" | "completed" | "all") => void; onOpen: (id: string) => void }) {
+  const list = useRimList(status);
+  const rows: RimObligation[] = list.data?.pages.flatMap((p) => p.rows) ?? [];
+  return (
+    <section className="space-y-3 rounded-lg border border-border bg-card p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold">Obligations</h3>
+        <div className="flex gap-1">
+          {(["open", "completed", "all"] as const).map((s) => (
+            <button key={s} onClick={() => onStatus(s)} className={`rounded px-2 py-1 text-xs font-semibold ${status === s ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>
+              {s === "open" ? "Open" : s === "completed" ? "Completed" : "All"}
+            </button>
+          ))}
+        </div>
+      </div>
+      {list.isPending && <p className="text-sm text-muted-foreground">Loading…</p>}
+      {list.isError && <p className="text-sm text-destructive">{list.error.message}</p>}
+      {!list.isPending && rows.length === 0 && <EmptyState title="No obligations here." />}
+      {rows.length > 0 && (
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Customer</TableHead>
+                <TableHead className="text-right">Aluminum owed / returned / remaining</TableHead>
+                <TableHead className="text-right">Steel owed / returned / remaining</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((o) => (
+                <TableRow key={o.id}>
+                  <TableCell>{o.customer_name}</TableCell>
+                  <TableCell className="text-right tabular-nums">{o.aluminum_owed} / {o.aluminum_returned} / {o.aluminum_remaining}</TableCell>
+                  <TableCell className="text-right tabular-nums">{o.steel_owed} / {o.steel_returned} / {o.steel_remaining}</TableCell>
+                  <TableCell>
+                    <StatusBadge tone={o.status === "completed" ? "success" : "warning"}>{o.status === "completed" ? "COMPLETED" : "OPEN"}</StatusBadge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button size="sm" variant="outline" onClick={() => onOpen(o.id)}>Open</Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+      {list.hasNextPage && (
+        <Button variant="outline" className="w-full" disabled={list.isFetchingNextPage} onClick={() => list.fetchNextPage()}>
+          {list.isFetchingNextPage ? "Loading…" : "Load more"}
+        </Button>
+      )}
+    </section>
+  );
+}
+
+function RimDetail({ id, onBack }: { id: string; onBack: () => void }) {
+  const q = useRimObligation(id);
+  const { recordRimReturn } = useManagerMutations();
+  const [alu, setAlu] = useState("");
   const [steel, setSteel] = useState("");
   const [notes, setNotes] = useState("");
+  const [requestId, setRequestId] = useState(() => crypto.randomUUID());
+  const o = q.data;
 
-  if (!obligation) return null;
-  const remaining = rimRemaining(obligation);
-  const status = rimCompletionStatus(obligation);
+  if (q.isPending) return <p className="text-sm text-muted-foreground">Loading…</p>;
+  if (!o) return <p className="text-sm text-destructive">{q.error?.message ?? "Not found."}</p>;
 
-  function submitReturn() {
-    if (!obligation) return;
-    const al = Math.min(Number(aluminum) || 0, remaining.aluminum);
-    const st = Math.min(Number(steel) || 0, remaining.steel);
-    if (al <= 0 && st <= 0) return;
-    onRecordReturn(obligation.id, { aluminumReturned: al, steelReturned: st, notes, employeeName: actorName });
-    toast.success("Return recorded");
-    setAluminum("");
-    setSteel("");
-    setNotes("");
+  function submit() {
+    recordRimReturn.mutate(
+      { obligationId: id, aluminum: Number(alu || 0), steel: Number(steel || 0), notes, requestId },
+      {
+        onSuccess: (next) => {
+          toast.success(next.status === "completed" ? "Final return recorded. The obligation is completed." : "Return recorded.");
+          setAlu("");
+          setSteel("");
+          setNotes("");
+          setRequestId(crypto.randomUUID());
+        },
+        onError: (e) => toast.error(e.message),
+      }
+    );
   }
 
   return (
-    <Dialog open={!!obligation} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>{customer ? customerLabel(customer) : "Rim Obligation"}</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between text-sm">
-            <span>Status</span>
-            <StatusBadge>{status.toUpperCase()}</StatusBadge>
-          </div>
-          <div className="grid grid-cols-2 gap-2 rounded-md border border-border p-2 text-sm">
-            <span>
-              Aluminum remaining
-              <br />
-              <b className="text-base">{remaining.aluminum}</b>
-            </span>
-            <span>
-              Steel remaining
-              <br />
-              <b className="text-base">{remaining.steel}</b>
-            </span>
-          </div>
-
-          {(remaining.aluminum > 0 || remaining.steel > 0) && (
-            <div className="space-y-2 rounded-md border border-dashed border-border p-3">
-              <p className="text-sm font-semibold">Record Return</p>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Aluminum returned</Label>
-                  <Input type="number" min={0} max={remaining.aluminum} value={aluminum} onChange={(e) => setAluminum(e.target.value)} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Steel returned</Label>
-                  <Input type="number" min={0} max={remaining.steel} value={steel} onChange={(e) => setSteel(e.target.value)} />
-                </div>
-              </div>
-              <Textarea rows={2} placeholder="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} />
-              <Button size="sm" onClick={submitReturn}>
-                Save Return
-              </Button>
-            </div>
-          )}
-
-          <div>
-            <p className="mb-1 text-xs font-semibold text-muted-foreground uppercase">History</p>
-            <div className="space-y-1 text-xs text-muted-foreground">
-              {allForCustomer.map((o) => (
-                <div key={o.id}>
-                  <p>
-                    {new Date(o.createdAt).toLocaleDateString()} · Obligation: {o.aluminumOwed} aluminum / {o.steelOwed} steel ({o.tiresQty} tires) · {o.employeeName}
-                  </p>
-                  {o.returns.map((r) => (
-                    <p key={r.id} className="pl-3">
-                      ↳ {new Date(r.createdAt).toLocaleDateString()} return: {r.aluminumReturned} aluminum / {r.steelReturned} steel · {r.employeeName}
-                      {r.notes && ` — ${r.notes}`}
-                    </p>
-                  ))}
-                </div>
-              ))}
-            </div>
-          </div>
+    <div className="space-y-4">
+      <Button variant="ghost" size="sm" onClick={onBack}>
+        <ArrowLeft className="size-4" /> Back to obligations
+      </Button>
+      <section className="space-y-2 rounded-lg border border-border bg-card p-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-semibold">{o.customer_name}</h3>
+          <StatusBadge tone={o.status === "completed" ? "success" : "warning"}>{o.status === "completed" ? "COMPLETED" : "OPEN"}</StatusBadge>
         </div>
-      </DialogContent>
-    </Dialog>
+        <p className="text-sm">Aluminum: owed {o.aluminum_owed}, returned {o.aluminum_returned}, <b>remaining {o.aluminum_remaining}</b></p>
+        <p className="text-sm">Steel: owed {o.steel_owed}, returned {o.steel_returned}, <b>remaining {o.steel_remaining}</b></p>
+        {o.notes && <p className="text-xs text-muted-foreground">{o.notes}</p>}
+      </section>
+
+      {o.status === "open" && (
+        <section className="space-y-3 rounded-lg border border-border bg-card p-4">
+          <h4 className="text-sm font-semibold">Record a return</h4>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Aluminum returned (max {o.aluminum_remaining})</Label>
+              <Input inputMode="numeric" value={alu} onChange={(e) => setAlu(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Steel returned (max {o.steel_remaining})</Label>
+              <Input inputMode="numeric" value={steel} onChange={(e) => setSteel(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Notes</Label>
+              <Input value={notes} onChange={(e) => setNotes(e.target.value)} />
+            </div>
+          </div>
+          <Button disabled={recordRimReturn.isPending} onClick={submit}>
+            {recordRimReturn.isPending ? "Saving…" : "Record return"}
+          </Button>
+        </section>
+      )}
+
+      <section className="space-y-2">
+        <h4 className="text-sm font-semibold">Return history</h4>
+        {o.returns.length === 0 && <p className="text-xs text-muted-foreground">No returns yet.</p>}
+        {o.returns.map((r) => (
+          <div key={r.id} className="rounded-md border border-border p-2 text-xs">
+            <p className="font-medium">Aluminum {r.aluminum_returned} · Steel {r.steel_returned}</p>
+            <p className="text-muted-foreground">{dateLabel(r.created_at.slice(0, 10))} · {r.notes || "no notes"}</p>
+          </div>
+        ))}
+      </section>
+    </div>
   );
 }
