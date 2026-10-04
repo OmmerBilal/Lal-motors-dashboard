@@ -3,17 +3,18 @@
 import { ShieldAlert } from "lucide-react";
 import type { User } from "@/lib/types";
 import { EmptyState } from "@/components/patterns/empty-state";
-import { ExportManagementView } from "@/components/containers/export-management-view";
-import { ContainerLoadingView } from "@/components/containers/container-loading-view";
+import { ExportManagementApp } from "@/components/containers/export/export-management-app";
+import { ContainerLoaderApp } from "@/components/containers/loader/container-loader-app";
 
 const exportAuthorizedRoles = new Set(["owner", "engineer_admin", "export_manager"]);
 
-export function ContainersWorkspace({ user, previewMode = false }: { user: User; previewMode?: boolean }) {
+/** Role router for /containers. A loader gets the evidence app; export-authorized roles get export management. */
+export function ContainersWorkspace({ user }: { user: User }) {
   if (user.role === "container_loading") {
-    return <ContainerLoadingView user={user} previewMode={previewMode} />;
+    return <ContainerLoaderApp />;
   }
   if (exportAuthorizedRoles.has(user.role)) {
-    return <ExportManagementView user={user} />;
+    return <ExportManagementApp />;
   }
   return (
     <EmptyState

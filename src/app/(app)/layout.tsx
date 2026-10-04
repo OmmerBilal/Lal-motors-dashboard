@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { AppShell } from "@/components/shell/app-shell";
 import { VehicleDataProvider } from "@/components/vehicles/vehicle-data-context";
 import { PartsDataProvider } from "@/components/parts/parts-data-context";
-import { ContainersDataProvider } from "@/components/containers/containers-data-context";
 import { createClient } from "@/lib/supabase/server";
 
 // Mounted once here (instead of per-page) so shared records/state survive
@@ -25,9 +24,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <VehicleDataProvider>
       <PartsDataProvider>
-          <ContainersDataProvider>
-            <AppShell>{children}</AppShell>
-          </ContainersDataProvider>
+          <AppShell>{children}</AppShell>
       </PartsDataProvider>
     </VehicleDataProvider>
   );

@@ -34,8 +34,11 @@ async function signIn(email, password) {
   if (error) throw new Error("sign-in failed: " + error.message);
   return c;
 }
+// container_jobs is column-restricted for authenticated clients (migration 0040): a whole-row read is denied by
+// design, so the visibility check counts the granted operational columns instead. Every other table is unchanged.
+const COLUMNS = { container_jobs: "id,t_ref,status" };
 async function countVisible(c, table) {
-  const { count, error } = await c.from(table).select("*", { count: "exact", head: true });
+  const { count, error } = await c.from(table).select(COLUMNS[table] ?? "*", { count: "exact", head: true });
   return error ? { n: 0, err: error.message } : { n: count ?? 0 };
 }
 async function expectVisibleAtLeast(who, c, table, min = 1) {

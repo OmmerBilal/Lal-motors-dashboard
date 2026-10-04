@@ -19,7 +19,7 @@ export default function PreviewWarehousePage() {
     <div>
       <PreviewSubNav items={tabs} active={tab} onChange={setTab} />
       {tab === "parts" && <PartsWorkspace user={user} />}
-      {tab === "containers" && <ContainersWorkspace user={user} previewMode />}
+      {tab === "containers" && <ContainersWorkspace user={user} />}
     </div>
   );
 }
