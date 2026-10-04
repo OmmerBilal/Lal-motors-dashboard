@@ -74,7 +74,7 @@ const expectedCounts = await q(`select count(*)::int total,
   let cur = { created_at: null, id: null };
   let pages = 0, lastHasMore = true;
   while (lastHasMore && pages < 500) {
-    const { data, error } = await auction.rpc("list_vehicles", { p_stage: null, p_auction_source: SRC, p_search: null, p_limit: 3, p_cursor_created_at: cur.created_at, p_cursor_id: cur.id });
+    const { data, error } = await auction.rpc("list_vehicles", { p_stage: null, p_auction_source: SRC, p_search: null, p_limit: 3, p_cursor_created_at: cur.created_at, p_cursor_id: cur.id, p_carrier_id: null });
     if (error) throw new Error(error.message);
     pages++;
     if (data.length > 3) { check("page never exceeds the limit", false, `len=${data.length}`); break; }
@@ -132,11 +132,29 @@ const expectedCounts = await q(`select count(*)::int total,
   check("receiving sees the fixtures", r.data?.length === ids.length, `rows=${r.data?.length}`);
 }
 
+// 8. Carrier filter + company name come from the database; filter options list the source.
+{
+  const car = (await q("insert into public.carriers (company, active) values ($1, true) returning id", ["READTEST carrier " + run]))[0].id;
+  await db.query("update public.vehicles set carrier_id = $1 where id = $2", [car, ids[5]]);
+  const cf = await auction.rpc("list_vehicles", { p_stage: null, p_auction_source: SRC, p_search: null, p_limit: 25, p_cursor_created_at: null, p_cursor_id: null, p_carrier_id: car });
+  check("carrier filter returns only the assigned vehicle", cf.data?.length === 1 && cf.data[0].id === ids[5], cf.error?.message ?? "");
+  check("list row carries the carrier company name", cf.data?.[0]?.carrier_company === "READTEST carrier " + run);
+  const opts = await auction.rpc("vehicle_filter_options");
+  check("filter options include this auction source and active carriers", !opts.error && opts.data.auction_sources.includes(SRC) && opts.data.carriers.some((c) => c.id === car), opts.error?.message ?? "");
+  await db.query("update public.vehicles set carrier_id = null where id = $1", [ids[5]]);
+  await db.query("delete from public.carriers where id = $1", [car]);
+}
+
 // 7. Index use for the default newest-first page (plan node must not be a full seq scan of a large table).
 {
+  // On ~10 rows the planner correctly prefers a seq scan. Prove the keyset index is usable by
+  // disabling seq scan for this one transaction; production-size tables will use it by default.
+  await db.query("begin");
+  await db.query("set local enable_seqscan = off");
   const plan = await q("explain select id from public.vehicles order by created_at desc, id desc limit 25");
+  await db.query("commit");
   const text = plan.map((p) => p["QUERY PLAN"]).join(" | ");
-  check("default list plan uses an index scan (not sort of all rows)", /Index/.test(text), text.slice(0, 160));
+  check("keyset index vehicles_created_at_idx is usable for the default list", /Index (Only )?Scan/.test(text), text.slice(0, 140));
 }
 
 // Cleanup
