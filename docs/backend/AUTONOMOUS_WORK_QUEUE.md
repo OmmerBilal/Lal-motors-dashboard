@@ -38,3 +38,7 @@ External, NOT CONNECTED: Central Dispatch API, eBay, Shopify, Meta, TikTok, Open
 ## Module 08 / 09 status (2026-10-04)
 - [PARTIAL] Module 08 Quotes and Sales: backend and frontend connected; regression rerun after 0032 and browser/viewport QA pending.
 - [PARTIAL] Module 09 Payments: backend and UI connected; money-stock and RLS rerun and browser/viewport QA pending.
+
+## Module 08 / 09 final state (2026-10-04)
+- [PARTIAL] Module 08: E2E green; open: positive POS thumbnail image verification.
+- [PARTIAL] Module 09: E2E, security and regressions green; open: allocate/void responsive run.

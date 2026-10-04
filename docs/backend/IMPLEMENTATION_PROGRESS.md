@@ -325,3 +325,17 @@ Known: UI for Auction, Dispatch and Receiving is not yet connected. Next item: V
 - Static checks at this checkpoint: tsc clean, lint 0 errors (2 pre-existing warnings in scripts/dev-tests), build passes.
 - Browser and viewport QA: not run. Modules 08 and 09 are [PARTIAL].
 - Known gaps: customer tax exemption not applied server-side; core charge and deposit unsupported by backend; returns, AI assistant and ID scan not connected; no payment numbering.
+
+## Module 08 and 09 browser and regression pass (2026-10-04)
+
+Verified against DEV (Postgres reachable again):
+- rpc-quotes-sales 68/68, rpc-money-stock 63/63, rpc-parts 57/57, rpc-customers 36/36, rpc-payments 63/63 (after migration 0034 and its regression check), rls-matrix 114/114.
+- Browser E2E (scripts/dev-tests/e2e-sales-payments.mjs, local Chromium via playwright-core): 137/137 in the last full run before the final pending-payment responsive checks were added. That run covered the quote path (create, reload, edit, approve, convert RESERVE, fulfill, reload), POS FULFILL NOW with Out of Stock visibility, zero-stock not addable, double-submit creating one sale, pending/allocate/post/void with balance checks, wrong-customer picker, over-allocation, double post, invalid void, and the security RPC matrix for anonymous, receiving, dismantling, scrap driver, container loader and employee roles.
+- Responsive: viewports 390, 430, 768, 1366, 1440 (actual innerWidth asserted). Checked for horizontal overflow on POS, quotes, sales, payments, sale detail, payment detail, and the create-payment dialog.
+- Migration 0034 fixed a real defect: void_payment returned the payment row for an already-voided payment before the role check. Now authorized first; regression check added.
+- Migration 0033 (POS thumbnails): endpoint verified (200 for sellable parts, 400 for invalid ids, batched POST, no per-card or original-image requests). Positive thumbnail image load NOT verified: DEV has no processed thumbnail objects.
+- tsc clean; lint 0 errors and 0 warnings; build passes.
+
+Still open before DONE:
+- Module 08: a real processed thumbnail must be displayed (signed URL image load) and verified in the browser.
+- Module 09: the responsive checks for the allocate control and the void dialog on a pending payment were added but the final run was stopped by a memory-pressure reaper before they completed. Must be re-run.
