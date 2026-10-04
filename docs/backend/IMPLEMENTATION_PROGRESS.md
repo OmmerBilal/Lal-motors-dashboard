@@ -254,3 +254,12 @@ Known: UI for Auction, Dispatch and Receiving is not yet connected. Next item: V
 - Scan / OCR / vision: NOT used and NOT connected. Photos are evidence only.
 - Verification: tsc clean, eslint clean, build exit 0. Browser and mobile viewport QA NOT run (see below).
 - Known gaps: removing a photo after upload is "Retake" (creates a new evidence row; the old row stays as history). Client-side image compression is not implemented (server limit is 15 MB).
+
+## Dismantling RPCs (0016-0018) - 2026-10-04
+
+- 0016: start_dismantling_session, begin_dismantled_part, abandon_dismantled_part, finish_dismantling_session, flag_dismantling_issue. Retry keys on vehicle_events and parts. One active session per vehicle is enforced by the existing unique index.
+- 0017: abandon marks the capture rejected, not_sellable and operational MISSING, because the schema forbids rejected parts from being AVAILABLE. Nothing is deleted.
+- 0018: the completed-session part count excludes abandoned captures.
+- Test: scripts/dev-tests/rpc-dismantling.mjs, 45/45.
+- Rule choices, recorded: a vehicle is refused as ALREADY_DISMANTLED when its status is Dismantled, Completed or Scrapped, or a completed session exists. Finish requires at least one ready vehicle evidence photo, and every captured part must have a ready photo or be abandoned. Only the session's own employee can finish or flag.
+- UI: the Dismantling Employee App is not yet connected (next step).

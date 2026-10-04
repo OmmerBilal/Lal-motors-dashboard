@@ -1,0 +1,980 @@
+LAL MOTORS — AUTONOMOUS FULL IMPLEMENTATION MASTER FILE
+======================================================
+
+PURPOSE
+-------
+This file is the persistent implementation contract for completing the LAL Motors DEV system.
+Claude Code must read it at the beginning of every session, resume from the first unfinished
+item, update status markers as work is verified, and continue automatically until all
+implementable work is complete.
+
+STATUS LEGEND
+-------------
+[DONE]         Fully implemented and verified.
+[IN PROGRESS]  Work has started but completion definition is not satisfied.
+[PARTIAL]      A real subset exists but required functionality/testing remains.
+[NOT STARTED]  No real implementation yet.
+[BLOCKED]      Genuine external dependency prevents this specific item.
+
+A module may be [DONE] only when:
+1. Required DB/backend exists.
+2. Required RPC/server operations exist.
+3. Frontend uses real backend data, not mock authority.
+4. Role/RLS/security behavior is tested.
+5. Happy path is tested.
+6. Error/retry behavior is tested.
+7. Required mobile/desktop QA is run.
+8. No fake-success UI remains.
+9. Lint/typecheck/build relevant to the change pass.
+10. Progress files are updated.
+11. Stable local commit exists when appropriate.
+
+AUTONOMOUS LOOP — CRITICAL
+--------------------------
+READ CURRENT STATE
+→ FIND FIRST UNFINISHED ITEM
+→ IMPLEMENT
+→ TEST
+→ FIX
+→ RETEST
+→ UPDATE STATUS
+→ COMMIT STABLE WORK
+→ IMMEDIATELY START NEXT ITEM
+
+Do NOT stop because a module, migration, commit, or checkpoint finished.
+Do NOT stop because the session feels long.
+Do NOT ask routine confirmations.
+If one external integration is blocked, mark only that item [BLOCKED] and continue everything
+else. Stop only when all implementable items are [DONE], or every remaining item is genuinely
+[BLOCKED].
+
+Persist progress in:
+- docs/backend/IMPLEMENTATION_PROGRESS.md
+- docs/backend/AUTONOMOUS_WORK_QUEUE.md
+- this master file if copied into the repo
+
+PROJECT RULES
+-------------
+- DEV Supabase project ref: sprbyaagxbnoupapqgio
+- DEV ONLY; do not create/touch production.
+- Never print/commit secrets.
+- .env.local remains Git-ignored.
+- No secret/service key client-side.
+- Supabase PostgreSQL is the source of truth.
+- One master vehicle, customer, staff identity, part, container, media architecture, audit architecture.
+- No Yard Employee App / no yard role.
+- User-facing name: Dismantling Employee App.
+- Warehouse Employee stays separate.
+- Vehicle Dismantling Processing is manager/reviewer companion.
+- Front Desk Manager does NOT automatically receive confidential Export access.
+- Never edit already-applied migrations; use additive numbered migrations only.
+
+PERFORMANCE RULES
+-----------------
+- Keyset/cursor pagination.
+- Lightweight list DTOs.
+- Detail data on demand.
+- No N+1.
+- Thumbnail on lists, medium on detail, original only on explicit full view.
+- TanStack Query cache-first navigation.
+- Targeted invalidation, not global invalidation.
+- Selective Realtime only.
+
+AI COST RULES
+-------------
+- Admin/Manager AI where valuable.
+- Employee workflows almost zero-AI.
+- No automatic OpenAI on photo upload/page open/navigation/rerender.
+- Deterministic parsing first.
+- Explicit authorized action only.
+- Server-side only.
+- Human approval for important mutations.
+- Cache/dedupe repeated analysis.
+
+CURRENT VERIFIED BASELINE
+=========================
+
+[DONE] DATABASE FOUNDATION
+- 0001 initial schema applied to DEV.
+- Approved RLS/security/index foundation in place.
+- 45 application tables, 96 explicit application indexes at foundation review.
+- write_audit_log protected.
+- performance indexes present.
+
+[DONE] AUTH / RBAC
+- Supabase Auth is the only identity.
+- 10 DEV role users exist.
+- profiles/roles seeded.
+- server route gate and account_status enforcement exist.
+- previous RLS matrix: 114/114.
+- previous route-gate suite: 34/34.
+
+[DONE] STORAGE / MEDIA BACKEND
+- operational-media private bucket.
+- confidential-export-media private bucket.
+- signed URLs.
+- local Sharp original/medium/thumbnail processing.
+- previous media tests: 24/24.
+- reusable MediaCapture component exists.
+- no AI in media processing.
+
+[DONE] AUTH PROXY PERFORMANCE
+- optimized getClaims/local JWT path and short-lived access cache.
+- previously measured proxy overhead about 15 ms after optimization.
+- preserve or improve without weakening security.
+
+[DONE] PAYMENT / STOCK RPC FOUNDATION
+Implemented:
+- create_payment
+- allocate_payment
+- post_payment
+- void_payment
+- create_sale
+- reserve_stock
+- release_reservation
+- fulfill_sales_order
+Previous concurrency/rollback suite passed.
+
+[DONE] VEHICLE CORE RPC FOUNDATION
+Implemented:
+- match_or_create_vehicle
+- close_vehicle
+- assign_carrier
+- update_transport_status
+- receive_vehicle
+- reopen support/read integration where currently present
+Previous vehicle RPC suites passed.
+
+MODULE 01 — AUCTION VEHICLE INVENTORY
+STATUS: [PARTIAL]
+=====================================
+
+Already real:
+- DB-backed vehicle list/search/filter/KPIs.
+- keyset pagination.
+- close/reopen.
+- DB duplicate preview.
+- intake commit via match_or_create_vehicle.
+- canned AI sample removed.
+- AI scan is not allowed to fake success.
+
+Required final workflow:
+Bulk Paste / Single Vehicle Paste / Manual Entry / AI Photo-Screenshot Scan.
+
+Deterministic intake:
+input → parse → normalize → DB match preview → new/existing/conflict → human confirm
+→ match_or_create_vehicle → success/error summary → targeted cache update.
+
+Match rules:
+- VIN exact.
+- stock number.
+- lot + auction source where appropriate.
+- never silently duplicate.
+- conflict requires human resolution.
+
+Existing vehicle:
+- never silently overwrite.
+- if “Update Existing” UI remains, implement it safely or disable/remove it.
+- no fake checkbox.
+
+AI Scan:
+- explicit authorized action only.
+- no automatic call.
+- no canned/fake result.
+- if not integrated, show Not Connected.
+- normal intake remains fully functional without AI.
+
+KPIs:
+Total / Waiting Arrival / In Transit / Available in Yard / Overdue 10+ / Closed-Removed.
+
+Close/remove:
+soft close, reason/note/actor/time/audit; no hard delete.
+
+Before [DONE]:
+- backend identity/race tests.
+- bulk retry safety.
+- new/existing/conflict UI.
+- all intake methods.
+- search/filter/pagination.
+- close/reopen.
+- wrong-role tests.
+- 390/430/768/1366/1440 QA.
+- no mock authority.
+
+MODULE 02 — CENTRAL DISPATCH
+STATUS: [PARTIAL]
+=============================
+
+Already real:
+- dispatch counts.
+- narrowed carrier writes.
+- same vehicle identity.
+- atomic per-vehicle transport-price batch assignment.
+- DB-backed screen.
+- external Central Dispatch honestly Not Connected.
+
+Required workflow:
+same vehicles → pickup grouping → carrier → per-vehicle price → atomic dispatch assignment
+→ transport status → problem handling.
+
+Statuses:
+NEED_TRANSPORT / READY_TO_POST / POSTED_TO_CD / ASSIGNED / IN_TRANSIT / ARRIVED / PROBLEM.
+
+Rules:
+- legal transitions only.
+- required pricing/data for READY_TO_POST.
+- closed vehicles blocked.
+- Receiving/Dismantling cannot mutate carrier/dispatch pricing.
+- external API must never fake success.
+
+Known performance gap:
+pickup grouping may currently load every open vehicle. Measure realistic volume and replace
+with paginated/grouped server query if necessary.
+
+Before [DONE]:
+- atomic batch failure tests.
+- carrier permissions.
+- status transition tests.
+- Not Connected honesty.
+- responsive QA.
+- network/N+1/performance QA.
+- no mock authority.
+
+MODULE 03 — VEHICLE RECEIVING & ARRIVAL
+STATUS: [PARTIAL]
+========================================
+
+Already real:
+- typed DB lookup.
+- four arrival evidence roles.
+- receive_vehicle RPC.
+- reusable MediaCapture.
+- fake simulateScan removed.
+- fake “problem logged” toast removed.
+
+Exact workflow:
+enter/scan VIN/Lot#/Stock# → server lookup →
+Not Found / Already Received / Ready to Receive →
+capture Front + Rear + Left + Right →
+preview/retake/remove → upload/retry →
+Confirm Receiving → receive_vehicle →
+Success → Scan Next.
+
+Server validates:
+- caller role.
+- vehicle exists.
+- not already received.
+- all four required media exist.
+- legal lifecycle transition.
+
+Server writes atomically:
+receiving_status, received_by, received_at, lifecycle state if approved, vehicle_event, audit.
+
+NO AI / NO OCR / NO OpenAI Vision.
+
+Gaps to resolve:
+- “Update Existing” must either really work or be disabled/removed.
+- receiving problem reporting needs a real backend or explicit unavailable state.
+- retake semantics must clearly identify current evidence vs historical evidence.
+
+Before [DONE]:
+- Not Found / Already Received / Ready.
+- missing-photo slot tests.
+- all-four success.
+- same-user replay.
+- second-user refusal.
+- parallel receive race.
+- wrong role.
+- upload retry/failure.
+- browser QA.
+- 390/430/768/1366/1440.
+- network confirms zero AI calls.
+
+MODULE 04 — DISMANTLING EMPLOYEE APP
+STATUS: [IN PROGRESS]
+Backend: migrations 0016 (RPCs), 0017 (abandon -> not sellable), 0018 (completed count excludes abandoned). Tests rpc-dismantling.mjs 45/45 (role matrix, guard hints, one-active race, retry replay, photo gate, actor check, rollback, protected-field attacks). UI NOT yet connected.
+=====================================
+
+ONE employee app, TWO modes:
+A. Vehicle Dismantling
+B. Quick Part Capture
+
+No Yard app.
+
+A. Vehicle Dismantling:
+Login → Find Vehicle by VIN/Lot#/Stock# →
+Not Found / Already Dismantled / Already In Process / Valid →
+Confirm → Start session →
+capture evidence/photos → preview/retake/remove →
+Flag Issue if needed →
+Save & Finish → upload/retry →
+finish session → Completed → Scan Next.
+
+Required RPCs:
+- start_dismantling_session
+- finish_dismantling_session
+- flag_dismantling_issue
+
+Rules:
+- one active session per vehicle.
+- correct roles only.
+- cannot start dismantled/completed vehicle.
+- retry/idempotency.
+- actor/session/vehicle consistency.
+- full history/audit.
+
+B. Quick Part Capture:
+Active donor/session → camera → photo → preview → retake → Save & Next.
+
+Do NOT rescan donor each part.
+
+Auto-persist:
+vehicle_id, VIN, lot/stock, dismantling_session_id, employee, timestamp,
+source event/correlation, media.
+
+Employee MUST NOT enter:
+SKU, barcode, warehouse location, zone/rack/shelf/bin, price, core charge,
+sales channel, SEO, fitment, manager approval fields.
+
+ZERO AI:
+no automatic part recognition, title/description, tagging, OpenAI Vision.
+
+Before [DONE]:
+- RPC success/wrong role/already-active/already-dismantled/retry/rollback.
+- one-active-session invariant.
+- full dismantling UI.
+- Quick Capture UI.
+- mode switching.
+- Save & Next.
+- upload retry.
+- Flag Issue.
+- completion/Scan Next.
+- protected field attack tests.
+- 390/430/768/1366/1440.
+- network shows no AI calls.
+
+MODULE 05 — VEHICLE DISMANTLING PROCESSING
+STATUS: [NOT STARTED]
+===========================================
+
+Manager/Owner companion.
+
+Dashboard:
+- Needs Review
+- Completed Today
+- Employee Activity Today
+
+Employee cards → detail/drawer.
+
+Filters:
+Today / Week / Month / Custom.
+
+Actions:
+- Approve
+- Edit & Approve
+- Mark Duplicate
+- Reject / Not Inventory
+- Keep for Later
+
+Required RPCs:
+- approve_dismantled_part
+- edit_and_approve_part
+- reject_dismantled_part
+- mark_part_duplicate
+
+Rules:
+- SAME part identity.
+- no approved-parts duplicate table.
+- repeated approval idempotent.
+- rejected/duplicate stay historical.
+- rejected/duplicate never sellable.
+- donor/session/employee preserved.
+
+Optional Manager AI later:
+explicit Analyze Part only, human approval required.
+
+Before [DONE]:
+all review actions, idempotency, wrong role, duplicate integrity, rejected not sellable,
+date filters/counts, responsive QA, no duplicate part records.
+
+MODULE 06 — PARTS INVENTORY / OPERATIONS
+STATUS: [NOT STARTED]
+========================================
+
+ONE part row from capture through inventory/sale/history.
+
+Review status:
+captured / draft_ready / manager_review / approved / rejected / duplicate.
+
+Processing:
+needs_processing / in_processing / ready_for_sale / not_sellable.
+
+Operational:
+AVAILABLE / RESERVED / SOLD / DAMAGED / RETURNED / MISSING.
+
+Preserve:
+donor vehicle/VIN/lot-stock, event/session, employee, photos, timestamps, history.
+
+Manager/Warehouse processing may set:
+part name/category/number, condition, fitment, test, location, zone/rack/shelf/bin,
+price, core charge, SKU, barcode/label, notes, permitted sale-channel metadata.
+
+ZERO-QUANTITY RULE:
+quantity=0 stays in DB, searchable and visible as “Out of Stock”.
+Never delete sold-out rows.
+
+Media:
+thumbnail list / medium detail / original explicit only.
+
+AI:
+authorized Manager/Admin explicit action only:
+part identification, category, fitment, title, description, SEO/listing draft.
+Never automatic.
+
+Before [DONE]:
+capture→review→processing→ready; not-sellable; rejected/duplicate protection;
+permissions; zero-stock visibility; search/pagination/media; responsive; no N+1.
+
+MODULE 07 — CUSTOMERS
+STATUS: [NOT STARTED]
+======================
+
+Real DB:
+List → Search → Create → Edit → Detail → History.
+
+Rules:
+- one customer master.
+- normalize phone/email where appropriate.
+- detect obvious duplicates without silently merging ambiguous people.
+- history loaded on detail, not every list row.
+
+Detail may show:
+identity/contact, sales, payments, quotes, rim obligations, notes/history.
+
+Performance:
+lightweight list DTO, keyset pagination, lazy detail/history.
+
+Security:
+sales staff only; unrelated field employees blocked.
+
+Before [DONE]:
+create/edit/search, duplicate hints, unauthorized access, history, pagination,
+390/430/768/1366/1440.
+
+MODULE 08 — QUOTES & SALES
+STATUS: [NOT STARTED]
+===========================
+
+Quote:
+Create → Customer → Lines → Totals → Edit → Convert to Sale.
+
+Sales stock choices:
+DRAFT / RESERVE / FULFILL NOW.
+
+DRAFT:
+no stock action.
+
+RESERVE:
+physical quantity remains; active reservation created; logical available decreases;
+later Fulfill.
+
+FULFILL NOW:
+consume quantity immediately; sale line fulfilled in same transaction;
+no separate Reserve step.
+
+Use tested RPCs:
+create_sale, reserve_stock, release_reservation, fulfill_sales_order.
+
+Concurrency:
+lock inventory rows; DB-calculated available quantity is authoritative;
+prevent overselling; multi-line all-or-nothing.
+
+UI:
+stock action at creation, clear reserved/fulfilled state, zero-stock remains visible.
+
+Before [DONE]:
+Draft/Reserve/Release/Fulfill/Fulfill Now; last-unit race; multi-line rollback;
+wrong role; retry; out-of-stock visibility; print flow if present; responsive.
+
+MODULE 09 — PAYMENTS / ACCOUNTING
+STATUS: [NOT STARTED]
+=================================
+
+Exact workflow:
+Create Payment → Pending → Allocate → Post → balances update.
+
+Rules:
+- new payment PENDING.
+- pending does not affect sale balance.
+- allocation does not affect balance until Post.
+- payment customer must match sale customer.
+- total allocation <= payment amount.
+- posting atomic.
+- DB NUMERIC is accounting authority.
+- posted history immutable.
+
+Use:
+create_payment / allocate_payment / post_payment / void_payment.
+
+Corrections:
+void/reversal/adjustment + reason + actor + audit; no silent rewrite.
+
+Before [DONE]:
+pending/allocation/post; unchanged balance before post; correct post changes;
+over-allocation block; wrong customer block; concurrency; direct posted mutation block;
+void flow; responsive.
+
+MODULE 10 — SCRAP DRIVER APP
+STATUS: [NOT STARTED]
+=============================
+
+MOBILE-FIRST, evidence-only.
+
+Flow:
+Login → New Load → Load Photo → Save → Deliver → Same Load →
+Add Ticket → Ticket Photo → Save → Complete → Next Load.
+End day → Add Check if received.
+
+Driver must NOT enter/see:
+weight, rate, amount, reconciliation, manager financial notes/accounting;
+other sensitive fields not required by approved flow.
+
+Server operations:
+create_scrap_load, add evidence, submit ticket evidence, submit driver check.
+
+Connectivity:
+idempotent retries, no duplicate load, upload progress/retry.
+
+NO AI / NO OCR.
+
+Security:
+own-records-only; cannot approve/close; cannot see manager financial fields.
+
+Before [DONE]:
+full driver flow, retry/duplicate, wrong-driver access, protected fields excluded,
+390/430/768, no AI network calls.
+
+MODULE 11 — SCRAP MANAGEMENT
+STATUS: [NOT STARTED]
+=============================
+
+Manager/Owner/authorized office on SAME scrap loads.
+
+Handles:
+weight, rate, amount, approval, discrepancy, reconciliation, notes, payment proof,
+Daily Close.
+
+Financial history:
+append/correction based, never silently rewrite posted history.
+
+Operations:
+approve_scrap_load, payment/reconciliation operations, correction/reversal,
+close_scrap_day.
+
+Tire/Rim obligations:
+same customers table; owed, partial return, remaining, complete, evidence/history;
+remaining never below zero.
+
+Daily Close:
+block unresolved evidence/discrepancy.
+Override only authorized role + reason + audit.
+
+Reports:
+Week / Month / Custom.
+
+No AI needed.
+
+Before [DONE]:
+approval, driver block, discrepancies, reconciliation, corrections,
+partial returns, negative prevention, close block, override, reports, responsive.
+
+MODULE 12 — CONTAINER LOADING EMPLOYEE
+STATUS: [NOT STARTED]
+======================================
+
+MOBILE-FIRST restricted loader.
+
+Flow:
+Open/New Container → official number → number photo →
+loading photos → final loading list photo → Mark Loading Finished.
+
+Server:
+start/create container loading, add evidence, finish_container_loading.
+
+finish_container_loading validates:
+authorized loader, container, required evidence, final list, legal state;
+then atomically loading → ready_for_invoice.
+
+Loader cannot directly force status.
+
+Loader MUST NOT see:
+consignee, overseas contacts, prices, invoice, deposits, payments, balance,
+confidential shipping/commercial data.
+
+NO AI / NO OCR.
+
+Before [DONE]:
+missing-evidence block, valid finish, retry, direct status mutation block,
+confidential read block, 390/430/768, no AI requests.
+
+MODULE 13 — CONTAINER EXPORT MANAGEMENT
+STATUS: [NOT STARTED]
+========================================
+
+Allowed:
+Owner / Engineer Admin / Export Manager.
+Front Desk Manager not automatically authorized.
+
+Same container record.
+
+Dashboard:
+All / Loading-Open / Ready for Invoice / On the Way / Closed.
+
+Identifiers:
+permanent short LAL ref + official container number.
+
+Commercial Invoice:
+reusable consignee; frozen consignee snapshot on finalization;
+line items; totals; unique invoice number;
+Draft / Review / Finalized / Revision.
+
+Finalized:
+immutable; revisions create history, not silent rewrite.
+
+Payments:
+multiple deposits/additional/final/correction; automatic paid/balance.
+
+Shipping:
+lightweight only.
+
+Container close:
+validate required conditions; override only if product permits, with reason + audit.
+
+Required RPCs:
+create/update export invoice, finalize_export_invoice, revise_export_invoice,
+record_export_payment, advance shipping, close container.
+
+MANDATORY immutability tests after finalization:
+- UPDATE parent fails
+- DELETE parent fails
+- INSERT line fails
+- UPDATE line fails
+- DELETE line fails
+
+Security:
+Container Loader cannot read confidential tables.
+Front Desk Manager cannot read confidential export without explicit permission.
+Export Manager/Owner allowed.
+
+Before [DONE]:
+workflow, payments, immutable revision behavior, permission matrix,
+390/430/768/1366/1440.
+
+MODULE 14 — OWNER DASHBOARD
+STATUS: [NOT STARTED]
+===========================
+
+VISUAL DESIGN FROZEN. Do not redesign.
+
+Connect real data:
+Welcome/header, date range, KPIs, Key Exceptions, Employee Overview,
+Recent Activity, charts, donut.
+
+Use efficient grouped/indexed aggregate reads.
+Do not issue dozens of COUNT(*) requests.
+No mock VehicleDataProvider authority.
+
+Date range must change actual data.
+
+Recent Activity from real audit/events.
+
+Before [DONE]:
+empty/seeded states, date filters, role access, cache, responsive,
+network query count, no mock authority.
+
+MODULE 15 — MANAGEMENT DASHBOARDS
+STATUS: [NOT STARTED]
+=================================
+
+Connect real data for Dismantling Processing, Parts, Scrap, Containers,
+and existing manager dashboards.
+
+Date modes as supported:
+Today / Week / Month / Custom.
+
+Avoid one query per employee.
+
+Before [DONE]:
+counts, filters, permissions, responsive, cache/network behavior.
+
+MODULE 16 — ADMIN / MANAGER AI
+STATUS: [NOT STARTED]
+===============================
+
+ONLY after deterministic core workflows work.
+
+Useful AI:
+- vehicle screenshot extraction
+- difficult intake normalization
+- part image recognition
+- category suggestion
+- fitment suggestion
+- title/description
+- SEO
+- listing draft
+- exception summaries
+- management assistant
+- AI command center
+
+Cost/control rules:
+- explicit authorized action.
+- server-side only.
+- deterministic parsing first.
+- no auto-call on upload/navigation/render.
+- input hash/checksum dedupe where useful.
+- cache result.
+- resized analysis image.
+- structured JSON.
+- timeout/retry limits.
+- human approval before important mutations.
+
+Employee zero/low AI:
+Receiving / Dismantling / Quick Capture / Scrap Driver / Container Loader /
+basic Warehouse capture.
+
+AI Command Center:
+named tools only; NEVER arbitrary SQL.
+Examples:
+find_vehicle, show_overdue_vehicles, get_customer_balance, show_unpaid_sales,
+summarize_today_exceptions, prepare_vehicle_intake, create_part_listing_draft.
+
+Mutation:
+AI proposal → user confirmation → validated backend/RPC → audit.
+
+Before [DONE]:
+unauthorized role blocked; key never client-side; no automatic calls;
+safe malformed-output handling; approval gate; caching/dedupe where designed.
+
+CROSS-CUTTING — TANSTACK QUERY / CACHE
+STATUS: [PARTIAL]
+======================================
+
+One global QueryClient.
+Stable keys for vehicles/parts/customers/sales/scrap/containers/dashboard.
+
+Target navigation:
+Vehicles → Sales → Containers → Vehicles
+returns cached Vehicles immediately when safe.
+
+Use staleTime, cached-first, background revalidation, targeted invalidation,
+route prefetch where useful, optimistic updates only where safe.
+
+Never clear whole cache after one mutation.
+
+Before [DONE]:
+browser network trace confirms no duplicate loops, targeted invalidation,
+fast back-navigation.
+
+CROSS-CUTTING — SUPABASE TYPES
+STATUS: [NOT STARTED]
+======================================
+
+Generate/maintain strongly typed DB types from live DEV schema where tooling permits.
+No secrets. Integrate into data/RPC layer. Regenerate after meaningful schema changes.
+Before [DONE]: tsc clean and types actually used.
+
+CROSS-CUTTING — MOCK ELIMINATION
+STATUS: [IN PROGRESS]
+=================================
+
+Search production code for mock/mockData/VehicleDataProvider/hardcoded business arrays/
+fake sample data/simulated success/local fake stores.
+
+When a module is real, mock state may not remain production authority.
+Test fixtures may stay dev/test-only.
+
+Known remaining areas from latest run:
+vehicle detail, completion queue, corrections, Dismantling, Owner Dashboard,
+and untouched modules.
+
+Before [DONE]:
+no production route has competing mock + DB sources of truth.
+
+CROSS-CUTTING — MOBILE / RESPONSIVE QA
+STATUS: [NOT STARTED]
+======================================
+
+Actual viewports:
+390 / 430 / 768 / 1366 / 1440.
+
+Verify actual viewport dimensions.
+
+Employee apps mobile-first:
+Receiving, Dismantling, Scrap Driver, Container Loader, basic Warehouse capture.
+
+Requirements:
+large tap targets; minimal typing; camera-first; no hover-only dependency;
+no tiny desktop table; no uncontrolled horizontal overflow; preview/retake/remove;
+upload progress/retry/success; Scan Next/Save & Next; responsive dialogs/drawers;
+keyboard-safe forms.
+
+Admin mobile may use cards/controlled horizontal scroll/hide secondary columns.
+
+Never claim QA if viewport did not actually change.
+
+CROSS-CUTTING — BROWSER AUTH QA
+STATUS: [NOT STARTED]
+===============================
+
+Real browser:
+login, logout, session restore, role landing page, typed forbidden URL,
+disabled account behavior, role redirect, mobile login.
+
+CROSS-CUTTING — SECURITY ATTACK MATRIX
+STATUS: [PARTIAL]
+======================================
+
+Re-run earlier RLS suite and extend after modules.
+
+Must fail:
+- Engineer Admin grants/removes Owner or performs Owner-only account admin.
+- Manager reads confidential Export.
+- Receiving changes purchase/accounting or dispatch price/carrier.
+- Dismantling sets price/SKU/location/approval/sellability or accesses Sales/Export.
+- Scrap Driver approves/closes or reads manager financials.
+- Container Loader directly sets ready_for_invoice/on_the_way/closed or reads invoice/payment.
+- Warehouse performs Owner/account role admin.
+- Anonymous accesses protected business data.
+
+Also test allowed positive cases.
+
+CROSS-CUTTING — FULL E2E TESTS
+STATUS: [NOT STARTED]
+======================================
+
+E2E VEHICLE:
+Auction intake → SAME vehicle Dispatch → carrier/status →
+Receiving + 4 photos → Receive →
+Dismantling → Quick Part Capture →
+Manager Review → Approve → SAME part in Parts.
+One vehicle, one part, no duplicates.
+
+E2E RESERVE:
+part qty 1 → Reserve:
+physical 1, active reservation 1, available 0 →
+Fulfill:
+reservation fulfilled, physical 0, row remains, Out of Stock, sale fulfilled.
+
+E2E FULFILL NOW:
+available part → Fulfill Now → immediate consumption, fulfilled line, no separate Reserve.
+
+E2E PAYMENT:
+Create pending → Allocate → balance unchanged → Post → atomic balance change →
+illegal direct accounting mutation blocked.
+
+E2E SCRAP:
+Driver load/photo/ticket/complete → Manager financials/approval/reconciliation/close.
+Driver never receives protected financial payload.
+
+E2E CONTAINER:
+Loader container/number photo/loading/final list/finish → ready_for_invoice →
+Export invoice/finalize/payments/shipping/close.
+Loader cannot read confidential export.
+
+CROSS-CUTTING — PERFORMANCE FINAL PASS
+STATUS: [PARTIAL]
+======================================
+
+Measure:
+proxy overhead, route navigation, list fetch, duplicate requests, N+1,
+cache reuse, image variants, response sizes.
+
+Rules:
+no original images on lists; no one-media-query-per-row; no one-query-per-employee dashboard;
+no app-wide invalidation; no accidental AI in employee flows.
+
+Known concern:
+Central Dispatch grouping may load all open vehicles. Measure/fix before final [DONE].
+
+CROSS-CUTTING — HEIC SUPPORT
+STATUS: [NOT STARTED]
+======================================
+
+Test actual Sharp HEIC/HEIF behavior if asset/tooling available.
+If unsupported, fail gracefully with user-friendly message.
+Do not block other formats/modules.
+
+CROSS-CUTTING — EXTERNAL INTEGRATIONS
+STATUS: [BLOCKED]
+======================================
+
+Central Dispatch external API, Shopify, eBay, Meta, TikTok:
+remain Not Connected unless real credentials/code exist.
+Never fake success.
+Complete all internal/local workflows regardless.
+
+FINAL COMPLETION GATE
+=====================
+
+Before declaring overall completion:
+
+1. No implementable module remains [NOT STARTED], [PARTIAL], or [IN PROGRESS].
+2. [BLOCKED] items must be genuine external integrations only.
+3. Run npm run lint.
+4. Run tsc --noEmit.
+5. Run npm run build.
+6. Run all persisted DEV tests.
+7. Run full security attack matrix.
+8. Run all E2E workflows.
+9. Run responsive QA at 390/430/768/1366/1440.
+10. Audit production routes for mock authority.
+11. Audit network for unintended AI calls.
+12. Audit git for secrets.
+13. Update progress files/status markers.
+14. Create final stable local commit(s).
+15. Do not push unless standing authorization exists.
+16. Do not touch production.
+
+CURRENT NEXT TASK
+=================
+
+Based on the latest verified run, start with:
+
+[NOT STARTED] MODULE 04 — DISMANTLING RPC FOUNDATION / EMPLOYEE APP
+
+Use migration 0016 or the next actual migration number if repo reality differs.
+
+Implement:
+- start_dismantling_session
+- finish_dismantling_session
+- flag_dismantling_issue
+
+Test:
+- success
+- wrong role
+- already active
+- already dismantled
+- retry/idempotency
+- rollback/invariants
+
+Then connect Dismantling Employee App to real DB and shared MediaCapture.
+
+AFTER THAT DO NOT STOP.
+Continue Module 05, then 06, then onward until the final completion gate.
+
+MANDATORY SESSION START INSTRUCTION
+===================================
+
+At each new Claude Code session:
+1. Read this entire file.
+2. Read docs/backend/IMPLEMENTATION_PROGRESS.md.
+3. Read docs/backend/AUTONOMOUS_WORK_QUEUE.md.
+4. Inspect git status/log, migrations, and live DEV state.
+5. Reconcile stale status markers with repo reality.
+6. Find first item not [DONE].
+7. Start implementing immediately.
+8. After each verified checkpoint update status and CONTINUE.
+9. Never stop only to report progress.
+
+END OF MASTER FILE
+==================
