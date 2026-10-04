@@ -357,7 +357,9 @@ Before [DONE]:
 - network shows no AI calls.
 
 MODULE 05 — VEHICLE DISMANTLING PROCESSING
-STATUS: [NOT STARTED]
+STATUS: [IN PROGRESS]
+Backend (done): migrations 0019 (review RPCs, queue, summary), 0020 (queue ambiguous-column fix), 0021 (queue and needs-review count only include captures with a ready photo). Tests rpc-processing.mjs 57/57: role matrix, photo gate, approve idempotency, edit-and-approve validation with rollback, reject and duplicate terminal rules, keep-for-review, parallel double-approve race, queue keyset paging, summary counts.
+UI: not yet connected (dismantling-processing components still on use-dismantling-data mock).
 ===========================================
 
 Manager/Owner companion.

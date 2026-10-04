@@ -273,3 +273,11 @@ Known: UI for Auction, Dispatch and Receiving is not yet connected. Next item: V
 - Removed: simulated scan, guessed part types and review states, simulated processing timer, simulated upload-failed card, the "(mock)" issue toast.
 - Checks: tsc clean, eslint clean, build exit 0.
 - Not run: browser and viewport QA. Module 04 stays [PARTIAL] until that passes.
+
+## Dismantling processing RPCs (0019-0021) - 2026-10-04
+
+- 0019: approve_dismantled_part, edit_and_approve_part, reject_dismantled_part, mark_part_duplicate, keep_part_for_review. Same part row throughout. Approval is idempotent. Rejected and duplicate parts are not sellable (MISSING, not_sellable, reason kept). Duplicate target must be approved. Queue (keyset, thumbnail join) and one grouped summary read.
+- 0020: queue function fixed (ambiguous RETURNS TABLE names; #variable_conflict use_column). Found because the first test run got zero rows and an error that was being swallowed. The test now asserts the call succeeds.
+- 0021: queue and needs-review count include only captures with a ready photo. An in-progress upload is not a review item.
+- Test: scripts/dev-tests/rpc-processing.mjs, 57/57.
+- UI: not connected yet. Next step: dismantling-processing components on the summary and queue RPCs.
