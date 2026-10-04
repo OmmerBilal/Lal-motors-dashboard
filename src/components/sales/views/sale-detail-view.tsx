@@ -1,62 +1,66 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronLeft, Printer, Wallet } from "lucide-react";
+import { ChevronLeft, Printer } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatusBadge } from "@/components/patterns/status-badge";
-import { ItemsTable, TotalsBlock } from "@/components/sales/shared";
-import { useSalesData } from "@/components/sales/sales-data-context";
-import { InvoicePrint, type PrintSaleData } from "@/components/sales/pos/print/print-document";
-import { itemTotals, saleBalance, usd, type PaymentMethod } from "@/lib/mock/sales";
+import { ItemsTable, TotalsBlock, HistoryPanel } from "@/components/sales/shared";
+import { InvoicePrint } from "@/components/sales/pos/print/print-document";
+import { saleDetailToPrintData } from "@/components/sales/pos/print/sale-print-data";
+import { PaymentCreateDialog } from "@/components/sales/payments/payment-create-dialog";
+import { usd } from "@/lib/mock/sales";
+import { linesToItems, salesErrorMessage } from "@/lib/data/sales";
+import { useSaleDetail, useSaleStockAction, useSalesSettings } from "@/lib/query/sales";
+import { useSalePayments } from "@/lib/query/payments";
 
-export function SaleDetailView({ saleId, manager, onBack }: { saleId: string; manager: boolean; onBack: () => void }) {
-  const { getSale, getCustomer, payments, settings, recordPayment } = useSalesData();
-  const sale = getSale(saleId);
-  const [amount, setAmount] = useState("");
-  const [method, setMethod] = useState<PaymentMethod>("CASH");
-  const [reference, setReference] = useState("");
+const statusLabel = (s: string) => s.replace(/_/g, " ").toLowerCase();
+
+export function SaleDetailView({
+  saleId,
+  manager,
+  onBack,
+  onOpenPayment,
+}: {
+  saleId: string;
+  manager: boolean;
+  onBack: () => void;
+  onOpenPayment: (paymentId: string) => void;
+}) {
+  const detailQuery = useSaleDetail(saleId);
+  const settings = useSalesSettings().data ?? null;
+  const payments = useSalePayments(saleId);
+  const stock = useSaleStockAction();
   const [printing, setPrinting] = useState(false);
+  const [paymentOpen, setPaymentOpen] = useState(false);
 
-  if (!sale) return null;
-  const customer = getCustomer(sale.customerId);
-  const totals = itemTotals(sale.items, sale.discount, sale.taxRate);
-  const salePayments = payments.filter((p) => p.saleId === sale.id);
-  const { balanceDue, paymentStatus } = saleBalance(sale, payments);
+  if (detailQuery.isPending) return <p className="py-6 text-center text-sm text-muted-foreground">Loading sale…</p>;
+  if (detailQuery.isError) return <p className="py-6 text-center text-sm text-destructive">{detailQuery.error.message}</p>;
+  const detail = detailQuery.data;
+  if (!detail) return null;
+
+  const sale = detail.sale;
+  const customer = detail.customer;
+  const busy = stock.reserve.isPending || stock.release.isPending || stock.fulfill.isPending;
+  const activeReservations = detail.reservations.filter((r) => r.status === "active").length;
+  const hasDraftPartLines = detail.lines.some((l) => l.part_id && l.stock_action === "none");
+  const isFulfilled = sale.fulfillment_status === "fulfilled";
+
+  async function run(action: "reserve" | "release" | "fulfill") {
+    const labels = { reserve: "Stock reserved", release: "Reservation released", fulfill: "Stock fulfilled" };
+    try {
+      if (action === "reserve") await stock.reserve.mutateAsync(saleId);
+      if (action === "release") await stock.release.mutateAsync(saleId);
+      if (action === "fulfill") await stock.fulfill.mutateAsync(saleId);
+      toast.success(labels[action]);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : salesErrorMessage(null));
+    }
+  }
 
   function printInvoice() {
     setPrinting(true);
     requestAnimationFrame(() => requestAnimationFrame(() => window.print()));
-  }
-
-  const printData: PrintSaleData = {
-    saleNumber: sale.saleNumber,
-    invoiceNumber: sale.invoiceNumber,
-    date: sale.createdAt,
-    employeeName: "LAL Motors Staff",
-    customer: customer || null,
-    items: sale.items,
-    discount: sale.discount,
-    coreCharge: sale.coreCharge || 0,
-    depositApplied: sale.depositApplied || 0,
-    taxRate: sale.taxRate,
-    notes: sale.notes || "",
-    method: salePayments[0]?.method || "CASH",
-    amountPaid: salePayments.reduce((s, p) => s + p.amount, 0) + (sale.depositApplied || 0),
-    businessName: settings.businessName,
-    taxLabel: settings.taxLabel,
-  };
-
-  function confirmPayment() {
-    const value = Number(amount);
-    if (!value || value <= 0) return;
-    if (!window.confirm(`Record ${usd(value)} received?`)) return;
-    recordPayment(sale!.id, value, method, reference, "");
-    setAmount("");
-    setReference("");
-    toast.success("Payment recorded");
   }
 
   return (
@@ -68,70 +72,138 @@ export function SaleDetailView({ saleId, manager, onBack }: { saleId: string; ma
       <div className="rounded-lg border border-border bg-card p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3 className="text-base font-semibold">
-              {sale.invoiceNumber} · {sale.saleNumber}
-            </h3>
+            <h3 className="text-base font-semibold">{sale.sale_number ?? "Sale"}</h3>
             <p className="text-sm text-muted-foreground">
-              {customer?.companyName || `${customer?.firstName} ${customer?.lastName}`} · <StatusBadge>{paymentStatus}</StatusBadge>
+              {customer?.name ?? "Customer"} · <StatusBadge>{sale.payment_status}</StatusBadge> · {statusLabel(sale.fulfillment_status)}
             </p>
+            <p className="text-xs text-muted-foreground">Created {new Date(sale.created_at).toLocaleString()}</p>
           </div>
           <Button variant="outline" size="sm" onClick={printInvoice}>
             <Printer /> Print
           </Button>
         </div>
 
-        <div className="mb-4 rounded-md bg-muted/30 p-3 text-sm">
-          <b className="block">{settings.businessName}</b>
-          <span className="block text-muted-foreground">{settings.businessAddress}</span>
-          <span className="block text-muted-foreground">{settings.businessPhone}</span>
-        </div>
-
-        <ItemsTable items={sale.items} />
-        <TotalsBlock subtotal={totals.subtotal} discount={totals.discount} tax={totals.tax} taxRate={sale.taxRate} total={totals.total} />
-
-        <div className="mt-5 border-t border-border pt-4">
-          <h4 className="mb-2 text-sm font-semibold">Payments</h4>
-          <div className="space-y-1.5">
-            {salePayments.map((p) => (
-              <div key={p.id} className="flex justify-between text-sm">
-                <span>
-                  {p.paymentNumber} · {p.method}
-                </span>
-                <b>{usd(p.amount)}</b>
-              </div>
-            ))}
-          </div>
-          <div className="mt-2 flex justify-between border-t border-border pt-2 text-base">
-            <strong>Balance due</strong>
-            <b>{usd(balanceDue)}</b>
-          </div>
-        </div>
-
-        {manager && balanceDue > 0 && (
-          <div className="mt-4 grid gap-2 rounded-md border border-border bg-muted/20 p-3 print:hidden sm:grid-cols-4">
-            <h4 className="text-sm font-semibold sm:col-span-4">Record authorized payment</h4>
-            <Input type="number" inputMode="decimal" placeholder="Amount" value={amount} onChange={(e) => setAmount(e.target.value)} />
-            <Select value={method} onValueChange={(v) => setMethod((v as PaymentMethod) ?? "CASH")}>
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {(["CASH", "CARD", "CHECK", "OTHER"] as const).map((x) => (
-                  <SelectItem key={x} value={x}>
-                    {x}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Input placeholder="Reference (no card number)" value={reference} onChange={(e) => setReference(e.target.value)} />
-            <Button onClick={confirmPayment}>
-              <Wallet /> Confirm Payment
-            </Button>
+        {settings && (
+          <div className="mb-4 rounded-md bg-muted/30 p-3 text-sm">
+            <b className="block">{settings.businessName}</b>
+            <span className="block text-muted-foreground">{settings.businessAddress}</span>
+            <span className="block text-muted-foreground">{settings.businessPhone}</span>
           </div>
         )}
+
+        {detail.quote && (
+          <p className="mb-3 text-sm text-muted-foreground">
+            From quote <b>{detail.quote.quote_number}</b> ({statusLabel(detail.quote.status)})
+          </p>
+        )}
+
+        <ItemsTable items={linesToItems(detail.lines)} />
+        <TotalsBlock subtotal={Number(sale.subtotal)} discount={Number(sale.discount)} tax={Number(sale.tax)} taxRate={Number(sale.tax_rate)} total={Number(sale.total)} />
+
+        <div className="mt-5 grid gap-2 rounded-md border border-border p-3 text-sm sm:grid-cols-3">
+          <div>
+            <small className="block text-xs text-muted-foreground">Amount paid (posted only)</small>
+            <b>{usd(sale.amount_paid)}</b>
+          </div>
+          <div>
+            <small className="block text-xs text-muted-foreground">Balance due</small>
+            <b>{usd(sale.balance_due)}</b>
+          </div>
+          <div>
+            <small className="block text-xs text-muted-foreground">Payment status</small>
+            <b>{sale.payment_status}</b>
+          </div>
+        </div>
+
+        <div className="mt-5 border-t border-border pt-4">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <h4 className="text-sm font-semibold">Payments</h4>
+            {manager && sale.status !== "CANCELLED" && (
+              <Button variant="outline" size="sm" onClick={() => setPaymentOpen(true)}>
+                Record payment
+              </Button>
+            )}
+          </div>
+          {payments.isPending && <p className="text-sm text-muted-foreground">Loading payments…</p>}
+          {payments.isError && <p className="text-sm text-destructive">{payments.error.message}</p>}
+          {payments.data && payments.data.length === 0 && <p className="text-sm text-muted-foreground">No payments allocated to this sale.</p>}
+          {payments.data && payments.data.length > 0 && (
+            <div className="divide-y divide-border rounded-md border border-border">
+              {payments.data.map((p) => (
+                <button
+                  key={p.allocation_id}
+                  onClick={() => onOpenPayment(p.payment_id)}
+                  className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-accent/30"
+                >
+                  <span>
+                    <b className="block">Payment {p.payment_id.slice(0, 8)}</b>
+                    <small className="text-xs text-muted-foreground">
+                      {p.method.replace(/_/g, " ").toLowerCase()} · {p.payment_status}
+                    </small>
+                  </span>
+                  <b>{usd(p.allocated_amount)}</b>
+                </button>
+              ))}
+            </div>
+          )}
+          <p className="mt-2 text-xs text-muted-foreground">Pending payments do not change the balance until posted.</p>
+        </div>
+
+        {manager && (
+          <div className="mt-5 flex flex-wrap gap-2 border-t border-border pt-4 print:hidden">
+            {hasDraftPartLines && (
+              <Button variant="outline" disabled={busy} onClick={() => run("reserve")}>
+                Reserve stock
+              </Button>
+            )}
+            {activeReservations > 0 && (
+              <Button variant="outline" disabled={busy} onClick={() => run("release")}>
+                Release reservation
+              </Button>
+            )}
+            {activeReservations > 0 && !isFulfilled && (
+              <Button disabled={busy} onClick={() => run("fulfill")}>
+                Fulfill reserved stock
+              </Button>
+            )}
+          </div>
+        )}
+
+        <div className="mt-5 border-t border-border pt-4">
+          <h4 className="mb-2 text-sm font-semibold">Reservations</h4>
+          {detail.reservations.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No reservations on this sale.</p>
+          ) : (
+            <ul className="space-y-1 text-sm">
+              {detail.reservations.map((r) => (
+                <li key={r.id}>
+                  {r.quantity} × reserved · {r.status}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
 
-      {printing && <InvoicePrint data={printData} />}
+      <HistoryPanel
+        title="History"
+        rows={detail.history.map((h, i) => ({ ...h, id: `${i}` }))}
+        getNumber={(h) => h.summary}
+        getSubtitle={(h) => `${h.actor_name ?? "System"} · ${new Date(h.created_at).toLocaleString()}`}
+        getTotal={() => 0}
+      />
+
+      {printing && settings && (
+        <InvoicePrint data={saleDetailToPrintData(detail, "LAL Motors Staff", settings)} />
+      )}
+
+      <PaymentCreateDialog
+        open={paymentOpen}
+        onOpenChange={setPaymentOpen}
+        customerId={customer?.id ?? null}
+        customerName={customer?.name ?? ""}
+        onCreated={(id) => onOpenPayment(id)}
+      />
     </div>
   );
 }

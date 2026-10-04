@@ -1,33 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { BadgePercent, Box, FileText, Package, Recycle, ShoppingCart, StickyNote, Trash2, Wallet, WalletCards, X } from "lucide-react";
+import { BadgePercent, Box, FileText, Package, ShoppingCart, StickyNote, Trash2, Wallet, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { StepHeader } from "@/components/sales/pos/step-header";
 import { usd, type SaleItem } from "@/lib/mock/sales";
-import { computePosTotals } from "@/lib/mock/pos";
 
-const toneActiveClasses: Record<"blue" | "green", string> = {
-  blue: "h-8 border border-primary/30 bg-primary/10 text-xs text-primary",
-  green: "h-8 border border-success/30 bg-success/10 text-xs text-success",
-};
-
-function AmountPopoverButton({
-  label,
-  icon: Icon,
-  value,
-  onApply,
-  tone = "blue",
-}: {
-  label: string;
-  icon: typeof BadgePercent;
-  value: number;
-  onApply: (n: number) => void;
-  tone?: "blue" | "green";
-}) {
+function DiscountButton({ value, onApply }: { value: number; onApply: (n: number) => void }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(String(value || ""));
 
@@ -40,15 +22,13 @@ function AmountPopoverButton({
       }}
     >
       <PopoverTrigger
-        render={
-          <Button variant={value > 0 ? "secondary" : "outline"} size="sm" className={value > 0 ? toneActiveClasses[tone] : "h-8 text-xs"} />
-        }
+        render={<Button variant={value > 0 ? "secondary" : "outline"} size="sm" className={value > 0 ? "h-8 border border-primary/30 bg-primary/10 text-xs text-primary" : "h-8 text-xs"} />}
       >
-        <Icon className="size-3.5" /> {label}
+        <BadgePercent className="size-3.5" /> Add Discount
         {value > 0 && <span className="ml-0.5 font-semibold">({usd(value)})</span>}
       </PopoverTrigger>
       <PopoverContent className="w-48" align="start">
-        <p className="mb-1.5 text-xs font-semibold">{label}</p>
+        <p className="mb-1.5 text-xs font-semibold">Sale discount</p>
         <Input type="number" min={0} step="0.01" value={draft} onChange={(e) => setDraft(e.target.value)} className="h-8 text-sm" autoFocus />
         <div className="mt-2 flex justify-end gap-1.5">
           <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
@@ -74,18 +54,15 @@ export function CurrentSaleStep({
   onUpdateQuantity,
   onRemove,
   discount,
-  coreCharge,
-  depositApplied,
   notes,
   taxRate,
-  amountPaid,
+  totals,
   onSetDiscount,
-  onSetCoreCharge,
-  onSetDeposit,
   onSetNotes,
   onClearSale,
   onSaveQuote,
   onLoadQuote,
+  savingQuote = false,
   overridePrice = false,
   onUpdatePrice,
 }: {
@@ -93,23 +70,18 @@ export function CurrentSaleStep({
   onUpdateQuantity: (id: string, qty: number) => void;
   onRemove: (id: string) => void;
   discount: number;
-  coreCharge: number;
-  depositApplied: number;
   notes: string;
   taxRate: number;
-  amountPaid: number;
+  totals: { subtotal: number; tax: number; grandTotal: number; balanceDue: number };
   onSetDiscount: (n: number) => void;
-  onSetCoreCharge: (n: number) => void;
-  onSetDeposit: (n: number) => void;
   onSetNotes: (s: string) => void;
   onClearSale: () => void;
   onSaveQuote: () => void;
   onLoadQuote: () => void;
+  savingQuote?: boolean;
   overridePrice?: boolean;
   onUpdatePrice?: (id: string, price: number) => void;
 }) {
-  const totals = computePosTotals({ items, discount, coreCharge, taxRate, depositApplied, amountPaid });
-
   return (
     <div className="flex h-full flex-col rounded-lg border border-border bg-card p-4 shadow-xs">
       <StepHeader
@@ -183,9 +155,7 @@ export function CurrentSaleStep({
       </div>
 
       <div className="mt-4 flex flex-wrap gap-1.5 border-t border-border pt-4">
-        <AmountPopoverButton label="Add Discount" icon={BadgePercent} value={discount} onApply={onSetDiscount} tone="blue" />
-        <AmountPopoverButton label="Core Charge" icon={Recycle} value={coreCharge} onApply={onSetCoreCharge} tone="green" />
-        <AmountPopoverButton label="Deposit" icon={WalletCards} value={depositApplied} onApply={onSetDeposit} tone="green" />
+        <DiscountButton value={discount} onApply={onSetDiscount} />
         <Button
           variant="outline"
           size="sm"
@@ -216,30 +186,12 @@ export function CurrentSaleStep({
             <b className="tabular-nums text-destructive">-{usd(discount)}</b>
           </div>
         )}
-        {coreCharge > 0 && (
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Core Charges</span>
-            <b className="tabular-nums">{usd(coreCharge)}</b>
-          </div>
-        )}
         <div className="flex items-center justify-between">
           <span className="flex items-center gap-1 text-muted-foreground">
             <BadgePercent className="size-3" /> Tax ({taxRate}%)
           </span>
           <b className="tabular-nums">{usd(totals.tax)}</b>
         </div>
-        {depositApplied > 0 && (
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Deposit / previous payment</span>
-            <b className="tabular-nums text-success">-{usd(depositApplied)}</b>
-          </div>
-        )}
-        {amountPaid > 0 && (
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Amount Paid</span>
-            <b className="tabular-nums text-success">-{usd(amountPaid)}</b>
-          </div>
-        )}
         <div className="flex justify-between border-t border-border pt-1.5 text-sm font-medium">
           <span className="text-foreground">Grand Total</span>
           <span className="tabular-nums">{usd(totals.grandTotal)}</span>
@@ -250,10 +202,11 @@ export function CurrentSaleStep({
           </strong>
           <b className="text-xl tabular-nums text-primary">{usd(totals.balanceDue)}</b>
         </div>
+        <p className="pt-1 text-[11px] text-muted-foreground">Preview. The server prices and taxes the sale when it is saved.</p>
       </div>
 
-      <Button variant="outline" className="mt-3" disabled={!items.length} onClick={onSaveQuote}>
-        Save as Quote
+      <Button variant="outline" className="mt-3" disabled={!items.length || savingQuote} onClick={onSaveQuote}>
+        {savingQuote ? "Saving quote…" : "Save as Quote"}
       </Button>
     </div>
   );

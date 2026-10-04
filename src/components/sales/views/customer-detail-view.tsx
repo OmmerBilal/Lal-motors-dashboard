@@ -1,12 +1,11 @@
 "use client";
 
 import { useCustomerRecord, useCustomerHistory } from "@/lib/query/customers";
+import { useCustomerQuotes } from "@/lib/query/sales";
 import { ChevronLeft } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { HistoryPanel } from "@/components/sales/shared";
-import { useSalesData } from "@/components/sales/sales-data-context";
-import { itemTotals } from "@/lib/mock/sales";
 
 export function CustomerDetailView({
   customerId,
@@ -23,13 +22,13 @@ export function CustomerDetailView({
   onOpenQuote: (id: string) => void;
   onOpenSale: (id: string) => void;
 }) {
-  const { quotes } = useSalesData();
   const recordQuery = useCustomerRecord(customerId);
   const historyQuery = useCustomerHistory(customerId);
+  const quotesQuery = useCustomerQuotes(customerId);
   const customer = recordQuery.data ?? null;
   if (!customer) return null;
 
-  const customerQuotes = quotes.filter((q) => q.customerId === customerId);
+  const customerQuotes = quotesQuery.data ?? [];
   const customerSales = historyQuery.data?.sales ?? [];
   const customerPayments = historyQuery.data?.payments ?? [];
 
@@ -80,32 +79,20 @@ export function CustomerDetailView({
             accept="image/*,.pdf"
             className="hidden"
             onChange={(e) => {
-              if (e.target.files?.[0]) {
-                toast.info("Document upload is not connected yet.");
-                toast.success("Document attached");
-              }
+              if (e.target.files?.[0]) toast.info("Document upload is not connected yet. Nothing was attached.");
               e.target.value = "";
             }}
           />
         </label>
-        {customer.documents.length > 0 && (
-          <div className="mt-2 space-y-1">
-            {customer.documents.map((d) => (
-              <p key={d.id} className="text-sm text-primary">
-                {d.filename}
-              </p>
-            ))}
-          </div>
-        )}
       </div>
 
       <HistoryPanel
         title="Quotes"
         rows={customerQuotes}
         onOpen={onOpenQuote}
-        getNumber={(q) => q.quoteNumber}
+        getNumber={(q) => q.quote_number}
         getSubtitle={(q) => q.status}
-        getTotal={(q) => itemTotals(q.items, q.discount, q.taxRate).total}
+        getTotal={(q) => Number(q.total)}
       />
       <HistoryPanel
         title="Sales / Invoices"

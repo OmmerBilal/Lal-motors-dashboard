@@ -69,73 +69,11 @@ export type SaleItem = {
   availableQuantity?: number;
 };
 
-export type QuoteStatus = "DRAFT" | "SENT" | "APPROVED" | "CONVERTED";
-
-export type Quote = {
-  id: string;
-  quoteNumber: string;
-  customerId: string;
-  status: QuoteStatus;
-  items: SaleItem[];
-  discount: number;
-  notes: string;
-  taxRate: number;
-  createdAt: string;
-};
-
 export type PaymentMethod = "CASH" | "CARD" | "CHECK" | "BANK_TRANSFER" | "QR_CODE" | "PAYMENT_LINK" | "OTHER";
-
-export type Payment = {
-  id: string;
-  paymentNumber: string;
-  saleId: string;
-  amount: number;
-  method: PaymentMethod;
-  reference: string;
-  notes: string;
-  createdAt: string;
-};
-
-export type SaleRecord = {
-  id: string;
-  saleNumber: string;
-  invoiceNumber: string;
-  customerId: string;
-  items: SaleItem[];
-  discount: number;
-  taxRate: number;
-  createdAt: string;
-  coreCharge?: number;
-  depositApplied?: number;
-  notes?: string;
-};
-
-export function itemTotals(items: SaleItem[], discount: number, taxRate: number, coreCharge = 0) {
-  const subtotal = items.reduce((s, i) => s + i.quantity * i.unitPrice - (i.discount || 0), 0);
-  const taxable = Math.max(0, subtotal - discount);
-  const tax = taxable * (taxRate / 100);
-  return { subtotal, discount, coreCharge, tax, total: subtotal - discount + coreCharge + tax };
-}
-
-export function saleBalance(sale: SaleRecord, payments: Payment[]) {
-  const { total } = itemTotals(sale.items, sale.discount, sale.taxRate, sale.coreCharge || 0);
-  const paid = payments.filter((p) => p.saleId === sale.id).reduce((s, p) => s + p.amount, 0) + (sale.depositApplied || 0);
-  const balanceDue = Math.max(0, total - paid);
-  const paymentStatus = balanceDue <= 0 ? "PAID" : paid > 0 ? "PARTIAL" : "UNPAID";
-  return { total, paid, balanceDue, paymentStatus };
-}
 
 function daysAgo(n: number) {
   return new Date(Date.now() - n * 86400000).toISOString();
 }
-
-export const salesSettings = {
-  taxRate: 7.5,
-  taxLabel: "Florida 6.0% + Duval 1.5%",
-  businessName: "LAL Motors",
-  businessAddress: "9700 Pritchard Rd, Jacksonville, FL",
-  businessPhone: "(904) 555-0100",
-};
 
 export const customers: Customer[] = [
   {
@@ -197,63 +135,5 @@ export const customers: Customer[] = [
     exemptionExpiresAt: "",
     documents: [],
     createdAt: daysAgo(5),
-  },
-];
-
-export const quotes: Quote[] = [
-  {
-    id: "quote-1",
-    quoteNumber: "Q-2201",
-    customerId: "cust-1",
-    status: "DRAFT",
-    items: [
-      { id: "qi-1", manual: false, partId: "part-5", stockSku: "SKU-10045", description: "2018 Ford F-150 Catalytic Converter", quantity: 1, unitPrice: 410, discount: 0, availableQuantity: 1 },
-    ],
-    discount: 0,
-    notes: "Sales Desk quote",
-    taxRate: salesSettings.taxRate,
-    createdAt: daysAgo(6),
-  },
-  {
-    id: "quote-2",
-    quoteNumber: "Q-2189",
-    customerId: "cust-2",
-    status: "APPROVED",
-    items: [
-      { id: "qi-2", manual: false, partId: "part-6", stockSku: "SKU-10012", description: "2019 Tesla Model 3 Battery Module", quantity: 1, unitPrice: 1450, discount: 50, availableQuantity: 1 },
-    ],
-    discount: 0,
-    notes: "",
-    taxRate: 0,
-    createdAt: daysAgo(11),
-  },
-];
-
-export const sales: SaleRecord[] = [
-  {
-    id: "sale-1",
-    saleNumber: "S-3301",
-    invoiceNumber: "INV-3301",
-    customerId: "cust-1",
-    items: [
-      { id: "si-1", manual: false, partId: "part-5", stockSku: "SKU-10045", description: "2018 Ford F-150 Catalytic Converter", quantity: 1, unitPrice: 410, discount: 0 },
-      { id: "si-2", manual: true, stockSku: "MANUAL", description: "Shop labor — install", quantity: 1, unitPrice: 75, discount: 0 },
-    ],
-    discount: 0,
-    taxRate: salesSettings.taxRate,
-    createdAt: daysAgo(30),
-  },
-];
-
-export const payments: Payment[] = [
-  {
-    id: "pay-1",
-    paymentNumber: "P-9001",
-    saleId: "sale-1",
-    amount: 300,
-    method: "CARD",
-    reference: "auth-4471",
-    notes: "",
-    createdAt: daysAgo(29),
   },
 ];

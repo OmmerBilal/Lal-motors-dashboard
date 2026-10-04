@@ -13,7 +13,7 @@ export type PrintSaleData = {
   depositApplied: number;
   taxRate: number;
   notes: string;
-  method: PaymentMethod;
+  method?: PaymentMethod;
   amountPaid: number;
   businessName: string;
   taxLabel: string;
@@ -97,7 +97,7 @@ export function ReceiptPrint({ data }: { data: PrintSaleData }) {
           <span>{usd(totals.grandTotal)}</span>
         </div>
         <div className="flex justify-between">
-          <span>Paid ({methodLabels[data.method]})</span>
+          <span>Paid{data.method ? ` (${methodLabels[data.method]})` : ""}</span>
           <span>{usd(data.amountPaid)}</span>
         </div>
         <div className="flex justify-between font-bold">
@@ -221,7 +221,7 @@ export function InvoicePrint({ data }: { data: PrintSaleData }) {
               <span>{usd(totals.grandTotal)}</span>
             </div>
             <div className="flex justify-between">
-              <span>Paid ({methodLabels[data.method]})</span>
+              <span>Paid{data.method ? ` (${methodLabels[data.method]})` : ""}</span>
               <span>{usd(data.amountPaid)}</span>
             </div>
             <div className="flex justify-between font-bold">

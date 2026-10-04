@@ -4,7 +4,6 @@ import { VehicleDataProvider } from "@/components/vehicles/vehicle-data-context"
 import { PartsDataProvider } from "@/components/parts/parts-data-context";
 import { ScrapDataProvider } from "@/components/scrap/scrap-data-context";
 import { ContainersDataProvider } from "@/components/containers/containers-data-context";
-import { SalesDataProvider } from "@/components/sales/sales-data-context";
 import { createClient } from "@/lib/supabase/server";
 
 // Mounted once here (instead of per-page) so shared records/state survive
@@ -29,9 +28,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <PartsDataProvider>
         <ScrapDataProvider>
           <ContainersDataProvider>
-            <SalesDataProvider>
-              <AppShell>{children}</AppShell>
-            </SalesDataProvider>
+            <AppShell>{children}</AppShell>
           </ContainersDataProvider>
         </ScrapDataProvider>
       </PartsDataProvider>

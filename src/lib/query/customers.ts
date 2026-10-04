@@ -6,6 +6,7 @@ import {
   getCustomerHistory,
   getCustomerRecord,
   listCustomerPage,
+  listEveryCustomer,
   updateCustomer,
   type CustomerForm,
   type CustomerListRow,
@@ -30,6 +31,11 @@ export function useCustomerList(search: string) {
       return { last: last.last_name, first: last.first_name, id: last.id };
     },
   });
+}
+
+/** Every customer, for pickers that need the whole list (the scrap tire-shop panel). */
+export function useAllCustomers() {
+  return useQuery({ queryKey: ["customers", "all"], queryFn: listEveryCustomer, staleTime: 60_000 });
 }
 
 export function useCustomerRecord(id: string | null) {

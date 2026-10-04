@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/patterns/status-badge";
 import { EmptyState } from "@/components/patterns/empty-state";
-import { useSalesData } from "@/components/sales/sales-data-context";
+import { useAllCustomers } from "@/lib/query/customers";
 import { useScrapData } from "@/components/scrap/scrap-data-context";
 import { rimAgingLabel, rimCompletionStatus, rimRemaining, type RimObligation } from "@/lib/mock/scrap";
 import type { Customer } from "@/lib/mock/sales";
@@ -27,7 +27,8 @@ function customerLabel(c: Customer) {
 }
 
 export function TireShopPanel({ actorName }: { actorName: string }) {
-  const { customers } = useSalesData();
+  const allCustomers = useAllCustomers().data;
+  const customers = useMemo(() => allCustomers ?? [], [allCustomers]);
   const { rimObligations, createRimObligation, recordRimReturn } = useScrapData();
 
   const [newOpen, setNewOpen] = useState(false);
