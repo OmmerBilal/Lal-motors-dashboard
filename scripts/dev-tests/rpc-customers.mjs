@@ -115,7 +115,6 @@ let custA;
 
 // =========================== F. LIST: keyset, search, lightweight DTO ===========================
 {
-  const names = [];
   let cur = await rpc(S.manager, "list_customers", { p_search: tag, p_limit: 2, p_cursor_last: null, p_cursor_first: null, p_cursor_id: null });
   check("list with a search returns rows", (cur.data ?? []).length > 0, cur.msg);
   const seen = [];

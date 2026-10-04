@@ -210,6 +210,16 @@ for (const [label, c] of [["dismantling", S.dismantling], ["receiving", S.receiv
   check(`16. ${label} cannot allocate, post or void`, a.code === "42501" && p.code === "42501" && v.code === "42501", `${a.code}/${p.code}/${v.code}`);
 }
 
+// 16b. an already-voided payment must not reveal anything to an unauthorized role (migration 0034)
+{
+  for (const [label, c] of [["receiving", S.receiving], ["dismantling", S.dismantling], ["scrap driver", S.scrap_driver], ["container loader", S.container_loading], ["warehouse", S.employee]]) {
+    const v = await rpc(c, "void_payment", { p_payment_id: pay1, p_reason: "retry probe by wrong role" });
+    check(`16b. ${label} cannot void or read an already-voided payment`, v.code === "42501" && !v.data, `code=${v.code} data=${v.data ? "returned" : "none"}`);
+  }
+  const owner = await rpc(S.owner, "void_payment", { p_payment_id: pay1, p_reason: "retry by owner is safe" });
+  check("16b. owner retry on an already-voided payment is still a safe no-op", !owner.error && owner.data?.status === "void");
+}
+
 // Customer-scoped quote list (migration 0031)
 {
   const cq = await rpc(S.manager, "list_customer_quotes", { p_customer_id: custA, p_limit: 10 });

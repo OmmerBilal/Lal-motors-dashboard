@@ -43,7 +43,7 @@ export function CustomerDetailView({
           <div>
             <h3 className="text-base font-semibold">{customer.companyName || `${customer.firstName} ${customer.lastName}`}</h3>
             <p className="text-sm text-muted-foreground">
-              {customer.customerNumber} · {customer.taxStatus.toUpperCase()}
+              {customer.customerNumber} · Tax status on file: {customer.taxStatus}
             </p>
           </div>
           <div className="flex gap-2">

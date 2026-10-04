@@ -5,7 +5,19 @@ import { StatusBadge, type StatusTone } from "@/components/patterns/status-badge
 import { usd } from "@/lib/mock/sales";
 import type { SellablePart } from "@/lib/data/sales";
 
-export function PartResultCard({ part, onSelect, onAdd, selected }: { part: SellablePart; onSelect: () => void; onAdd: () => void; selected?: boolean }) {
+export function PartResultCard({
+  part,
+  thumbnailUrl,
+  onSelect,
+  onAdd,
+  selected,
+}: {
+  part: SellablePart;
+  thumbnailUrl: string | null;
+  onSelect: () => void;
+  onAdd: () => void;
+  selected?: boolean;
+}) {
   const outOfStock = part.out_of_stock || part.available <= 0;
   const tone: StatusTone = outOfStock ? "danger" : "success";
   const label = outOfStock ? "Out of Stock" : `In stock · ${part.available}`;
@@ -14,8 +26,13 @@ export function PartResultCard({ part, onSelect, onAdd, selected }: { part: Sell
   return (
     <div className={`flex items-center gap-3 rounded-lg border p-3 transition-colors ${selected ? "border-primary/50 bg-primary/5 shadow-sm" : "border-border hover:border-primary/25"}`}>
       <button onClick={onSelect} className="flex min-w-0 flex-1 items-center gap-3 text-left">
-        <div className={`flex size-14 shrink-0 items-center justify-center rounded-md border ${selected ? "border-primary/30" : "border-border"} ${iconTone}`}>
-          <Package className="size-6" />
+        <div className={`flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-md border ${selected ? "border-primary/30" : "border-border"} ${iconTone}`}>
+          {thumbnailUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- signed private URL, thumbnail variant only
+            <img src={thumbnailUrl} alt="" loading="lazy" className="size-full object-cover" />
+          ) : (
+            <Package className="size-6" aria-label="No photo" />
+          )}
         </div>
         <span className="min-w-0 flex-1">
           <b className="block truncate text-sm">{part.part_name}</b>

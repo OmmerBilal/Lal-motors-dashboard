@@ -81,10 +81,8 @@ export function CustomerStep({
             </div>
           </div>
           <div className="mt-2.5 flex flex-wrap gap-1.5">
-            <span
-              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${selectedCustomer.taxStatus === "exempt" ? "bg-accent-gold/25 text-accent-gold-foreground" : "bg-muted text-muted-foreground"}`}
-            >
-              {selectedCustomer.taxStatus === "exempt" ? "TAX EXEMPT (not applied by the server yet)" : "Taxable"}
+            <span className="text-[11px] text-muted-foreground">
+              {selectedCustomer.taxStatus === "exempt" ? "Tax status on file: exempt. Sales still use the standard rate." : "Tax status on file: taxable."}
             </span>
           </div>
           <div className="mt-3 flex flex-wrap gap-1.5">

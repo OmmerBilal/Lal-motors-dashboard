@@ -113,7 +113,7 @@ const expectedCounts = await q(`select
 
 // 3. Stage filter returns only that stage, matching the independent stage.
 {
-  const { data } = await auction.rpc("list_vehicles", { p_stage: "closed", p_auction_source: SRC, p_search: null, p_limit: 25, p_cursor_created_at: null, p_cursor_id: null });
+  await auction.rpc("list_vehicles", { p_stage: "closed", p_auction_source: SRC, p_search: null, p_limit: 25, p_cursor_created_at: null, p_cursor_id: null });
   check("stage=closed returns no fixture after reopen", true);
   const ov = await auction.rpc("list_vehicles", { p_stage: "overdue", p_auction_source: SRC, p_search: null, p_limit: 25, p_cursor_created_at: null, p_cursor_id: null });
   const wantOv = expectedAll.filter((r) => r.stage === "overdue").map((r) => r.id);

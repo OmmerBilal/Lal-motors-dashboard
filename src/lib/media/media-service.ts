@@ -295,3 +295,37 @@ export async function getReadUrl(mediaId: string, variant: ReadVariant): Promise
   if (signed.error || !signed.data) return fail("failed", "Could not open the photo. Try again.");
   return { ok: true, data: { url: signed.data.signedUrl, expiresInSeconds: SIGNED_READ_SECONDS } };
 }
+
+/**
+ * Thumbnail read URLs for the POS part results. The database decides which parts and which thumbnail
+ * paths the caller may see (sales staff, sellable parts only). The service client signs them in one
+ * call per bucket. Originals and medium variants are never returned here.
+ */
+export async function getPosPartThumbnailUrls(partIds: string[]): Promise<Result<Record<string, string>>> {
+  const ids = [...new Set(partIds)];
+  if (ids.length > 50 || !ids.every((id) => UUID_RE.test(id))) return fail("invalid", "Invalid part list.");
+  if (ids.length === 0) return { ok: true, data: {} };
+
+  const user = await createUserClient();
+  const { data: rows, error } = await user.rpc("pos_part_thumbnails", { p_part_ids: ids });
+  if (error) return fail("forbidden", "You cannot view these thumbnails.");
+
+  const byBucket = new Map<string, { partId: string; path: string }[]>();
+  for (const r of (rows ?? []) as { part_id: string; bucket: string; storage_path: string }[]) {
+    const list = byBucket.get(r.bucket) ?? [];
+    list.push({ partId: r.part_id, path: r.storage_path });
+    byBucket.set(r.bucket, list);
+  }
+
+  const admin = createAdminClient();
+  const out: Record<string, string> = {};
+  for (const [bucket, items] of byBucket) {
+    const signed = await admin.storage.from(bucket).createSignedUrls(items.map((i) => i.path), SIGNED_READ_SECONDS);
+    if (signed.error || !signed.data) continue;
+    for (const s of signed.data) {
+      const hit = items.find((i) => i.path === s.path);
+      if (hit && s.signedUrl && !s.error) out[hit.partId] = s.signedUrl;
+    }
+  }
+  return { ok: true, data: out };
+}

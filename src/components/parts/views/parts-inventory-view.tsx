@@ -222,8 +222,9 @@ export function PartsInventoryView({ manager, initialPartId }: { manager: boolea
                         <small className="text-xs text-muted-foreground">{donorYear(p)}</small>
                       </span>
                       <span className="hidden text-xs text-muted-foreground sm:block">{new Date(p.createdAt).toLocaleDateString()}</span>
-                      <StatusBadge tone={isSold(p) ? "neutral" : p.stage === "ready_for_sale" ? "success" : p.stage === "not_sellable" ? "danger" : p.stage === "in_processing" ? "info" : "warning"}>
-                        {isSold(p) ? "Sold" : partStageLabels[p.stage]}
+                      {/* A sellable part with no quantity left stays listed as Out of Stock (it is not deleted). */}
+                      <StatusBadge tone={p.stage === "ready_for_sale" && p.quantity === 0 ? "danger" : isSold(p) ? "neutral" : p.stage === "ready_for_sale" ? "success" : p.stage === "not_sellable" ? "danger" : p.stage === "in_processing" ? "info" : "warning"}>
+                        {p.stage === "ready_for_sale" && p.quantity === 0 ? "Out of Stock" : isSold(p) ? "Sold" : partStageLabels[p.stage]}
                       </StatusBadge>
                     </button>
                   </div>

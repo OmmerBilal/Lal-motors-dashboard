@@ -3,6 +3,7 @@
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createSale,
+  fetchPosThumbnailUrls,
   fulfillSale,
   getSaleDetail,
   getSalesSettings,
@@ -57,6 +58,17 @@ export function useSellableParts(search: string) {
     queryKey: partKeys.sellable(search),
     queryFn: () => searchSellableParts(search),
     placeholderData: keepPreviousData,
+  });
+}
+
+/** Thumbnails for the visible results only. Signed URLs are short-lived, so the cache is short too. */
+export function usePosThumbnails(partIds: string[]) {
+  const key = [...partIds].sort().join(",");
+  return useQuery({
+    queryKey: ["parts", "thumbnails", key],
+    queryFn: () => fetchPosThumbnailUrls(partIds),
+    enabled: partIds.length > 0,
+    staleTime: 60_000,
   });
 }
 

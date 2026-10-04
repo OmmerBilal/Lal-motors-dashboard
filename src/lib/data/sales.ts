@@ -259,3 +259,16 @@ export async function updateSalesSettings(patch: Partial<SalesSettings>) {
   if (error) fail(error);
   if (!data?.length) throw new Error("Your role cannot change sales settings. Nothing was saved.");
 }
+
+/** Signed thumbnail URLs for the visible POS results. Thumbnails only; parts without a photo are simply absent. */
+export async function fetchPosThumbnailUrls(partIds: string[]): Promise<Record<string, string>> {
+  if (partIds.length === 0) return {};
+  const res = await fetch("/api/media/part-thumbnails", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ partIds }),
+  });
+  if (!res.ok) throw new Error("Thumbnails could not be loaded.");
+  const body = (await res.json()) as { urls: Record<string, string> };
+  return body.urls;
+}

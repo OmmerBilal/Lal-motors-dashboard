@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/patterns/empty-state";
 import { StepHeader } from "@/components/sales/pos/step-header";
 import { PartResultCard } from "@/components/sales/pos/part-result-card";
-import { useSellableParts } from "@/lib/query/sales";
+import { usePosThumbnails, useSellableParts } from "@/lib/query/sales";
 import type { SellablePart } from "@/lib/data/sales";
 
 export function FindPartsStep({
@@ -29,6 +29,7 @@ export function FindPartsStep({
 
   const search = useSellableParts(debounced);
   const results = search.data ?? [];
+  const thumbs = usePosThumbnails(results.map((r) => r.id));
 
   return (
     <div className="flex h-full flex-col rounded-lg border border-border bg-card p-4 shadow-xs">
@@ -45,7 +46,7 @@ export function FindPartsStep({
         {search.isError && <p className="py-4 text-center text-xs text-destructive">{search.error.message}</p>}
         {!search.isPending && !search.isError && results.length > 0 &&
           results.map((r) => (
-            <PartResultCard key={r.id} part={r} selected={selectedPartId === r.id} onSelect={() => onSelectPart(r)} onAdd={() => onAddPart(r)} />
+            <PartResultCard key={r.id} part={r} thumbnailUrl={thumbs.data?.[r.id] ?? null} selected={selectedPartId === r.id} onSelect={() => onSelectPart(r)} onAdd={() => onAddPart(r)} />
           ))}
         {!search.isPending && !search.isError && !results.length && <EmptyState icon={Search} title="No sellable parts match this search." />}
       </div>
