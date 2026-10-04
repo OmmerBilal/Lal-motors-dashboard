@@ -46,3 +46,9 @@ External, NOT CONNECTED: Central Dispatch API, eBay, Shopify, Meta, TikTok, Open
 - [IMPLEMENTATION COMPLETE — MANUAL QA PENDING] Module 10 Scrap Driver.
 - [IMPLEMENTATION COMPLETE — MANUAL QA PENDING] Module 11 Scrap Management.
 - Evidence: see IMPLEMENTATION_PROGRESS.md, section "Modules 10 and 11 technical closure".
+
+## Modules 12, 13 and 14 (2026-10-05)
+- [IMPLEMENTATION COMPLETE — MANUAL QA PENDING] Module 12 Container Loading Employee.
+- [IMPLEMENTATION COMPLETE — MANUAL QA PENDING] Module 13 Container Export Management.
+- [IMPLEMENTATION COMPLETE — MANUAL QA PENDING] Module 14 Owner Dashboard (real data, visuals unchanged).
+- Evidence: IMPLEMENTATION_PROGRESS.md, section "Modules 12, 13 and 14 technical completion".

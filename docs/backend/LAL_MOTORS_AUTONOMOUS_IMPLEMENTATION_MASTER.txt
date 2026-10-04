@@ -624,7 +624,7 @@ approval, driver block, discrepancies, reconciliation, corrections,
 partial returns, negative prevention, close block, override, reports, responsive.
 
 MODULE 12 — CONTAINER LOADING EMPLOYEE
-STATUS: [NOT STARTED]
+STATUS: IMPLEMENTATION COMPLETE — MANUAL QA PENDING
 ======================================
 
 MOBILE-FIRST restricted loader.
@@ -653,7 +653,7 @@ missing-evidence block, valid finish, retry, direct status mutation block,
 confidential read block, 390/430/768, no AI requests.
 
 MODULE 13 — CONTAINER EXPORT MANAGEMENT
-STATUS: [NOT STARTED]
+STATUS: IMPLEMENTATION COMPLETE — MANUAL QA PENDING
 ========================================
 
 Allowed:
@@ -706,7 +706,7 @@ workflow, payments, immutable revision behavior, permission matrix,
 390/430/768/1366/1440.
 
 MODULE 14 — OWNER DASHBOARD
-STATUS: [NOT STARTED]
+STATUS: IMPLEMENTATION COMPLETE — MANUAL QA PENDING
 ===========================
 
 VISUAL DESIGN FROZEN. Do not redesign.

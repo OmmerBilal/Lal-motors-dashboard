@@ -379,3 +379,28 @@ Automated results (DEV, run one at a time):
 - tsc --noEmit exit 0; npm run build exit 0; scrap lint clean
 
 Known out of scope (not changed): PartsDataProvider loads the parts list on every page and gets a 403 for roles without Parts access (visible in console only). customers.customer_number is null for new customers; nothing assigns it.
+
+## Modules 12, 13 and 14 technical completion (2026-10-05)
+
+Status: Module 12 = IMPLEMENTATION COMPLETE — MANUAL QA PENDING. Module 13 = IMPLEMENTATION COMPLETE — MANUAL QA PENDING. Module 14 = IMPLEMENTATION COMPLETE — MANUAL QA PENDING.
+
+Migrations (additive): 0040 container loading (server reference T##-###, loader-safe column grants and view, evidence only while loading via trigger, container number format and uniqueness, loader RPCs). 0041 export management (read-only policies replace the former "for all" policies; consignee master; invoices draft → review → finalized with server number and consignee snapshot; revisions as new rows; payments with NUMERIC balance, overpayment refused, reversals as reference rows; shipping and close rules). 0042 owner dashboard read models (summary, employees, activity; owner only; range filtered in SQL).
+
+Automated results (DEV, sequential):
+- rpc-containers 173/173 (loader and export lifecycles, immutability, reversal, concurrency, role matrix)
+- rpc-owner-dashboard 32/32 (authorization, range guards, aggregates compared with independent queries, empty range)
+- containers-owner-smoke 19/19 (loader 390px, export 1440px, owner 390px and 1440px)
+- scrap-smoke 14/14; rpc-scrap 182/182
+- route-gate 34/34; RLS matrix 114/114; media-flow 24/24
+- rpc-quotes-sales 68/68; rpc-payments 70/70; rpc-money-stock 63/63; rpc-parts 57/57; rpc-customers 36/36
+- rpc-vehicles 59/59; rpc-processing 57/57; rpc-dismantling 45/45
+- tsc --noEmit exit 0; npm run lint 0 errors, 0 warnings; npm run build exit 0
+
+Contract changes to note (deliberate):
+- container_jobs is column-restricted for authenticated clients. Consignee-era close fields (closed_by, close_override_reason) are no longer readable by loaders. The RLS matrix visibility check for container_jobs now counts the granted columns; every other table check is unchanged.
+- Owner dashboard trend captions were fabricated mock text ("+3 this week" and similar). They are replaced with truthful descriptions of the number.
+- Owner dashboard grid child gets min-w-0 so the frozen layout does not overflow on phones. No visual change on desktop.
+
+Known, not changed: the session bootstrap in src/lib/session.tsx waits on two client-side Supabase REST reads; one run observed the profiles read pending for 25 seconds with no error. Recorded as an intermittent environmental observation.
+Known, not changed: owner dashboard still imports the pure helpers in src/lib/mock/owner-dashboard.ts (stage type and the mock rules, unused for numbers now). The mock containers and scrap files remain for other non-dashboard references.
+Policy decisions to confirm: export access stays owner, engineer admin, export manager (manager excluded, unchanged). Closing a container requires a zero balance; there is no override in this version.

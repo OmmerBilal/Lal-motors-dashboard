@@ -5,13 +5,8 @@ import { useRouter } from "next/navigation";
 import type { DateRange } from "react-day-picker";
 import { CarFront, Cog, Container, Filter, Recycle } from "lucide-react";
 import type { User } from "@/lib/types";
-import { mockUsers } from "@/lib/mock/users";
-import { vehicleTitle } from "@/lib/mock/vehicles";
-import { parts } from "@/lib/mock/parts";
-import { containerJobs } from "@/lib/mock/containers";
-import { scrapLoads, localDay } from "@/lib/mock/scrap";
-import { computeExceptions, computeStageCounts, inDateRange, type VehicleStage } from "@/lib/mock/owner-dashboard";
-import { useVehicleData } from "@/components/vehicles/vehicle-data-context";
+import { type VehicleStage } from "@/lib/mock/owner-dashboard";
+import { useOwnerActivity, useOwnerEmployees, useOwnerSummary } from "@/lib/query/owner-dashboard";
 import { DashboardHeader } from "@/components/vehicles/owner-dashboard/dashboard-header";
 import { VehicleStatusCards } from "@/components/vehicles/owner-dashboard/vehicle-status-cards";
 import { KeyExceptionsPanel } from "@/components/vehicles/owner-dashboard/key-exceptions-panel";
@@ -20,6 +15,17 @@ import { EmployeeOverview, type EmployeeCardData } from "@/components/vehicles/o
 import { RecentActivityTable, type ActivityRow } from "@/components/vehicles/owner-dashboard/recent-activity-table";
 import { VehiclesByStageChart } from "@/components/vehicles/owner-dashboard/vehicles-by-stage-chart";
 
+const ZERO_STAGES: Record<VehicleStage, number> = { purchased: 0, inTransit: 0, arrived: 0, processing: 0, waitingReview: 0, completed: 0 };
+
+/** Local calendar day as YYYY-MM-DD, for the server's range parameters. */
+function ymd(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/**
+ * Owner Dashboard. Visuals are unchanged. Every number, exception, employee row and activity line comes from
+ * the database read models (migration 0042) for the selected date range, which the server filters.
+ */
 export function OwnerDashboard({
   user,
   onOpenVehicle,
@@ -32,77 +38,65 @@ export function OwnerDashboard({
   onGoActivity: (actorId?: string, kind?: string) => void;
 }) {
   const router = useRouter();
-  const { vehicles, events, completionQueue, corrections } = useVehicleData();
-
   const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
     const to = new Date();
     const from = new Date();
     from.setDate(from.getDate() - 6);
     return { from, to };
   });
+  const from = dateRange?.from ? ymd(dateRange.from) : "";
+  const to = dateRange?.to ? ymd(dateRange.to) : from;
 
-  const scopedEvents = useMemo(
-    () => events.filter((e) => inDateRange(e.createdAt, dateRange?.from, dateRange?.to)),
-    [events, dateRange]
-  );
-  const scopedScrapLoads = useMemo(
-    () => scrapLoads.filter((l) => inDateRange(l.createdAt, dateRange?.from, dateRange?.to)),
-    [dateRange]
-  );
+  const summary = useOwnerSummary(from, to);
+  const employeesQ = useOwnerEmployees(from, to);
+  const activityQ = useOwnerActivity(from, to);
+  const s = summary.data;
 
-  const stageCounts = useMemo(() => computeStageCounts(vehicles, events), [vehicles, events]);
-  const exceptions = useMemo(() => computeExceptions(vehicles, events), [vehicles, events]);
+  const stageCounts = s?.stage_counts ?? ZERO_STAGES;
+  const exceptions = s?.exceptions ?? [];
 
   const kpis: KpiItem[] = useMemo(() => {
-    const partsPulled = scopedEvents.filter((e) => e.action === "PART_REMOVED").length;
-    const converters = scopedEvents.filter((e) => e.action === "PART_REMOVED" && e.partType?.toLowerCase().includes("converter")).length;
-    const containersShipped = containerJobs.filter((j) => j.status === "on_the_way" || j.status === "closed").length;
+    const k = s?.kpis;
+    const show = (n: number | undefined) => (summary.isError ? "—" : n ?? 0);
     return [
-      { label: "Total Vehicles", value: vehicles.length, trend: "+3 this week", icon: CarFront },
-      { label: "Total Parts Pulled", value: partsPulled, trend: "+12% vs last month", icon: Cog },
-      { label: "Total Converters", value: converters, trend: "Steady", icon: Filter },
-      { label: "Containers Shipped", value: containersShipped, trend: "This month", icon: Container },
-      { label: "Scrap Loads", value: scopedScrapLoads.length, trend: `${scrapLoads.filter((l) => l.loadDate === localDay()).length} today`, icon: Recycle },
+      { label: "Total Vehicles", value: show(k?.total_vehicles), trend: "All records", icon: CarFront },
+      { label: "Total Parts Pulled", value: show(k?.parts_pulled), trend: "In selected range", icon: Cog },
+      { label: "Total Converters", value: show(k?.converters), trend: "In selected range", icon: Filter },
+      { label: "Containers Shipped", value: show(k?.containers_shipped), trend: "On the way or closed", icon: Container },
+      { label: "Scrap Loads", value: show(k?.scrap_loads), trend: `${k?.scrap_loads_today ?? 0} today`, icon: Recycle },
     ];
-  }, [vehicles, scopedEvents, scopedScrapLoads]);
+  }, [s, summary.isError]);
 
-  const employees: EmployeeCardData[] = useMemo(() => {
-    return mockUsers
-      .filter((u) => u.role !== "owner")
-      .map((u) => {
-        const actions = scopedEvents.filter((e) => e.actorId === u.id).length;
-        const captured = parts.filter((p) => p.capturedByName === u.name).length;
-        const loads = scopedScrapLoads.filter((l) => l.driverId === u.id).length;
+  const employees: EmployeeCardData[] = useMemo(
+    () =>
+      (employeesQ.data ?? []).map((r) => {
+        const user = { id: r.profile_id, name: r.name, role: r.role.split(", ")[0] || "employee" } as unknown as User;
         const metrics =
-          u.role === "scrap_driver"
-            ? [{ label: "loads", value: loads }, { label: "actions", value: actions }]
-            : u.role === "employee"
-              ? [{ label: "captured", value: captured }, { label: "actions", value: actions }]
-              : [{ label: "actions", value: actions }, { label: "captured", value: captured }];
-        return { user: u, metrics: metrics.filter((m) => m.value > 0 || m.label === "actions") };
-      });
-  }, [scopedEvents, scopedScrapLoads]);
+          user.role === "scrap_driver"
+            ? [{ label: "loads", value: r.loads }, { label: "actions", value: r.actions }]
+            : user.role === "employee"
+              ? [{ label: "captured", value: r.captured }, { label: "actions", value: r.actions }]
+              : [{ label: "actions", value: r.actions }, { label: "captured", value: r.captured }];
+        return { user, metrics: metrics.filter((m) => m.value > 0 || m.label === "actions") };
+      }),
+    [employeesQ.data]
+  );
 
   const activityRows: ActivityRow[] = useMemo(
     () =>
-      [...scopedEvents]
-        .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
-        .slice(0, 8)
-        .map((e) => {
-          const vehicle = vehicles.find((v) => v.id === e.vehicleId);
-          return {
-            id: e.id,
-            when: new Date(e.createdAt).toLocaleString(),
-            employee: e.actorName,
-            activity: e.action.replaceAll("_", " "),
-            details: vehicle ? vehicleTitle(vehicle) : e.partType || e.note || "—",
-            vehicleId: vehicle?.id,
-          };
-        }),
-    [scopedEvents, vehicles]
+      (activityQ.data ?? []).map((e) => ({
+        id: e.id,
+        when: new Date(e.created_at).toLocaleString(),
+        employee: e.actor_name,
+        activity: e.action.replaceAll("_", " "),
+        details: e.vehicle_title || e.part_type || e.note || "—",
+        vehicleId: e.vehicle_id ?? undefined,
+      })),
+    [activityQ.data]
   );
 
-  const notificationCount = completionQueue.length + corrections.length;
+  const notificationCount = s?.notification_count ?? 0;
+  const loadError = summary.error ?? employeesQ.error ?? activityQ.error;
 
   function handleStageSelect(stage: VehicleStage) {
     const filterByStage: Record<VehicleStage, string> = {
@@ -127,6 +121,9 @@ export function OwnerDashboard({
     <div>
       <DashboardHeader user={user} notificationCount={notificationCount} dateRange={dateRange} onDateRangeChange={setDateRange} />
 
+      {loadError && <p className="mb-4 text-sm text-destructive">{loadError.message}</p>}
+      {(summary.isPending || employeesQ.isPending) && !loadError && <p className="mb-4 text-xs text-muted-foreground">Loading dashboard data…</p>}
+
       <div className="mb-4 grid gap-4 lg:grid-cols-[1fr_300px]">
         <VehicleStatusCards counts={stageCounts} onSelectStage={handleStageSelect} />
         <KeyExceptionsPanel rows={exceptions} onSelect={handleExceptionSelect} onViewAll={() => onGoList("overdue")} />
@@ -141,8 +138,13 @@ export function OwnerDashboard({
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
-        <RecentActivityTable rows={activityRows} onViewAll={() => onGoActivity()} onOpenVehicle={onOpenVehicle} />
-        <VehiclesByStageChart counts={stageCounts} />
+        {/* min-w-0: the activity table scrolls inside its own container instead of widening the grid on phones */}
+        <div className="min-w-0">
+          <RecentActivityTable rows={activityRows} onViewAll={() => onGoActivity()} onOpenVehicle={onOpenVehicle} />
+        </div>
+        <div className="min-w-0">
+          <VehiclesByStageChart counts={stageCounts} />
+        </div>
       </div>
     </div>
   );
