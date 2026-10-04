@@ -263,3 +263,13 @@ Known: UI for Auction, Dispatch and Receiving is not yet connected. Next item: V
 - Test: scripts/dev-tests/rpc-dismantling.mjs, 45/45.
 - Rule choices, recorded: a vehicle is refused as ALREADY_DISMANTLED when its status is Dismantled, Completed or Scrapped, or a completed session exists. Finish requires at least one ready vehicle evidence photo, and every captured part must have a ready photo or be abandoned. Only the session's own employee can finish or flag.
 - UI: the Dismantling Employee App is not yet connected (next step).
+
+## Dismantling Employee App connected (2026-10-04)
+
+- Data: src/lib/data/dismantling.ts (guard lookup, resume, RPC wrappers with stable hint codes).
+- Part capture: src/components/dismantling/part-capture-slot.tsx begins the part row first (idempotent request id), then uses the shared MediaCapture against that part. Discard only before a photo exists.
+- Vehicle evidence: MediaCapture with owner dismantling_session, role vehicle_evidence. Finish is disabled until at least one evidence photo exists.
+- Issue flagging needs an active session. Outside one, the app says the issue was not saved.
+- Removed: simulated scan, guessed part types and review states, simulated processing timer, simulated upload-failed card, the "(mock)" issue toast.
+- Checks: tsc clean, eslint clean, build exit 0.
+- Not run: browser and viewport QA. Module 04 stays [PARTIAL] until that passes.

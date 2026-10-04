@@ -291,7 +291,10 @@ Before [DONE]:
 - network confirms zero AI calls.
 
 MODULE 04 — DISMANTLING EMPLOYEE APP
-STATUS: [IN PROGRESS]
+STATUS: [PARTIAL]
+Backend (done): migrations 0016-0018; tests rpc-dismantling.mjs 45/45 (role matrix, guard hints, one-active race, retry replay, photo gates, actor check, rollback, protected-field attacks).
+UI (connected, QA pending): dismantling-workspace.tsx reads and writes through the RPCs (lookup guard states, start, resume after reload, evidence and part capture via shared MediaCapture, finish, flag issue). Fabricated scan, fake AI classification, simulated processing and simulated upload-failed card removed.
+Still open before [DONE]: browser QA of the full employee flow, 390/430/768/1366/1440 viewport QA, the quick-capture flow in a browser.
 Backend: migrations 0016 (RPCs), 0017 (abandon -> not sellable), 0018 (completed count excludes abandoned). Tests rpc-dismantling.mjs 45/45 (role matrix, guard hints, one-active race, retry replay, photo gate, actor check, rollback, protected-field attacks). UI NOT yet connected.
 =====================================
 

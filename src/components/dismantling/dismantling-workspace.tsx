@@ -1,6 +1,4 @@
-"use client";
-
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   Barcode,
@@ -8,11 +6,8 @@ import {
   CarFront,
   CheckCircle2,
   CircleCheck,
-  CloudOff,
   Flag,
   LogOut,
-  Plus,
-  RotateCcw,
   ScanLine,
   Search,
   Send,
@@ -30,26 +25,30 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import type { User } from "@/lib/types";
 import { useSession } from "@/lib/session";
 import type { VehicleRecord } from "@/lib/mock/vehicles";
-import { useVehicleData } from "@/components/vehicles/vehicle-data-context";
+import { toVehicleRecord } from "@/lib/data/vehicle-record";
+import { MediaCapture } from "@/components/media/media-capture";
+import { PartCaptureSlot } from "@/components/dismantling/part-capture-slot";
 import {
-  guessPartType,
-  guessReviewStatus,
-  highValuePartTypes,
-  issueOptions,
-  processingChecklist,
-  type ProcessedPartResult,
-} from "@/lib/mock/dismantling";
+  DISMANTLING_ISSUE_TYPES,
+  DismantlingError,
+  countSessionEvidence,
+  finishDismantlingSession,
+  flagDismantlingIssue,
+  listSavedSessionParts,
+  lookupForDismantling,
+  resumeMyDismantlingSession,
+  startDismantlingSession,
+  type DismantlingIssueType,
+} from "@/lib/data/dismantling";
 
-type Phase = "home" | "find" | "notfound" | "alreadyDismantled" | "alreadyInProcess" | "confirm" | "session" | "processing" | "uploadFailed" | "completed";
+type Phase = "home" | "find" | "notfound" | "alreadyDismantled" | "alreadyInProcess" | "confirm" | "session" | "processing" | "completed";
 
-/** "full" = the approved Vehicle Dismantling flow (unchanged). "quick" = Quick Part Capture —
- * same shared vehicle/session, but each part photo is saved and linked to the current
- * donor vehicle immediately instead of being batched until the vehicle is finished. */
+/** "full" = Vehicle Dismantling (evidence photos, then part photos). "quick" = Quick Part Capture. */
 type Mode = "full" | "quick";
 
 type PartPhoto = { id: string; takenAt: string };
 
-type QuickCapture = { id: string; partType: string; reviewStatus: ReturnType<typeof guessReviewStatus>; takenAt: string };
+type QuickCapture = { id: string; partType: string; takenAt: string };
 
 type CompletedSummary = {
   vehicle: VehicleRecord;
@@ -78,56 +77,68 @@ function PrimaryButton({ className = "", ...props }: React.ComponentProps<typeof
 
 export function DismantlingWorkspace({ user }: { user: User }) {
   const { signOut: endSession } = useSession();
-  const { vehicles, updateVehicle, recordEvent, vehicleEvents } = useVehicleData();
 
   const [phase, setPhase] = useState<Phase>("home");
   const [mode, setMode] = useState<Mode>("full");
   const [searchInput, setSearchInput] = useState("");
   const [foundVehicle, setFoundVehicle] = useState<VehicleRecord | null>(null);
-  const [vehiclePhotoTaken, setVehiclePhotoTaken] = useState(false);
-
+  const [inProcessInfo, setInProcessInfo] = useState<{ employee: string; startTime: string } | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessionVehicle, setSessionVehicle] = useState<VehicleRecord | null>(null);
   const [sessionStartedAt, setSessionStartedAt] = useState<string>("");
+  const [evidenceCount, setEvidenceCount] = useState(0);
   const [partPhotos, setPartPhotos] = useState<PartPhoto[]>([]);
-
+  const [capturing, setCapturing] = useState(false);
   const [quickCaptures, setQuickCaptures] = useState<QuickCapture[]>([]);
-  const [quickPendingPhoto, setQuickPendingPhoto] = useState(false);
-  const quickCaptureIndexRef = useRef(0);
-
   const [finishConfirmOpen, setFinishConfirmOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const failedOnceRef = useRef(false);
-  const [checklistStep, setChecklistStep] = useState(0);
   const [completedSummary, setCompletedSummary] = useState<CompletedSummary | null>(null);
-
   const [issueOpen, setIssueOpen] = useState(false);
-  const [issueType, setIssueType] = useState(issueOptions[0]);
+  const [issueType, setIssueType] = useState<DismantlingIssueType>(DISMANTLING_ISSUE_TYPES[0]);
   const [issueNote, setIssueNote] = useState("");
-  const [issuePhoto, setIssuePhoto] = useState(false);
-
+  const [issueBusy, setIssueBusy] = useState(false);
   const manualInputRef = useRef<HTMLInputElement>(null);
+  const issueRequestRef = useRef<string>(crypto.randomUUID());
+
+  // Resume the employee's own open session after a reload or a restart.
+  useEffect(() => {
+    let alive = true;
+    resumeMyDismantlingSession(user.id)
+      .then(async (resumed) => {
+        if (!alive || !resumed) return;
+        const [evidence, saved] = await Promise.all([countSessionEvidence(resumed.sessionId), listSavedSessionParts(resumed.sessionId)]);
+        if (!alive) return;
+        setSessionId(resumed.sessionId);
+        setSessionVehicle(toVehicleRecord(resumed.vehicle));
+        setSessionStartedAt(resumed.startedAt);
+        setEvidenceCount(evidence);
+        setPartPhotos(saved.map((p) => ({ id: p.id, takenAt: p.takenAt })));
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [user.id]);
 
   function resetToFind() {
     setPhase("find");
     setMode("full");
     setSearchInput("");
     setFoundVehicle(null);
-    setVehiclePhotoTaken(false);
+    setInProcessInfo(null);
+    setSessionId(null);
     setSessionVehicle(null);
     setSessionStartedAt("");
+    setEvidenceCount(0);
     setPartPhotos([]);
+    setCapturing(false);
+    setQuickCaptures([]);
     setFinishConfirmOpen(false);
     setSubmitting(false);
-    failedOnceRef.current = false;
-    setChecklistStep(0);
     setCompletedSummary(null);
-    setQuickCaptures([]);
-    setQuickPendingPhoto(false);
-    quickCaptureIndexRef.current = 0;
   }
 
-  /** Home menu actions — reuse the active session automatically if one is already open
-   * (per spec: never force a re-scan when a dismantling session is already in progress). */
+  /** Home menu actions reuse the open session instead of forcing a new scan. */
   function goToVehicleDismantling() {
     setMode("full");
     setPhase(sessionVehicle ? "session" : "find");
@@ -138,208 +149,163 @@ export function DismantlingWorkspace({ user }: { user: User }) {
     setPhase(sessionVehicle ? "session" : "find");
   }
 
-  function lookupVehicle(raw: string) {
-    const q = raw.trim();
-    if (!q) return;
-    const found = vehicles.find(
-      (v) => v.vin.toLowerCase() === q.toLowerCase() || v.lotNumber.toLowerCase() === q.toLowerCase() || v.stockNumber.toLowerCase() === q.toLowerCase()
-    );
-    if (!found) {
-      setFoundVehicle(null);
-      setPhase("notfound");
+  async function openMySession() {
+    const resumed = await resumeMyDismantlingSession(user.id);
+    if (!resumed) {
+      toast.error("Your session could not be opened. Try again.");
       return;
     }
-    if (found.status === "Dismantled") {
-      setFoundVehicle(found);
-      setPhase("alreadyDismantled");
-      return;
-    }
-    if (found.status === "Processing") {
-      setFoundVehicle(found);
-      setPhase("alreadyInProcess");
-      return;
-    }
-    setFoundVehicle(found);
-    setVehiclePhotoTaken(false);
-    setPhase("confirm");
-  }
-
-  function simulateScan(field: "vin" | "lot" | "stock") {
-    const candidate = vehicles.find((v) => v.status === "Available at Yard") || vehicles.find((v) => !v.closedReason);
-    if (!candidate) {
-      toast.info("No vehicles available to scan in this demo.");
-      return;
-    }
-    const value = field === "vin" ? candidate.vin : field === "lot" ? candidate.lotNumber : candidate.stockNumber;
-    setSearchInput(value);
-    lookupVehicle(value);
-  }
-
-  function startDismantling() {
-    if (!foundVehicle) return;
-    updateVehicle(foundVehicle.id, { status: "Processing", assignedId: user.id, assignedName: user.name });
-    recordEvent({
-      vehicleId: foundVehicle.id,
-      action: "START",
-      actorId: user.id,
-      note: "Dismantling started",
-      hasPhoto: vehiclePhotoTaken,
-    });
-    setSessionVehicle({ ...foundVehicle, status: "Processing", assignedId: user.id, assignedName: user.name });
-    setSessionStartedAt(new Date().toISOString());
-    setPartPhotos([]);
-    failedOnceRef.current = false;
+    const [evidence, saved] = await Promise.all([countSessionEvidence(resumed.sessionId), listSavedSessionParts(resumed.sessionId)]);
+    setSessionId(resumed.sessionId);
+    setSessionVehicle(toVehicleRecord(resumed.vehicle));
+    setSessionStartedAt(resumed.startedAt);
+    setEvidenceCount(evidence);
+    setPartPhotos(saved.map((p) => ({ id: p.id, takenAt: p.takenAt })));
     setPhase("session");
   }
 
-  function addPartPhoto() {
-    setPartPhotos((xs) => [...xs, { id: `part-${Date.now()}-${xs.length}`, takenAt: new Date().toISOString() }]);
-  }
-
-  function removePartPhoto(id: string) {
-    setPartPhotos((xs) => xs.filter((p) => p.id !== id));
-  }
-
-  /** Quick Part Capture: no typing, no part ID/SKU/pricing from the employee — just a
-   * photo, saved and linked to the current donor vehicle/session immediately (AI/manager
-   * review organizes it later, same as the approved flow). */
-  function onPickQuickPhoto() {
-    setQuickPendingPhoto(true);
-  }
-
-  function saveQuickCapture() {
-    if (!sessionVehicle) return;
-    const index = quickCaptureIndexRef.current++;
-    const partType = guessPartType(index);
-    const reviewStatus = guessReviewStatus(index);
-    const partId = `qpc-${sessionVehicle.id}-${Date.now()}-${index}`;
-
-    recordEvent({
-      vehicleId: sessionVehicle.id,
-      action: "PART_REMOVED",
-      actorId: user.id,
-      partType,
-      highValue: reviewStatus !== "processed" || highValuePartTypes.has(partType),
-      disposition:
-        reviewStatus === "possible_duplicate" ? "POSSIBLE DUPLICATE — MANAGER REVIEW" : reviewStatus === "processed" ? "IN INVENTORY" : undefined,
-      hasPhoto: true,
-      partId,
-    });
-
-    setQuickCaptures((xs) => [{ id: partId, partType, reviewStatus, takenAt: new Date().toISOString() }, ...xs]);
-    setQuickPendingPhoto(false);
-    toast.success(`${partType} captured · linked to ${sessionVehicle.year} ${sessionVehicle.make} ${sessionVehicle.model}`);
-  }
-
-  function runProcessing() {
-    setSubmitting(true);
-    setPhase("processing");
-    setChecklistStep(0);
-
-    let step = 0;
-    const tick = () => {
-      step += 1;
-      setChecklistStep(step);
-      if (step < processingChecklist.length) {
-        window.setTimeout(tick, 450);
+  async function lookupVehicle(raw: string) {
+    const q = raw.trim();
+    if (!q) return;
+    try {
+      const result = await lookupForDismantling(q, user.id);
+      if (result.status === "not_found") {
+        setFoundVehicle(null);
+        setPhase("notfound");
         return;
       }
-      window.setTimeout(finishProcessing, 500);
-    };
-    window.setTimeout(tick, 450);
+      const record = toVehicleRecord(result.vehicle);
+      setFoundVehicle(record);
+      if (result.status === "dismantled") {
+        setPhase("alreadyDismantled");
+        return;
+      }
+      if (result.status === "in_process") {
+        if (result.mine) {
+          await openMySession();
+          return;
+        }
+        setInProcessInfo({ employee: "Another employee", startTime: new Date(result.startedAt).toLocaleString() });
+        setPhase("alreadyInProcess");
+        return;
+      }
+      setPhase("confirm");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "The lookup failed. Try again.");
+    }
   }
 
-  function finishProcessing() {
-    if (!sessionVehicle) return;
+  // Barcode and photo scanning are not connected. Scan buttons focus typed entry instead.
+  function simulateScan(field: "vin" | "lot" | "stock") {
+    void field;
+    toast.info("Barcode scanning is not connected. Type the VIN, lot or stock number.");
+    manualInputRef.current?.focus();
+  }
 
-    if (!failedOnceRef.current) {
-      failedOnceRef.current = true;
+  async function startDismantling() {
+    if (!foundVehicle) return;
+    setSubmitting(true);
+    try {
+      const r = await startDismantlingSession(foundVehicle.id);
+      setSessionId(r.session_id);
+      setSessionVehicle({ ...foundVehicle, status: "Processing", assignedId: user.id, assignedName: user.name });
+      setSessionStartedAt(new Date().toISOString());
+      setEvidenceCount(0);
+      setPartPhotos([]);
+      setQuickCaptures([]);
+      setPhase("session");
+    } catch (err) {
+      if (err instanceof DismantlingError && err.hint === "ALREADY_IN_PROCESS") {
+        setInProcessInfo({ employee: "Another employee", startTime: new Date().toLocaleString() });
+        setPhase("alreadyInProcess");
+        return;
+      }
+      if (err instanceof DismantlingError && err.hint === "ALREADY_DISMANTLED") {
+        setPhase("alreadyDismantled");
+        return;
+      }
+      toast.error(err instanceof Error ? err.message : "The session could not be started. Nothing was saved.");
+    } finally {
       setSubmitting(false);
-      setPhase("uploadFailed");
+    }
+  }
+
+  function startCapture() {
+    setCapturing(true);
+  }
+
+  function fullPartSaved(partId: string) {
+    setPartPhotos((xs) => [...xs, { id: partId, takenAt: new Date().toISOString() }]);
+    setCapturing(false);
+    toast.success("Part photo saved");
+  }
+
+  function quickPartSaved(partId: string) {
+    setQuickCaptures((xs) => [{ id: partId, partType: "Part " + (xs.length + 1), takenAt: new Date().toISOString() }, ...xs]);
+    setCapturing(false);
+    toast.success("Part saved to this vehicle");
+  }
+
+  // Saved photos are part of the record. Removing one is a manager decision during review.
+  function removePartPhoto(id: string) {
+    void id;
+    toast.info("Saved part photos stay on the record. A manager can reject a part during review.");
+  }
+
+  async function runProcessing() {
+    if (!sessionId || !sessionVehicle) return;
+    setSubmitting(true);
+    setPhase("processing");
+    try {
+      const r = await finishDismantlingSession(sessionId);
+      setCompletedSummary({
+        vehicle: sessionVehicle,
+        photosSaved: partPhotos.length + quickCaptures.length,
+        partsProcessed: r.part_photos_captured,
+        needsReview: r.part_photos_captured,
+      });
+      setPhase("completed");
+    } catch (err) {
+      setPhase("session");
+      if (err instanceof DismantlingError && err.hint === "NO_EVIDENCE") {
+        toast.error("Add at least one vehicle evidence photo before finishing.");
+      } else if (err instanceof DismantlingError && err.hint === "PART_WITHOUT_PHOTO") {
+        toast.error(err.message);
+      } else {
+        toast.error(err instanceof Error ? err.message : "The vehicle could not be finished. Nothing was changed.");
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function submitIssue() {
+    if (!sessionId) {
+      toast.error("Issues are recorded during an active dismantling session. Nothing was saved.");
       return;
     }
-
-    const results: ProcessedPartResult[] = partPhotos.map((p, i) => ({
-      id: p.id,
-      partType: guessPartType(i),
-      reviewStatus: guessReviewStatus(i),
-      capturedAt: p.takenAt,
-    }));
-
-    results.forEach((r) => {
-      const needsReview = r.reviewStatus !== "processed";
-      recordEvent({
-        vehicleId: sessionVehicle.id,
-        action: "PART_REMOVED",
-        actorId: user.id,
-        partType: r.partType,
-        highValue: needsReview || highValuePartTypes.has(r.partType),
-        disposition: r.reviewStatus === "possible_duplicate" ? "POSSIBLE DUPLICATE — MANAGER REVIEW" : r.reviewStatus === "processed" ? "IN INVENTORY" : undefined,
-        hasPhoto: true,
-        partId: r.id,
-      });
-    });
-
-    updateVehicle(sessionVehicle.id, { status: "Dismantled" });
-    recordEvent({
-      vehicleId: sessionVehicle.id,
-      action: "STATUS",
-      status: "Dismantled",
-      actorId: user.id,
-      note: `Dismantling completed — ${partPhotos.length + quickCaptures.length} part photo(s) captured`,
-    });
-
-    // Quick Part Captures already recorded their own PART_REMOVED events as they happened —
-    // fold their counts into the summary so it reflects everything captured this session.
-    setCompletedSummary({
-      vehicle: sessionVehicle,
-      photosSaved: partPhotos.length + quickCaptures.length,
-      partsProcessed:
-        results.filter((r) => r.reviewStatus === "processed").length +
-        quickCaptures.filter((c) => c.reviewStatus === "processed").length,
-      needsReview:
-        results.filter((r) => r.reviewStatus !== "processed").length +
-        quickCaptures.filter((c) => c.reviewStatus !== "processed").length,
-    });
-    setSubmitting(false);
-    setPhase("completed");
-  }
-
-  function retryUpload() {
-    runProcessing();
-  }
-
-  function submitIssue() {
-    const vehicleId = sessionVehicle?.id || foundVehicle?.id;
-    if (vehicleId) {
-      recordEvent({
-        vehicleId,
-        action: "ISSUE_FLAGGED",
-        actorId: user.id,
-        note: `${issueType}${issueNote ? ` — ${issueNote}` : ""}`,
-        hasPhoto: issuePhoto,
-      });
+    if (issueNote.trim().length < 5) {
+      toast.error("Describe the issue in at least 5 characters.");
+      return;
     }
-    toast.success("Issue flagged for manager review (mock)");
-    setIssueOpen(false);
-    setIssueType(issueOptions[0]);
-    setIssueNote("");
-    setIssuePhoto(false);
+    setIssueBusy(true);
+    try {
+      await flagDismantlingIssue({ sessionId, issue: issueType, note: issueNote.trim(), requestId: issueRequestRef.current });
+      issueRequestRef.current = crypto.randomUUID();
+      toast.success("Issue flagged for manager review");
+      setIssueOpen(false);
+      setIssueType(DISMANTLING_ISSUE_TYPES[0]);
+      setIssueNote("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "The issue was not saved. Try again.");
+    } finally {
+      setIssueBusy(false);
+    }
   }
 
   function logOut() {
     void endSession();
   }
-
-  const inProcessInfo = (() => {
-    if (phase !== "alreadyInProcess" || !foundVehicle) return null;
-    const events = vehicleEvents(foundVehicle.id);
-    const started = events.find((e) => e.action === "START");
-    return {
-      employee: started?.actorName || foundVehicle.assignedName || "Unknown employee",
-      startTime: started ? new Date(started.createdAt).toLocaleString() : "Unknown",
-    };
-  })();
 
   return (
     <div className="space-y-4 pb-10">
@@ -564,19 +530,9 @@ export function DismantlingWorkspace({ user }: { user: User }) {
               <p className="text-sm text-muted-foreground">Location: {foundVehicle.location || "LAL Motors Yard"}</p>
             </div>
 
-            {!vehiclePhotoTaken ? (
-              <label className="mt-4 flex h-14 w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-brand text-base font-bold text-brand-foreground hover:bg-brand/90">
-                <Camera className="size-5" /> Take Vehicle Photo
-                <input type="file" accept="image/*" capture="environment" className="hidden" onChange={() => setVehiclePhotoTaken(true)} />
-              </label>
-            ) : (
-              <label className="mt-4 flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-border text-sm font-semibold text-muted-foreground hover:bg-muted/50">
-                <Camera className="size-4" /> Retake Vehicle Photo
-                <input type="file" accept="image/*" capture="environment" className="hidden" onChange={() => setVehiclePhotoTaken(true)} />
-              </label>
-            )}
+            <p className="mt-4 text-sm text-muted-foreground">Starting creates your session. Vehicle evidence photos are added next.</p>
+            <PrimaryButton className="mt-3" onClick={startDismantling} disabled={submitting}>
 
-            <PrimaryButton className="mt-3" disabled={!vehiclePhotoTaken} onClick={startDismantling}>
               {mode === "quick" ? "Start Quick Part Capture" : "Start Taking Part Photos"}
             </PrimaryButton>
             <Button variant="ghost" className="mt-2 w-full text-muted-foreground" onClick={resetToFind}>
@@ -604,19 +560,41 @@ export function DismantlingWorkspace({ user }: { user: User }) {
             </button>
 
             <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
+              <div className="mb-4">
+                <MediaCapture
+                  label="Vehicle evidence photo (required)"
+                  ownerType="dismantling_session"
+                  ownerId={sessionId ?? ""}
+                  role="vehicle_evidence"
+                  onUploaded={() => setEvidenceCount((n) => n + 1)}
+                />
+                <p className="mt-2 text-xs text-muted-foreground">{evidenceCount > 0 ? evidenceCount + " evidence photo(s) saved" : "At least one is required before you finish."}</p>
+              </div>
               <h3 className="text-lg font-bold">Take Part Photos</h3>
               <p className="mt-0.5 text-sm text-muted-foreground">Photograph every useful part. No labeling needed.</p>
 
-              <label className="relative mt-4 flex aspect-[4/3] w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-xl bg-muted text-muted-foreground transition-colors hover:bg-muted/70">
-                <input type="file" accept="image/*" capture="environment" className="hidden" onChange={addPartPhoto} />
-                {partPhotos.length > 0 && (
-                  <span className="absolute top-2.5 left-2.5 rounded-full bg-brand px-2.5 py-1 text-xs font-bold text-brand-foreground shadow-sm">
-                    {partPhotos.length} photo{partPhotos.length === 1 ? "" : "s"} saved
-                  </span>
-                )}
-                {partPhotos.length > 0 ? <Wrench className="size-14 opacity-60" /> : <Camera className="size-12" />}
-                <span className="text-sm font-bold">{partPhotos.length > 0 ? "Taking Photos..." : "Tap to Take Photo"}</span>
-              </label>
+              {capturing && sessionId ? (
+                <PartCaptureSlot
+                  sessionId={sessionId}
+                  label="Part photo"
+                  onSaved={fullPartSaved}
+                  onDiscard={() => setCapturing(false)}
+                />
+              ) : (
+                <button
+                  onClick={startCapture}
+                  disabled={!sessionId}
+                  className="relative mt-4 flex aspect-[4/3] w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-xl bg-muted text-muted-foreground transition-colors hover:bg-muted/70 disabled:opacity-50"
+                >
+                  {partPhotos.length > 0 && (
+                    <span className="absolute top-2.5 left-2.5 rounded-full bg-brand px-2.5 py-1 text-xs font-bold text-brand-foreground shadow-sm">
+                      {partPhotos.length} photo{partPhotos.length === 1 ? "" : "s"} saved
+                    </span>
+                  )}
+                  {partPhotos.length > 0 ? <Wrench className="size-14 opacity-60" /> : <Camera className="size-12" />}
+                  <span className="text-sm font-bold">{partPhotos.length > 0 ? "Take Another Part Photo" : "Tap to Take Photo"}</span>
+                </button>
+              )}
 
               {partPhotos.length > 0 && (
                 <div className="mt-4 grid grid-cols-4 gap-2 sm:grid-cols-5">
@@ -633,11 +611,6 @@ export function DismantlingWorkspace({ user }: { user: User }) {
                       </button>
                     </div>
                   ))}
-                  <label className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-0.5 rounded-md border border-dashed border-primary/40 bg-primary/5 text-primary hover:bg-primary/10">
-                    <input type="file" accept="image/*" capture="environment" className="hidden" onChange={addPartPhoto} />
-                    <Plus className="size-4" />
-                    <span className="text-[10px] font-bold">Add More</span>
-                  </label>
                 </div>
               )}
             </div>
@@ -646,7 +619,7 @@ export function DismantlingWorkspace({ user }: { user: User }) {
               <Flag className="size-4" /> Flag Issue
             </Button>
 
-            <PrimaryButton disabled={partPhotos.length === 0} onClick={() => setFinishConfirmOpen(true)}>
+            <PrimaryButton disabled={evidenceCount === 0 || partPhotos.length === 0 || submitting} onClick={() => setFinishConfirmOpen(true)}>
               Save &amp; Finish Vehicle
             </PrimaryButton>
           </div>
@@ -681,28 +654,24 @@ export function DismantlingWorkspace({ user }: { user: User }) {
               </div>
               <p className="mt-0.5 text-sm text-muted-foreground">Photo only. No typing. Each part saves instantly to this vehicle.</p>
 
-              {!quickPendingPhoto ? (
-                <label className="mt-4 flex aspect-[4/3] w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-xl bg-muted text-muted-foreground transition-colors hover:bg-muted/70">
-                  <input type="file" accept="image/*" capture="environment" className="hidden" onChange={onPickQuickPhoto} />
-                  <Camera className="size-12" />
-                  <span className="text-sm font-bold">Take Part Photo</span>
-                </label>
-              ) : (
-                <div className="mt-4 space-y-3">
-                  <div className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-success/40 bg-success/5 text-success">
-                    <CheckCircle2 className="size-10" />
-                    <span className="text-sm font-bold">Photo ready</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2.5">
-                    <label className="flex h-12 cursor-pointer items-center justify-center gap-2 rounded-lg border border-border text-sm font-semibold text-muted-foreground hover:bg-muted/50">
-                      <input type="file" accept="image/*" capture="environment" className="hidden" onChange={onPickQuickPhoto} />
-                      <RotateCcw className="size-4" /> Retake
-                    </label>
-                    <PrimaryButton className="h-12" onClick={saveQuickCapture}>
-                      Save &amp; Next
-                    </PrimaryButton>
-                  </div>
+              {capturing && sessionId ? (
+                <div className="mt-4">
+                  <PartCaptureSlot
+                    sessionId={sessionId}
+                    label="Part photo"
+                    onSaved={quickPartSaved}
+                    onDiscard={() => setCapturing(false)}
+                  />
                 </div>
+              ) : (
+                <button
+                  onClick={startCapture}
+                  disabled={!sessionId}
+                  className="mt-4 flex aspect-[4/3] w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-xl bg-muted text-muted-foreground transition-colors hover:bg-muted/70 disabled:opacity-50"
+                >
+                  <Camera className="size-12" />
+                  <span className="text-sm font-bold">{quickCaptures.length > 0 ? "Save & Next: Take Next Part Photo" : "Take Part Photo"}</span>
+                </button>
               )}
             </div>
 
@@ -738,43 +707,10 @@ export function DismantlingWorkspace({ user }: { user: User }) {
         {phase === "processing" && (
           <div className="rounded-xl border border-border bg-card p-6 text-center shadow-xs">
             <span className="mx-auto flex size-16 animate-pulse items-center justify-center rounded-full bg-brand text-brand-foreground">
-              <span className="text-xl font-extrabold tracking-tight">AI</span>
+              <Wrench className="size-7" />
             </span>
-            <h3 className="mt-3 text-lg font-bold">Processing Photos...</h3>
-            <div className="mt-4 space-y-2 text-left">
-              {processingChecklist.map((item, i) => (
-                <div key={item} className={`flex items-center gap-2 text-sm ${i < checklistStep ? "text-foreground" : "text-muted-foreground/50"}`}>
-                  {i < checklistStep ? <CheckCircle2 className="size-4 shrink-0 text-success" /> : <span className="size-4 shrink-0 rounded-full border border-current" />}
-                  {item}
-                </div>
-              ))}
-            </div>
-            <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-muted">
-              <div
-                className="h-full rounded-full bg-success transition-all duration-500"
-                style={{ width: `${(checklistStep / processingChecklist.length) * 100}%` }}
-              />
-            </div>
-            <p className="mt-2 text-xs text-muted-foreground">Please wait...</p>
-          </div>
-        )}
-
-        {/* UPLOAD FAILED */}
-        {phase === "uploadFailed" && sessionVehicle && (
-          <div className="rounded-xl border border-destructive/30 bg-card p-5 text-center shadow-xs">
-            <span className="mx-auto flex size-14 items-center justify-center rounded-full bg-destructive/15 text-destructive">
-              <CloudOff className="size-7" />
-            </span>
-            <h3 className="mt-3 text-lg font-bold text-destructive">UPLOAD NOT COMPLETE — RETRY</h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Connection was too weak to finish uploading. Your {partPhotos.length} photo(s) are saved on this device — nothing was lost.
-            </p>
-            <PrimaryButton className="mt-4" disabled={submitting} onClick={retryUpload}>
-              <RotateCcw className="size-5" /> Retry Upload
-            </PrimaryButton>
-            <Button variant="ghost" className="mt-2 w-full text-muted-foreground" onClick={() => setPhase("session")}>
-              Back to Photos
-            </Button>
+            <h3 className="mt-3 text-lg font-bold">Finishing vehicle…</h3>
+            <p className="mt-2 text-xs text-muted-foreground">Checking the photos and saving. Please wait.</p>
           </div>
         )}
 
@@ -791,8 +727,8 @@ export function DismantlingWorkspace({ user }: { user: User }) {
               <Field label="Vehicle" value={`${completedSummary.vehicle.year} ${completedSummary.vehicle.make} ${completedSummary.vehicle.model}`} />
               <Field label="VIN" value={completedSummary.vehicle.vin} />
               <Field label="Photos Saved" value={completedSummary.photosSaved} />
-              <Field label="Parts Processed" value={completedSummary.partsProcessed} />
-              <Field label="Needs Review" value={completedSummary.needsReview} />
+              <Field label="Parts Captured" value={completedSummary.partsProcessed} />
+              <Field label="Sent to Manager Review" value={completedSummary.needsReview} />
               <Field
                 label="Status"
                 value={
@@ -845,12 +781,12 @@ export function DismantlingWorkspace({ user }: { user: User }) {
           <div className="space-y-3">
             <div className="space-y-1.5">
               <Label>Issue type</Label>
-              <Select value={issueType} onValueChange={(v) => setIssueType(v ?? issueOptions[0])}>
+              <Select value={issueType} onValueChange={(v) => setIssueType((v as DismantlingIssueType) ?? DISMANTLING_ISSUE_TYPES[0])}>
                 <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {issueOptions.map((o) => (
+                  {DISMANTLING_ISSUE_TYPES.map((o) => (
                     <SelectItem key={o} value={o}>
                       {o}
                     </SelectItem>
@@ -859,19 +795,15 @@ export function DismantlingWorkspace({ user }: { user: User }) {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>Note (optional)</Label>
+              <Label>Note (required, 5+ characters)</Label>
               <Textarea value={issueNote} onChange={(e) => setIssueNote(e.target.value)} rows={3} placeholder="Short note" />
             </div>
-            <label className="flex w-fit cursor-pointer items-center gap-1.5 rounded-md border border-dashed border-border px-2.5 py-1.5 text-xs font-medium text-primary">
-              <Camera className="size-3.5" /> {issuePhoto ? "Photo attached" : "Add photo (optional)"}
-              <input type="file" accept="image/*" className="hidden" onChange={() => setIssuePhoto(true)} />
-            </label>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIssueOpen(false)}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={submitIssue}>
+            <Button variant="destructive" disabled={issueBusy || issueNote.trim().length < 5} onClick={submitIssue}>
               <Send className="size-4" /> Save Issue &amp; Continue
             </Button>
           </DialogFooter>
