@@ -248,6 +248,23 @@ createdVehicles.push(VR);
   check("parallel receive wrote exactly one RECEIVED event", ev === 1, `events=${ev}`);
 }
 
+// =========================== H. PREVIEW AGREES WITH COMMIT (find_vehicle_match vs match_or_create) ===========================
+{
+  const pv = async (args) => (await q("select public.find_vehicle_match($1,$2,$3,$4) as r", args))[0].r;
+  const newVin = vinFor(20), newStock = stockFor(20);
+  const p1 = await pv([newVin, null, newStock, null]);
+  check("preview says NEW for an unknown vehicle and writes nothing", p1.status === "new");
+  const countBefore = (await q("select count(*)::int c from public.vehicles where vin=$1", [newVin]))[0].c;
+  check("preview did not create a row", countBefore === 0);
+  const c1 = await rpc(S.auction, "match_or_create_vehicle", { p_vin: newVin, p_lot_number: null, p_stock_number: newStock, p_auction_source: null, p_fields: fields });
+  if (c1.data?.vehicle_id) createdVehicles.push(c1.data.vehicle_id);
+  const p2 = await pv([newVin, null, newStock, null]);
+  check("after intake the preview says EXISTING with the same id", p2.status === "existing" && p2.vehicle_id === c1.data.vehicle_id, JSON.stringify(p2));
+  const pc = await pv([VA.vin, null, stockFor(2), null]);
+  const cc = await rpc(S.auction, "match_or_create_vehicle", { p_vin: VA.vin, p_lot_number: null, p_stock_number: stockFor(2), p_auction_source: null, p_fields: fields });
+  check("preview and commit agree on a conflict", pc.status === "conflict" && cc.data?.outcome === "conflict", `${pc.status} / ${cc.data?.outcome}`);
+}
+
 // =========================== CLEANUP (DEV only) ===========================
 {
   const ids = createdVehicles.filter(Boolean);

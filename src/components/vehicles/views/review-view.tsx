@@ -1,13 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { vehicleFieldLabels, vehicleFieldOrder, vehicleTitle, type IntakeItem } from "@/lib/mock/vehicles";
 import { buildIntakeItems } from "@/lib/mock/parse-intake";
-import { useVehicleData } from "@/components/vehicles/vehicle-data-context";
+import { previewVehicleMatch, type IntakeMatchStatus } from "@/lib/data/vehicles";
+import { useIntakeVehicles } from "@/lib/query/vehicles";
+import { toast } from "sonner";
 import type { IntakeMethod } from "@/components/vehicles/vehicle-workspace";
 
 export function ReviewView({
@@ -17,13 +19,43 @@ export function ReviewView({
   batch: { method: IntakeMethod; sourceText: string };
   onDone: () => void;
 }) {
-  const { vehicles, confirmDrafts } = useVehicleData();
-  const [items, setItems] = useState<IntakeItem[]>(() => buildIntakeItems(batch.method, batch.sourceText, vehicles));
-  const [selected, setSelected] = useState<string[]>(() =>
-    items.filter((i) => !i.errors.length && i.match.status === "new").map((i) => i.id)
-  );
+  const commit = useIntakeVehicles();
+  // Parsing is deterministic and local. Duplicate status is decided by the database, not by a list in memory.
+  const [items, setItems] = useState<IntakeItem[]>(() => buildIntakeItems(batch.method, batch.sourceText, []));
+  const [checking, setChecking] = useState(true);
+  const [selected, setSelected] = useState<string[]>([]);
   const [expanded, setExpanded] = useState("");
   const [updateExisting, setUpdateExisting] = useState<string[]>([]);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const checked = await Promise.all(
+        items.map(async (item): Promise<IntakeItem> => {
+          if (item.errors.length) return item;
+          try {
+            const m = await previewVehicleMatch(item.draft);
+            const status: IntakeMatchStatus = m.status;
+            return {
+              ...item,
+              match: status === "new" ? { status } : { status, vehicle: m.vehicle_id ? { id: m.vehicle_id } : undefined },
+            };
+          } catch {
+            return { ...item, errors: [...item.errors, "Could not check for duplicates. Try again."] };
+          }
+        })
+      );
+      if (!alive) return;
+      setItems(checked);
+      setSelected(checked.filter((i) => !i.errors.length && i.match.status === "new").map((i) => i.id));
+      setChecking(false);
+    })();
+    return () => {
+      alive = false;
+    };
+    // Runs once per batch: the review list is then edited locally until confirmation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const ready = items.filter((x) => !x.errors.length && x.match.status === "new").length;
   const needsReview = items.filter((x) => x.errors.length).length;
@@ -39,15 +71,28 @@ export function ReviewView({
   }
 
   function confirm(ids: string[]) {
-    const drafts = items.filter((i) => ids.includes(i.id)).map((i) => i.draft);
-    confirmDrafts(drafts);
-    setItems((xs) => xs.filter((x) => !ids.includes(x.id)));
-    setSelected((xs) => xs.filter((x) => !ids.includes(x)));
-    if (items.length === ids.length) onDone();
+    const chosen = items.filter((i) => ids.includes(i.id));
+    commit.mutate(
+      chosen.map((i) => i.draft),
+      {
+        onSuccess: (r) => {
+          toast.success(`${r.created} created · ${r.existing} already in inventory · ${r.conflicts} need attention`);
+          if (r.messages.length) toast.error(r.messages.slice(0, 3).join(" | "));
+          setItems((xs) => {
+            const next = xs.filter((x) => !ids.includes(x.id));
+            if (next.length === 0) onDone();
+            return next;
+          });
+          setSelected((xs) => xs.filter((x) => !ids.includes(x)));
+        },
+        onError: (err) => toast.error(err instanceof Error ? err.message : "Could not save these vehicles. Nothing was changed."),
+      }
+    );
   }
 
   return (
     <div className="space-y-4">
+      {checking && <p className="text-sm text-muted-foreground">Checking the database for existing vehicles…</p>}
       <div className="flex flex-wrap gap-4 rounded-lg border border-border bg-card p-4 text-sm">
         <b>{items.length} vehicles detected</b>
         <span className="text-success">✓ {ready} ready</span>

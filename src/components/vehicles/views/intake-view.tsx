@@ -87,6 +87,11 @@ export function IntakeView({
             />
           </div>
           {method === "scan" && (
+            <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning-foreground">
+              AI photo and screenshot extraction is not connected in this environment. Use Bulk Paste, Single Vehicle or Manual Entry.
+            </p>
+          )}
+          {method === "scan" && (
             <label className="flex w-fit cursor-pointer items-center gap-2 rounded-md border border-dashed border-border px-3 py-2 text-sm font-medium text-primary">
               <Camera className="size-4" /> Take or upload auction image
               <input
@@ -102,7 +107,7 @@ export function IntakeView({
       )}
 
       <div>
-        <Button disabled={busy} onClick={analyze}>
+        <Button disabled={busy || method === "scan"} onClick={analyze}>
           {busy ? "Analyzing…" : method === "manual" ? "Review vehicle" : "Analyze vehicles"}
         </Button>
         <p className="mt-2 text-xs text-muted-foreground">

@@ -76,37 +76,6 @@ function parseLine(line: string, index: number): IntakeItem["draft"] {
   return { ...draft, uncertainFields: uncertain };
 }
 
-function scanCannedItem(): IntakeItem["draft"] {
-  return {
-    auctionSource: "Copart",
-    vin: "5FNRL6H50CB405213",
-    lotNumber: "48930215",
-    stockNumber: "ST-PEND-1",
-    auctionItemNumber: "",
-    year: "2018",
-    make: "Honda",
-    model: "Odyssey",
-    trim: "",
-    engine: "",
-    mileage: "96500",
-    mileageStatus: "Actual",
-    titleStatus: "Pending",
-    location: "LAL Motors Yard",
-    purchasePrice: "4300",
-    invoiceAmount: "",
-    balanceDue: "",
-    auctionFees: "",
-    transportationCost: "",
-    saleDate: new Date().toISOString().slice(0, 10),
-    pickupPin: "",
-    pickupStatus: "",
-    pickupDeadline: "",
-    damageInfo: "",
-    transportInfo: "",
-    uncertainFields: ["trim", "engine", "invoiceAmount", "balanceDue", "auctionFees", "transportationCost"],
-  };
-}
-
 export function buildIntakeItems(
   method: IntakeMethod,
   sourceText: string,
@@ -122,7 +91,7 @@ export function buildIntakeItems(
       drafts = [parseLine(sourceText, 0)];
     }
   } else if (method === "scan") {
-    drafts = [scanCannedItem()];
+    drafts = [];
   } else if (method === "single") {
     drafts = [parseLine(sourceText, 0)];
   } else {

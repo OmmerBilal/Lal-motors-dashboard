@@ -223,3 +223,13 @@ Known: UI for Auction, Dispatch and Receiving is not yet connected. Next item: V
 - STILL MOCK (transitional, must be removed next): intake add paths (bulk, single, manual), vehicle detail, completion, corrections, and the VehicleDataProvider state that Dispatch, Dismantling and Owner dashboard read. Two sources of truth remain until those are moved.
 - Known limits: the footer count is the number loaded so far ("+" while more pages exist). Reopen uses a fixed audit note "Reopened from Auction Inventory" (no note dialog yet).
 - Verification: tsc clean, eslint clean on src, npm run build exit 0. Not yet verified in a real browser: no browser login was run (credentials are not placed in tool transcripts); mobile viewport QA for this screen is NOT done.
+
+## Intake on the database (0011) — 2026-10-04
+
+- 0011 find_vehicle_match(): read-only identity preview with the same rules as match_or_create_vehicle.
+- Intake review: parsing stays local and deterministic (no AI). Duplicate status comes from find_vehicle_match. Confirm calls match_or_create_vehicle per draft (retry-safe, never silently duplicates). Local rows are removed only after the database accepts them.
+- AI Photo/Screenshot Scan: NOT connected. The analyze action is disabled with an explicit notice. The canned sample record that used to fake extraction was deleted.
+- Update-existing: NOT supported. Existing vehicles are never overwritten. A matched draft commits as a no-op ("already in inventory"). The approved checkbox remains on screen but writes nothing.
+- Tests: rpc-vehicles.mjs now 59/59 (includes preview-versus-commit agreement).
+- Verification: tsc clean, eslint clean on src, build exit 0. Browser QA for these screens NOT run.
+- Still mock: vehicle detail, completion queue, corrections, provider state used by Dispatch, Dismantling, Owner dashboard.

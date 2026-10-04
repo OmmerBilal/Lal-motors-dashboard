@@ -5,6 +5,7 @@ import {
   closeVehicle,
   getVehicleFilterOptions,
   getVehicleKpis,
+  intakeVehicles,
   listVehicles,
   reopenVehicle,
   type VehicleListCursor,
@@ -68,6 +69,19 @@ export function useReopenVehicle() {
       queryClient.invalidateQueries({ queryKey: vehicleKeys.lists() });
       queryClient.invalidateQueries({ queryKey: vehicleKeys.kpis() });
       queryClient.invalidateQueries({ queryKey: vehicleKeys.detail(variables.vehicleId) });
+    },
+  });
+}
+
+/** Intake commit changes lists and KPIs only. Filter options change if a new auction source appears. */
+export function useIntakeVehicles() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: intakeVehicles,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: vehicleKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: vehicleKeys.kpis() });
+      queryClient.invalidateQueries({ queryKey: vehicleKeys.filterOptions() });
     },
   });
 }

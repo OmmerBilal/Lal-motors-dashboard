@@ -132,3 +132,88 @@ export async function reopenVehicle(input: { vehicleId: string; note: string }) 
   if (error) fail(error);
   return data as { vehicle_id: string; status: string; idempotent_replay: boolean };
 }
+
+export type IntakeMatchStatus = "new" | "existing" | "conflict";
+
+/** The subset of an intake draft the database needs for identity matching and creation. */
+export type IntakeDraftInput = {
+  vin?: string;
+  lotNumber?: string;
+  stockNumber?: string;
+  auctionSource?: string;
+  auctionItemNumber?: string;
+  year?: string;
+  make?: string;
+  model?: string;
+  trim?: string;
+  engine?: string;
+  mileage?: string;
+  titleStatus?: string;
+  location?: string;
+  purchasePrice?: string;
+  auctionFees?: string;
+  transportationCost?: string;
+};
+
+export async function previewVehicleMatch(draft: IntakeDraftInput): Promise<{ status: IntakeMatchStatus; vehicle_id?: string; reason?: string }> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("find_vehicle_match", {
+    p_vin: draft.vin || null,
+    p_lot_number: draft.lotNumber || null,
+    p_stock_number: draft.stockNumber || null,
+    p_auction_source: draft.auctionSource || null,
+  });
+  if (error) fail(error);
+  return data as { status: IntakeMatchStatus; vehicle_id?: string; reason?: string };
+}
+
+function draftFields(d: IntakeDraftInput) {
+  return {
+    auction_item_number: d.auctionItemNumber,
+    year: d.year,
+    make: d.make,
+    model: d.model,
+    trim: d.trim,
+    engine: d.engine,
+    mileage: d.mileage,
+    title_status: d.titleStatus,
+    location: d.location,
+    purchase_price: d.purchasePrice,
+    auction_fees: d.auctionFees,
+    transportation_cost: d.transportationCost,
+  };
+}
+
+export type IntakeCommitResult = { created: number; existing: number; conflicts: number; failed: number; messages: string[] };
+
+/**
+ * Confirms reviewed drafts. Each draft goes through match_or_create_vehicle, which re-checks the
+ * identity under a lock, so a repeated bulk import never creates a second row. Sequential on
+ * purpose: the batch is a few dozen rows and ordering keeps the messages readable.
+ */
+export async function intakeVehicles(drafts: IntakeDraftInput[]): Promise<IntakeCommitResult> {
+  const supabase = createClient();
+  const result: IntakeCommitResult = { created: 0, existing: 0, conflicts: 0, failed: 0, messages: [] };
+  for (const d of drafts) {
+    const { data, error } = await supabase.rpc("match_or_create_vehicle", {
+      p_vin: d.vin || null,
+      p_lot_number: d.lotNumber || null,
+      p_stock_number: d.stockNumber || null,
+      p_auction_source: d.auctionSource || null,
+      p_fields: draftFields(d),
+    });
+    if (error) {
+      result.failed++;
+      result.messages.push(`${d.vin || d.stockNumber || d.lotNumber || "Vehicle"}: ${error.message}`);
+      continue;
+    }
+    const outcome = (data as { outcome: string; reason?: string }).outcome;
+    if (outcome === "created") result.created++;
+    else if (outcome === "existing") result.existing++;
+    else {
+      result.conflicts++;
+      result.messages.push(`${d.vin || d.stockNumber || d.lotNumber || "Vehicle"}: ${(data as { reason?: string }).reason ?? "conflict"}`);
+    }
+  }
+  return result;
+}

@@ -9,7 +9,7 @@ database before trusting it. Details live in IMPLEMENTATION_PROGRESS.md.
 - [x] Proxy latency fix (getClaims + 15 s access cache)
 - [x] Payment + stock RPCs (0004, 0005) — 63/63
 - [x] Vehicle RPCs (0006): match_or_create, close, assign_carrier, update_transport_status, receive_vehicle — 55/55
-- [~] Vehicle real-data integration: list, search, filters, KPIs, pagination, close, reopen now DB-backed (Auction home). STILL MOCK: intake (bulk/single/manual add), detail, completion, corrections, and the provider state used by Dispatch/Dismantling/Owner dashboard. Migrations 0007-0010, tests read-vehicles 23/23.
+- [~] Vehicle real-data integration: list, search, filters, KPIs, pagination, close, reopen, intake review (duplicate check via find_vehicle_match, commit via match_or_create_vehicle) are DB-backed. STILL MOCK: vehicle detail, completion queue, corrections, and the provider state read by Dispatch, Dismantling and Owner dashboard. Migrations 0007-0011. Tests: read-vehicles 23/23, rpc-vehicles 59/59.
 - [ ] Central Dispatch UI on real vehicles (external API NOT CONNECTED)
 - [ ] Vehicle Receiving UI (mobile) on receive_vehicle + shared media component
 - [ ] Dismantling RPCs (start/finish/flag)
