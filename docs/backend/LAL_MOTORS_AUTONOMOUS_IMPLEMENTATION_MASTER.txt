@@ -445,7 +445,9 @@ capture→review→processing→ready; not-sellable; rejected/duplicate protecti
 permissions; zero-stock visibility; search/pagination/media; responsive; no N+1.
 
 MODULE 07 — CUSTOMERS
-STATUS: [NOT STARTED]
+STATUS: [PARTIAL]
+Backend (done): migration 0024 (normalize_phone, create_customer and update_customer with possible-duplicate results and no silent merge, list_customers keyset with a lightweight DTO, customer_history for one customer on demand), 0025 (email cast fix in the list). Tests rpc-customers.mjs 36/36: role matrix, validation, normalization, duplicate hints with no write, confirmed duplicates, idempotent create, update conflicts, keyset paging, search, DTO shape, balance from a real sale.
+UI: NOT connected. Customers screens still read the sales mock context.
 ======================
 
 Real DB:

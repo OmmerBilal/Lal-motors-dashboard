@@ -290,3 +290,11 @@ Known: UI for Auction, Dispatch and Receiving is not yet connected. Next item: V
 - Decisions go through RPCs and toast success only after the RPC returns. Duplicate target = most recent approved part on the same vehicle (shown in the toast).
 - Removed fabricated OEM suggestions (formerly derived from the part id). Notes field is disabled and labelled not stored (no notes column).
 - Checks: tsc clean, eslint clean, build exit 0. Browser and viewport QA NOT run.
+
+## Customers backend (0024-0025) - 2026-10-04
+
+- 0024: normalize_phone (digits, leading 1 removed), create_customer and update_customer (possible_duplicate returns matches and writes nothing until confirm_new), list_customers (keyset on last, first, id; lightweight DTO), customer_history (sales, payments, balance owed; detail only). Sales staff only.
+- 0025: list_customers casts citext email to text (found by the test).
+- Test: scripts/dev-tests/rpc-customers.mjs 36/36.
+- Transient note: one run failed with a pooler auth timeout (EAUTHTIMEOUT), not a test failure. Re-run passed.
+- UI: not connected. Next: customers screens on list_customers, create_customer and customer_history.
