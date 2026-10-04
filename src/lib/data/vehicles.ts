@@ -27,6 +27,10 @@ export type VehicleListRow = {
   purchase_price: string;
   total_landed_cost: string;
   pickup_location_name: string;
+  pickup_address: string;
+  pickup_pin: string;
+  transport_price: string | null;
+  transport_problem: string | null;
   closed_reason: string | null;
   carrier_id: string | null;
   carrier_company: string | null;
@@ -216,4 +220,146 @@ export async function intakeVehicles(drafts: IntakeDraftInput[]): Promise<Intake
     }
   }
   return result;
+}
+
+// ---------------------------------------------------------------------------------------
+// Central Dispatch
+// ---------------------------------------------------------------------------------------
+
+export type CarrierRecord = {
+  id: string;
+  company: string;
+  driver: string;
+  phone: string;
+  email: string;
+  address: string;
+  mcDot: string;
+  notes: string;
+  active: boolean;
+};
+
+export type DispatchCounts = {
+  needTransport: number;
+  postedToCd: number;
+  assigned: number;
+  inTransit: number;
+  arrived: number;
+  overdue: number;
+  problems: number;
+};
+
+/**
+ * Every open vehicle, for pickup grouping. Pages through the keyset list until it is complete.
+ * Grouping needs the full set, so this is the one place a screen loads everything. The loop
+ * stops when the database says there is no next page.
+ */
+export async function listAllVehicles(): Promise<VehicleListRow[]> {
+  const all: VehicleListRow[] = [];
+  let cursor: VehicleListCursor = null;
+  for (let guard = 0; guard < 500; guard++) {
+    const page = await listVehicles({ stage: null, auctionSource: null, carrierId: null, search: "", limit: 100 }, cursor);
+    all.push(...page.rows);
+    if (!page.hasMore || page.rows.length === 0) break;
+    const last = page.rows[page.rows.length - 1];
+    cursor = { createdAt: last.created_at, id: last.id };
+  }
+  return all;
+}
+
+export async function listCarriers(): Promise<CarrierRecord[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("carriers")
+    .select("id, company, driver, phone, email, address, mc_dot, notes, active")
+    .order("company");
+  if (error) fail(error);
+  return (data ?? []).map((c) => ({
+    id: c.id,
+    company: c.company,
+    driver: c.driver,
+    phone: c.phone,
+    email: c.email,
+    address: c.address,
+    mcDot: c.mc_dot,
+    notes: c.notes,
+    active: c.active,
+  }));
+}
+
+export async function addCarrier(input: Omit<CarrierRecord, "id" | "active">): Promise<string> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("carriers")
+    .insert({
+      company: input.company.trim(),
+      driver: input.driver.trim(),
+      phone: input.phone.trim(),
+      email: input.email.trim(),
+      address: input.address.trim(),
+      mc_dot: input.mcDot.trim(),
+      notes: input.notes.trim(),
+      active: true,
+    })
+    .select("id")
+    .single();
+  if (error) fail(error);
+  return data.id as string;
+}
+
+export async function getDispatchCounts(): Promise<DispatchCounts> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("dispatch_stage_counts");
+  if (error) fail(error);
+  const r = (data as Record<string, number | string>[])[0];
+  return {
+    needTransport: Number(r.need_transport),
+    postedToCd: Number(r.posted_to_cd),
+    assigned: Number(r.assigned),
+    inTransit: Number(r.in_transit),
+    arrived: Number(r.arrived),
+    overdue: Number(r.overdue),
+    problems: Number(r.problems),
+  };
+}
+
+/** Each item carries its own transport price. One atomic batch, one carrier. */
+export async function assignCarrierItems(input: { carrierId: string; items: { vehicleId: string; transportPrice: number }[] }) {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("assign_carrier_items", {
+    p_carrier_id: input.carrierId,
+    p_items: input.items.map((i) => ({ vehicle_id: i.vehicleId, transport_price: i.transportPrice })),
+  });
+  if (error) fail(error);
+  return data as { assigned: number; unchanged: number; carrier_id: string };
+}
+
+export async function updateTransportStatus(input: { vehicleId: string; to: string; note?: string }) {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("update_transport_status", {
+    p_vehicle_id: input.vehicleId,
+    p_to_status: input.to,
+    p_problem_note: input.note ?? null,
+  });
+  if (error) fail(error);
+  return data as { vehicle_id: string; transport_status: string; idempotent_replay: boolean };
+}
+
+/**
+ * "Post to Central Dispatch" is LOCAL INTENT ONLY. The database moves READY_TO_POST -> POSTED_TO_CD.
+ * No external Central Dispatch API is called, and nothing here reports external success.
+ * Vehicles without a transport price are refused by the database and reported back.
+ */
+export async function postToCentralDispatchLocal(vehicleIds: string[]) {
+  const failed: { id: string; message: string }[] = [];
+  let posted = 0;
+  for (const id of vehicleIds) {
+    try {
+      await updateTransportStatus({ vehicleId: id, to: "READY_TO_POST" }).catch(() => undefined);
+      await updateTransportStatus({ vehicleId: id, to: "POSTED_TO_CD" });
+      posted++;
+    } catch (err) {
+      failed.push({ id, message: err instanceof Error ? err.message : "Could not post this vehicle." });
+    }
+  }
+  return { posted, failed };
 }

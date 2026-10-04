@@ -233,3 +233,14 @@ Known: UI for Auction, Dispatch and Receiving is not yet connected. Next item: V
 - Tests: rpc-vehicles.mjs now 59/59 (includes preview-versus-commit agreement).
 - Verification: tsc clean, eslint clean on src, build exit 0. Browser QA for these screens NOT run.
 - Still mock: vehicle detail, completion queue, corrections, provider state used by Dispatch, Dismantling, Owner dashboard.
+
+## Central Dispatch on the database (0012–0014) — 2026-10-04
+
+- 0012: carrier directory writes limited to owner, engineer_admin, manager, auction (receiving and dismantling blocked). dispatch_stage_counts() matches the approved KPI definitions.
+- 0013: list_vehicles adds pickup address and PIN, transport price and transport problem.
+- 0014: assign_carrier_items(): one carrier, a price per vehicle, one atomic batch.
+- Tests: scripts/dev-tests/dispatch.mjs 24/24 (carrier write authority, counts vs independent count, one identity from intake to dispatch, per-vehicle prices, batch rollback, duplicate-id refusal, receiving and dismantling blocked).
+- UI: central-dispatch.tsx, dispatch-modals.tsx and carrier-directory-modal.tsx read from the database hooks (src/lib/query/dispatch.ts). Success toasts fire only after the database accepts the change.
+- Post to Central Dispatch = LOCAL intent only. Central Dispatch external API: NOT CONNECTED. Nothing in code calls an external provider or reports external success.
+- Pickup grouping loads every open vehicle (paged until complete). Fine at DEV scale; a server-side grouped read is the next step if inventory grows.
+- Still mock: vehicle detail, completion queue, corrections, and provider state read by Dismantling and the Owner dashboard.

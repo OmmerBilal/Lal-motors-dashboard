@@ -103,6 +103,30 @@ check("re-intake of the same vehicle does not duplicate", dup.data?.outcome === 
   check("dismantling cannot assign a carrier", dispPrice.error?.code === "42501", dispPrice.error?.code ?? "no error");
 }
 
+// 5. Per-vehicle prices in one atomic batch (assign_carrier_items).
+{
+  const mk = async (n) => (await S.auction.rpc("match_or_create_vehicle", { p_vin: ("1DP" + run + "0" + String(n).padStart(7, "0")).slice(0, 17), p_lot_number: null, p_stock_number: "PX" + run + n, p_auction_source: null, p_fields: fields })).data.vehicle_id;
+  const a = await mk(1), b = await mk(2), c = await mk(3);
+  vehicleIds.push(a, b, c);
+  const carrier = carrierIds[0];
+  const ok = await S.manager.rpc("assign_carrier_items", { p_carrier_id: carrier, p_items: [{ vehicle_id: a, transport_price: 111 }, { vehicle_id: b, transport_price: 222.5 }] });
+  check("batch assigns each vehicle its own price", ok.data?.assigned === 2, ok.error?.message ?? "");
+  const rows = await q("select id, transport_price from public.vehicles where id = any($1::uuid[]) order by transport_price", [[a, b]]);
+  check("prices stored per vehicle (111 and 222.50)", rows.length === 2 && Number(rows[0].transport_price) === 111 && Number(rows[1].transport_price) === 222.5);
+  // Rollback: c is valid but the batch also contains a closed vehicle, so nothing may change.
+  await S.manager.rpc("close_vehicle", { p_vehicle_id: b, p_reason: "Other", p_note: "dispatch test closed" });
+  const bad = await S.manager.rpc("assign_carrier_items", { p_carrier_id: carrier, p_items: [{ vehicle_id: c, transport_price: 50 }, { vehicle_id: b, transport_price: 60 }] });
+  check("batch containing a closed vehicle is refused", bad.error?.code === "P0001", bad.error?.code ?? "no error");
+  const cState = (await q("select transport_status, transport_price from public.vehicles where id=$1", [c]))[0];
+  check("rollback: the valid vehicle in the refused batch is untouched", cState.transport_status === "NEED_TRANSPORT" && cState.transport_price === null, JSON.stringify(cState));
+  const dupe = await S.manager.rpc("assign_carrier_items", { p_carrier_id: carrier, p_items: [{ vehicle_id: c, transport_price: 50 }, { vehicle_id: c, transport_price: 60 }] });
+  check("duplicate vehicle in one batch is refused", dupe.error?.code === "22023", dupe.error?.code ?? "no error");
+  const bad2 = await S.receiving.rpc("assign_carrier_items", { p_carrier_id: carrier, p_items: [{ vehicle_id: c, transport_price: 50 }] });
+  check("receiving cannot use the per-vehicle batch", bad2.error?.code === "42501", bad2.error?.code ?? "no error");
+  const negative = await S.manager.rpc("assign_carrier_items", { p_carrier_id: carrier, p_items: [{ vehicle_id: c, transport_price: -1 }] });
+  check("negative price refused", negative.error?.code === "22023", negative.error?.code ?? "no error");
+}
+
 // Cleanup
 {
   if (vehicleIds.length) {

@@ -31,7 +31,8 @@ import {
   type TransportStatus,
   type VehicleRecord,
 } from "@/lib/mock/vehicles";
-import { useVehicleData } from "@/components/vehicles/vehicle-data-context";
+import { useDispatchVehicles, useDispatchCounts, useCarriers, useUpdateTransportStatus } from "@/lib/query/dispatch";
+import { toVehicleRecord } from "@/lib/data/vehicle-record";
 import { DispatchTable } from "@/components/central-dispatch/dispatch-table";
 import { CarrierDirectoryModal } from "@/components/central-dispatch/carrier-directory-modal";
 import {
@@ -75,7 +76,27 @@ const cardTone: Record<string, string> = {
 
 export function CentralDispatch({ user }: { user: User }) {
   const router = useRouter();
-  const { vehicles, carriers, setTransportStatus } = useVehicleData();
+  const dispatchQuery = useDispatchVehicles();
+  const countsQuery = useDispatchCounts();
+  const carriersQuery = useCarriers();
+  const transportMutation = useUpdateTransportStatus();
+  const vehicles = useMemo(() => (dispatchQuery.data ?? []).map(toVehicleRecord), [dispatchQuery.data]);
+  const carriers = carriersQuery.data ?? [];
+  const dc = countsQuery.data;
+  const dispatchStats = {
+    needTransport: dc?.needTransport ?? 0,
+    postedToCd: dc?.postedToCd ?? 0,
+    assigned: dc?.assigned ?? 0,
+    inTransit: dc?.inTransit ?? 0,
+    arrived: dc?.arrived ?? 0,
+    overdue: dc?.overdue ?? 0,
+    problems: dc?.problems ?? 0,
+  };
+  const setTransportStatus = (vehicleId: string, to: string) =>
+    transportMutation.mutate(
+      { vehicleId, to },
+      { onError: (err) => toast.error(err instanceof Error ? err.message : "Could not update the transport status.") }
+    );
   const canEdit = ["owner", "engineer_admin", "manager", "auction"].includes(user.role);
 
   const [tab, setTab] = useState<StatusTab>("byLocation");
@@ -90,7 +111,7 @@ export function CentralDispatch({ user }: { user: User }) {
   const [problemVehicle, setProblemVehicle] = useState<VehicleRecord | null>(null);
 
   const open = vehicles.filter((v) => !v.closedReason);
-  const stats = computeDispatchStats(vehicles);
+  const stats = dispatchStats;
   const auctionOptions = useMemo(() => [...new Set(open.map((v) => v.auctionSource).filter(Boolean))].sort(), [open]);
 
   const filtered = useMemo(() => {

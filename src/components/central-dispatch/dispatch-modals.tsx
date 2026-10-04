@@ -10,7 +10,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cash, lotOrStockDisplay, transportProblemReasons, type Carrier, type VehicleRecord } from "@/lib/mock/vehicles";
-import { useVehicleData } from "@/components/vehicles/vehicle-data-context";
+import { useDispatchVehicles, usePostToCentralDispatch, useAssignCarrierItems, useUpdateTransportStatus } from "@/lib/query/dispatch";
+import { toVehicleRecord } from "@/lib/data/vehicle-record";
 
 function SelectedVehiclesList({ vehicles }: { vehicles: VehicleRecord[] }) {
   return (
@@ -41,12 +42,20 @@ export function PrepareTransportationModal({
   onOpenChange: (open: boolean) => void;
   onDone: () => void;
 }) {
-  const { vehicles, postToCentralDispatch } = useVehicleData();
+  const dispatchQuery = useDispatchVehicles();
+  const vehicles = useMemo(() => (dispatchQuery.data ?? []).map(toVehicleRecord), [dispatchQuery.data]);
+  const postMutation = usePostToCentralDispatch();
   const chosen = useMemo(() => vehicles.filter((v) => vehicleIds.includes(v.id)), [vehicles, vehicleIds]);
 
   function confirm() {
-    postToCentralDispatch(vehicleIds);
-    toast.success(`${vehicleIds.length} vehicle(s) posted to Central Dispatch`);
+    postMutation.mutate(vehicleIds, {
+      onSuccess: ({ posted, failed }) => {
+        // Local intent only. No external Central Dispatch call is made, so the message says so.
+        if (posted) toast.success(`${posted} vehicle(s) marked as posted in LAL Motors (Central Dispatch API not connected)`);
+        if (failed.length) toast.error(`${failed.length} could not be posted: ${failed[0].message}`);
+      },
+      onError: (err) => toast.error(err instanceof Error ? err.message : "Could not post these vehicles."),
+    });
     onDone();
   }
 
@@ -89,7 +98,9 @@ export function DispatchToCarrierModal({
   onAddCarrier: () => void;
   onDone: () => void;
 }) {
-  const { vehicles, assignCarrier } = useVehicleData();
+  const dispatchQuery = useDispatchVehicles();
+  const vehicles = useMemo(() => (dispatchQuery.data ?? []).map(toVehicleRecord), [dispatchQuery.data]);
+  const assignMutation = useAssignCarrierItems();
   const [carrierId, setCarrierId] = useState("");
   const [destination, setDestination] = useState("LAL Motors Yard");
   const [prices, setPrices] = useState<Record<string, string>>({});
@@ -101,9 +112,21 @@ export function DispatchToCarrierModal({
 
   function confirm() {
     if (!carrierId) return;
-    assignCarrier(vehicleIds, carrierId, prices);
-    toast.success(`${vehicleIds.length} vehicle(s) dispatched to ${carrier?.company}`);
-    setPrices({});
+    const items = chosen.map((v) => ({ vehicleId: v.id, transportPrice: Number(prices[v.id] ?? v.transportPrice) }));
+    if (items.some((i) => !(i.transportPrice > 0))) {
+      toast.error("Enter a transport price above zero for every vehicle.");
+      return;
+    }
+    assignMutation.mutate(
+      { carrierId, items },
+      {
+        onSuccess: (r) => {
+          toast.success(`${r.assigned} vehicle(s) dispatched to ${carrier?.company}`);
+          setPrices({});
+        },
+        onError: (err) => toast.error(err instanceof Error ? err.message : "Nothing was assigned. Try again."),
+      }
+    );
     setCarrierId("");
     onDone();
   }
@@ -226,14 +249,19 @@ export function ReportProblemModal({
   vehicle: VehicleRecord | null;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { reportTransportProblem } = useVehicleData();
+  const transportMutation = useUpdateTransportStatus();
   const [reason, setReason] = useState(transportProblemReasons[0]);
   const [note, setNote] = useState("");
 
   function submit() {
     if (!vehicle) return;
-    reportTransportProblem(vehicle.id, reason, note || undefined);
-    toast.success("Transportation problem recorded");
+    transportMutation.mutate(
+      { vehicleId: vehicle.id, to: "PROBLEM", note: note ? `${reason}: ${note}` : reason },
+      {
+        onSuccess: () => toast.success("Transportation problem recorded"),
+        onError: (err) => toast.error(err instanceof Error ? err.message : "Could not record the problem."),
+      }
+    );
     setNote("");
     onOpenChange(false);
   }

@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useVehicleData } from "@/components/vehicles/vehicle-data-context";
+import { useCarriers, useAddCarrier } from "@/lib/query/dispatch";
+import { toast } from "sonner";
 
 const fields: [string, string][] = [
   ["company", "Company name"],
@@ -27,12 +28,14 @@ export function CarrierDirectoryModal({
   onOpenChange: (open: boolean) => void;
   onSaved?: (carrierId: string) => void;
 }) {
-  const { carriers, addCarrier } = useVehicleData();
+  const carriersQuery = useCarriers();
+  const carriers = carriersQuery.data ?? [];
+  const addMutation = useAddCarrier();
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState<Record<string, string>>({});
 
   function save() {
-    const id = addCarrier({
+    addMutation.mutate({
       company: draft.company || "",
       driver: draft.driver || "",
       phone: draft.phone || "",
@@ -40,10 +43,14 @@ export function CarrierDirectoryModal({
       address: draft.address || "",
       mcDot: draft.mcDot || "",
       notes: draft.notes || "",
+    }, {
+      onSuccess: (id) => {
+        setDraft({});
+        setAdding(false);
+        onSaved?.(id);
+      },
+      onError: (err) => toast.error(err instanceof Error ? err.message : "Could not save this carrier."),
     });
-    setDraft({});
-    setAdding(false);
-    onSaved?.(id);
   }
 
   return (
