@@ -281,3 +281,12 @@ Known: UI for Auction, Dispatch and Receiving is not yet connected. Next item: V
 - 0021: queue and needs-review count include only captures with a ready photo. An in-progress upload is not a review item.
 - Test: scripts/dev-tests/rpc-processing.mjs, 57/57.
 - UI: not connected yet. Next step: dismantling-processing components on the summary and queue RPCs.
+
+## Dismantling processing UI connected (2026-10-04)
+
+- 0022: list_dismantling_completions and list_dismantling_roster (role-checked, return the names managers may see; direct profile reads are owner and engineer only).
+- 0023: approve and edit-approve accept part_number (the approved edit dialog has an OEM field).
+- Hook: src/components/dismantling-processing/use-dismantling-data.ts now reads the database (keeps the same exported names and shapes). Mutations: src/lib/query/processing.ts (invalidates the processing namespace only).
+- Decisions go through RPCs and toast success only after the RPC returns. Duplicate target = most recent approved part on the same vehicle (shown in the toast).
+- Removed fabricated OEM suggestions (formerly derived from the part id). Notes field is disabled and labelled not stored (no notes column).
+- Checks: tsc clean, eslint clean, build exit 0. Browser and viewport QA NOT run.

@@ -11,12 +11,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { StatusBadge } from "@/components/patterns/status-badge";
 import { EmptyState } from "@/components/patterns/empty-state";
 import { useDismantlingProcessingData, type ReviewCandidate } from "@/components/dismantling-processing/use-dismantling-data";
-import { rejectReasons, suggestedOem } from "@/lib/mock/dismantling-processing";
+import { useApprovePart, useEditApprovePart, useKeepForReview, useMarkDuplicate, useRejectPart } from "@/lib/query/processing";
+import { rejectReasons } from "@/lib/mock/dismantling-processing";
 import type { User } from "@/lib/types";
 import { toast } from "sonner";
 
 export function NeedsReviewQueue({
-  user,
   onBack,
   onOpenVehicle,
 }: {
@@ -24,7 +24,12 @@ export function NeedsReviewQueue({
   onBack: () => void;
   onOpenVehicle: (vehicleId: string) => void;
 }) {
-  const { reviewCandidates, recordEvent } = useDismantlingProcessingData();
+  const { reviewCandidates, approvedPartsForVehicle } = useDismantlingProcessingData();
+  const approveMut = useApprovePart();
+  const editMut = useEditApprovePart();
+  const rejectMut = useRejectPart();
+  const duplicateMut = useMarkDuplicate();
+  const keepMut = useKeepForReview();
 
   const [editTarget, setEditTarget] = useState<ReviewCandidate | null>(null);
   const [editPartType, setEditPartType] = useState("");
@@ -35,60 +40,57 @@ export function NeedsReviewQueue({
   const [rejectReason, setRejectReason] = useState<string>(rejectReasons[0]);
 
   function approve(candidate: ReviewCandidate) {
-    recordEvent({
-      vehicleId: candidate.vehicle.id,
-      action: "REVIEW_APPROVED",
-      actorId: user.id,
-      partId: candidate.event.partId,
-      partType: candidate.event.partType,
-      note: "Approved as identified",
+    approveMut.mutate(candidate.event.partId ?? "", {
+      onSuccess: (r) => toast.success(r.idempotent_replay ? "Already approved — no duplicate created" : "Approved — now in Parts Inventory"),
+      onError: (err) => toast.error(err instanceof Error ? err.message : "Could not approve this part. Nothing was changed."),
     });
-    toast.success(`${candidate.event.partType} approved`);
   }
 
+  // A duplicate must point at an approved part from the same donor vehicle. The database enforces this.
   function markDuplicate(candidate: ReviewCandidate) {
-    recordEvent({
-      vehicleId: candidate.vehicle.id,
-      action: "REVIEW_MARKED_DUPLICATE",
-      actorId: user.id,
-      partId: candidate.event.partId,
-      partType: candidate.event.partType,
-      note: "Marked as duplicate — not added to inventory",
-    });
-    toast.success("Marked as duplicate");
+    const original = approvedPartsForVehicle(candidate.vehicle.id)[0];
+    if (!original) {
+      toast.error("No approved part on this vehicle to mark this as a duplicate of yet. Nothing was changed.");
+      return;
+    }
+    duplicateMut.mutate(
+      { partId: candidate.event.partId ?? "", duplicateOf: original.id },
+      {
+        onSuccess: () => toast.success("Marked as duplicate — kept for history, not sellable"),
+        onError: (err) => toast.error(err instanceof Error ? err.message : "Could not mark this duplicate."),
+      }
+    );
   }
 
   function keepForLater(candidate: ReviewCandidate) {
-    recordEvent({
-      vehicleId: candidate.vehicle.id,
-      action: "REVIEW_KEPT_FOR_LATER",
-      actorId: user.id,
-      partId: candidate.event.partId,
-      partType: candidate.event.partType,
-      note: "Kept for later review",
+    keepMut.mutate(candidate.event.partId ?? "", {
+      onSuccess: () => toast.success("Kept for later review"),
+      onError: (err) => toast.error(err instanceof Error ? err.message : "Could not keep this part for review."),
     });
-    toast.info("Kept for later review");
   }
 
   function openEdit(candidate: ReviewCandidate) {
     setEditTarget(candidate);
     setEditPartType(candidate.event.partType || "");
-    setEditOem(candidate.event.partId ? suggestedOem(candidate.event.partId) : "");
+    setEditOem("");
     setEditNotes("");
   }
 
   function saveEdit() {
     if (!editTarget) return;
-    recordEvent({
-      vehicleId: editTarget.vehicle.id,
-      action: "REVIEW_EDITED_APPROVED",
-      actorId: user.id,
-      partId: editTarget.event.partId,
-      partType: editPartType,
-      note: `OEM ${editOem || "—"}${editNotes ? ` · ${editNotes}` : ""}`,
-    });
-    toast.success("Correction saved & approved");
-    setEditTarget(null);
+    const fields: Record<string, string> = {};
+    if (editPartType.trim()) fields.part_name = editPartType.trim();
+    if (editOem.trim()) fields.part_number = editOem.trim();
+    editMut.mutate(
+      { partId: editTarget.event.partId ?? "", fields },
+      {
+        onSuccess: () => {
+          toast.success("Correction saved & approved");
+          setEditTarget(null);
+        },
+        onError: (err) => toast.error(err instanceof Error ? err.message : "Could not save this correction. Nothing was changed."),
+      }
+    );
   }
 
   function openReject(candidate: ReviewCandidate) {
@@ -98,16 +100,16 @@ export function NeedsReviewQueue({
 
   function saveReject() {
     if (!rejectTarget) return;
-    recordEvent({
-      vehicleId: rejectTarget.vehicle.id,
-      action: "REVIEW_REJECTED",
-      actorId: user.id,
-      partId: rejectTarget.event.partId,
-      partType: rejectTarget.event.partType,
-      note: rejectReason,
-    });
-    toast.success("Rejected — not added to inventory");
-    setRejectTarget(null);
+    rejectMut.mutate(
+      { partId: rejectTarget.event.partId ?? "", reason: rejectReason },
+      {
+        onSuccess: () => {
+          toast.success("Rejected — not added to inventory");
+          setRejectTarget(null);
+        },
+        onError: (err) => toast.error(err instanceof Error ? err.message : "Could not reject this part. Nothing was changed."),
+      }
+    );
   }
 
   function approveAll() {
@@ -159,7 +161,7 @@ export function NeedsReviewQueue({
                 </StatusBadge>
               </div>
               <p className="mt-1 text-xs text-muted-foreground">
-                Employee: {candidate.employeeName} · Suggested OEM {candidate.event.partId ? suggestedOem(candidate.event.partId) : "—"}
+                Employee: {candidate.employeeName} · Part number: enter when approving
               </p>
               <p className="text-xs text-muted-foreground">
                 {candidate.vehicle.year} {candidate.vehicle.make} {candidate.vehicle.model} · VIN {candidate.vehicle.vin} · Stock{" "}
@@ -217,8 +219,8 @@ export function NeedsReviewQueue({
               <Input value={editOem} onChange={(e) => setEditOem(e.target.value)} placeholder="Enter corrected OEM #" />
             </div>
             <div className="space-y-1.5">
-              <Label>Notes (optional)</Label>
-              <Textarea rows={3} value={editNotes} onChange={(e) => setEditNotes(e.target.value)} placeholder="Side/position, fitment notes, etc." />
+              <Label>Notes (not stored yet)</Label>
+              <Textarea rows={3} disabled value={editNotes} onChange={(e) => setEditNotes(e.target.value)} placeholder="Not saved: the parts table has no notes column yet" />
             </div>
           </div>
           <DialogFooter>

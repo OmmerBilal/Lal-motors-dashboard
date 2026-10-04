@@ -4,8 +4,7 @@ import { useState } from "react";
 import { ArrowLeft, CarFront, Image as ImageIcon, History as HistoryIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/patterns/status-badge";
-import { useDismantlingProcessingData } from "@/components/dismantling-processing/use-dismantling-data";
-import { suggestedOem } from "@/lib/mock/dismantling-processing";
+import { useVehicleHistory, useDismantlingProcessingData } from "@/components/dismantling-processing/use-dismantling-data";
 import { PhotoGalleryDialog, type PhotoTile } from "@/components/dismantling-processing/photo-gallery-dialog";
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
@@ -18,11 +17,11 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 export function VehicleDismantlingDetail({ vehicleId, onBack }: { vehicleId: string; onBack: () => void }) {
-  const { getVehicle, vehicleEvents, reviewCandidates } = useDismantlingProcessingData();
+  const { getVehicle, reviewCandidates } = useDismantlingProcessingData();
+  const history = useVehicleHistory(vehicleId);
   const [galleryOpen, setGalleryOpen] = useState(false);
 
   const vehicle = getVehicle(vehicleId);
-  const history = vehicleEvents(vehicleId);
   const start = history.find((e) => e.action === "START");
   const finish = history.find((e) => e.action === "STATUS" && e.status === "Dismantled");
   const parts = history.filter((e) => e.action === "PART_REMOVED");
@@ -116,7 +115,7 @@ export function VehicleDismantlingDetail({ vehicleId, onBack }: { vehicleId: str
                       <StatusBadge tone={tone}>{label}</StatusBadge>
                     </div>
                     <p className="mt-0.5 text-xs text-muted-foreground">
-                      Suggested OEM {p.partId ? suggestedOem(p.partId) : "—"} · {new Date(p.createdAt).toLocaleString()}
+                      {new Date(p.createdAt).toLocaleString()}
                     </p>
                   </div>
                 );

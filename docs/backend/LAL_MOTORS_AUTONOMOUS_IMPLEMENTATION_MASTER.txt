@@ -357,7 +357,11 @@ Before [DONE]:
 - network shows no AI calls.
 
 MODULE 05 — VEHICLE DISMANTLING PROCESSING
-STATUS: [IN PROGRESS]
+STATUS: [PARTIAL]
+Backend (done): 0019 review RPCs, 0020-0021 queue fixes, 0022 read models (completions, roster), 0023 part_number in review. Tests rpc-processing.mjs 57/57.
+UI (connected, QA pending): needs-review queue actions call the RPCs (approve, edit-approve, reject, duplicate, keep for later); dashboard, completed list, employee detail and vehicle history read the database through use-dismantling-data.ts. Removed: fabricated OEM suggestion, mock event authority for processing, and the notes field that looked saved (now disabled, labelled not stored).
+Known limits: completions and activity cover the last 366 days; custom ranges beyond that are not shown. Captured parts have no category until review, so the employee grouping shows Other. Duplicate target is the most recent approved part on the same vehicle, and the toast says so.
+Still open before [DONE]: browser QA of the manager flows and 390/430/768/1366/1440 viewport QA.
 Backend (done): migrations 0019 (review RPCs, queue, summary), 0020 (queue ambiguous-column fix), 0021 (queue and needs-review count only include captures with a ready photo). Tests rpc-processing.mjs 57/57: role matrix, photo gate, approve idempotency, edit-and-approve validation with rollback, reject and duplicate terminal rules, keep-for-review, parallel double-approve race, queue keyset paging, summary counts.
 UI: not yet connected (dismantling-processing components still on use-dismantling-data mock).
 ===========================================
