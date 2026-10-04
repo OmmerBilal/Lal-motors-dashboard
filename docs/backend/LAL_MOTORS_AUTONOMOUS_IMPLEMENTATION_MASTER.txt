@@ -454,6 +454,10 @@ permissions; zero-stock visibility; search/pagination/media; responsive; no N+1.
 
 MODULE 07 — CUSTOMERS
 STATUS: [PARTIAL]
+Backend (done): 0024 (normalize, create/update with possible-duplicate results and no silent merge, lightweight keyset list, history on demand), 0025 (email cast), 0028 (list returns name columns for the keyset cursor). Tests rpc-customers.mjs 36/36.
+UI (connected): customers list uses server search and keyset load-more; the modal saves through create/update and shows possible duplicates with the explicit Create anyway override; the detail view reads the record and the sales and payments history from the database. The sales context reads customers from the database (POS and quote pickers still use mock sales until Module 08). Removed: mock customer writers and mock customer authority in the context.
+Not connected: tax and resale documents (the customer documents list stays empty and upload says not connected).
+Still open before [DONE]: browser QA for the customer flows and 390/430/768/1366/1440 viewport QA.
 Backend (done): migration 0024 (normalize_phone, create_customer and update_customer with possible-duplicate results and no silent merge, list_customers keyset with a lightweight DTO, customer_history for one customer on demand), 0025 (email cast fix in the list). Tests rpc-customers.mjs 36/36: role matrix, validation, normalization, duplicate hints with no write, confirmed duplicates, idempotent create, update conflicts, keyset paging, search, DTO shape, balance from a real sale.
 UI: NOT connected. Customers screens still read the sales mock context.
 ======================

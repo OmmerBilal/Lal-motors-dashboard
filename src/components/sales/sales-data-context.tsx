@@ -1,13 +1,13 @@
 "use client";
 
-import { createContext, useCallback, useContext, useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { listEveryCustomer } from "@/lib/data/customers";
 import {
-  customers as seedCustomers,
   quotes as seedQuotes,
   sales as seedSales,
   payments as seedPayments,
   salesSettings as seedSettings,
-  emptyCustomer,
   type Customer,
   type Quote,
   type QuoteStatus,
@@ -17,13 +17,11 @@ import {
 } from "@/lib/mock/sales";
 import { returns as seedReturns, type ReturnRecord, type ReturnDisposition, type ReturnReason } from "@/lib/mock/pos";
 
-let customerSeq = 1004;
 let quoteSeq = 2202;
 let saleSeq = 3302;
 let paymentSeq = 9002;
 let returnSeq = 7701;
 
-type NewCustomer = typeof emptyCustomer;
 
 type SalesDataValue = {
   customers: Customer[];
@@ -34,9 +32,6 @@ type SalesDataValue = {
   getCustomer: (id: string) => Customer | undefined;
   getQuote: (id: string) => Quote | undefined;
   getSale: (id: string) => SaleRecord | undefined;
-  findDuplicates: (phone: string) => Customer[];
-  saveCustomer: (id: string | null, form: NewCustomer) => string;
-  addDocument: (customerId: string, filename: string, type: string) => void;
   createQuote: (customerId: string, items: SaleItem[], notes: string) => string;
   updateQuoteItems: (id: string, items: SaleItem[]) => void;
   setQuoteStatus: (id: string, status: QuoteStatus) => void;
@@ -67,7 +62,9 @@ type SalesDataValue = {
 const SalesDataContext = createContext<SalesDataValue | null>(null);
 
 export function SalesDataProvider({ children }: { children: React.ReactNode }) {
-  const [customers, setCustomers] = useState<Customer[]>(seedCustomers);
+  // Customers are read from the database (lightweight list, all pages). Writes happen in the customer screens.
+  const customersQuery = useQuery({ queryKey: ["customers", "all"], queryFn: listEveryCustomer, staleTime: 60_000 });
+  const customers = useMemo(() => customersQuery.data ?? [], [customersQuery.data]);
   const [quotes, setQuotes] = useState<Quote[]>(seedQuotes);
   const [sales, setSales] = useState<SaleRecord[]>(seedSales);
   const [payments, setPayments] = useState<Payment[]>(seedPayments);
@@ -77,32 +74,6 @@ export function SalesDataProvider({ children }: { children: React.ReactNode }) {
   const getCustomer = useCallback((id: string) => customers.find((c) => c.id === id), [customers]);
   const getQuote = useCallback((id: string) => quotes.find((q) => q.id === id), [quotes]);
   const getSale = useCallback((id: string) => sales.find((s) => s.id === id), [sales]);
-
-  const findDuplicates = useCallback(
-    (phone: string) => {
-      const normalized = phone.replace(/\D/g, "");
-      if (normalized.length < 7) return [];
-      return customers.filter((c) => c.phone.replace(/\D/g, "") === normalized);
-    },
-    [customers]
-  );
-
-  const saveCustomer = useCallback((id: string | null, form: NewCustomer) => {
-    if (id) {
-      setCustomers((xs) => xs.map((c) => (c.id === id ? { ...c, ...form } : c)));
-      return id;
-    }
-    const newId = `cust-${Date.now()}`;
-    const number = `CU-${customerSeq++}`;
-    setCustomers((xs) => [{ id: newId, customerNumber: number, ...form, documents: [], createdAt: new Date().toISOString() }, ...xs]);
-    return newId;
-  }, []);
-
-  const addDocument = useCallback((customerId: string, filename: string, type: string) => {
-    setCustomers((xs) =>
-      xs.map((c) => (c.id === customerId ? { ...c, documents: [...c.documents, { id: `doc-${Date.now()}`, filename, type }] } : c))
-    );
-  }, []);
 
   const createQuote = useCallback(
     (customerId: string, items: SaleItem[], notes: string) => {
@@ -232,9 +203,6 @@ export function SalesDataProvider({ children }: { children: React.ReactNode }) {
     getCustomer,
     getQuote,
     getSale,
-    findDuplicates,
-    saveCustomer,
-    addDocument,
     createQuote,
     updateQuoteItems,
     setQuoteStatus,

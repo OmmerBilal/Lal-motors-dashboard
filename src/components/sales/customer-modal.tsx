@@ -9,7 +9,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { customerFieldOrder, emptyCustomer, type Customer } from "@/lib/mock/sales";
-import { useSalesData } from "@/components/sales/sales-data-context";
+import { useSaveCustomer } from "@/lib/query/customers";
+import { type DuplicateMatch } from "@/lib/data/customers";
+
+/** A duplicate match from the database, shown in the existing duplicate panel. */
+function matchToCustomer(m: DuplicateMatch): Customer {
+  return { ...emptyCustomer, id: m.id, customerNumber: "", firstName: m.name, lastName: "", companyName: "", phone: m.phone, email: m.email ?? "", documents: [], createdAt: "" };
+}
 
 function customerToForm(editing: Customer | null, prefill?: Partial<typeof emptyCustomer>) {
   if (!editing) return { ...emptyCustomer, ...prefill };
@@ -44,32 +50,41 @@ function CustomerModalForm({
   onClose: () => void;
   onSaved: (id: string) => void;
 }) {
-  const { saveCustomer, findDuplicates, addDocument } = useSalesData();
+  const saver = useSaveCustomer();
+  const [requestId] = useState(() => crypto.randomUUID());
   const [form, setForm] = useState(() => customerToForm(editing, prefill));
   const [docName, setDocName] = useState("");
   const [error, setError] = useState("");
   const [duplicates, setDuplicates] = useState<Customer[]>([]);
   const [saving, setSaving] = useState(false);
 
-  function save(override = false) {
+  // The database normalizes the phone and reports possible duplicates without writing. Creating anyway
+  // needs the explicit override, which is the "Create anyway" action.
+  async function save(override = false) {
     if (!form.firstName.trim() && !form.lastName.trim() && !form.companyName.trim()) {
       setError("Enter a customer name or company before saving.");
       return;
     }
-    if (!override && !editing) {
-      const dupes = findDuplicates(form.phone);
-      if (dupes.length) {
-        setDuplicates(dupes);
+    setSaving(true);
+    setError("");
+    try {
+      const outcome = editing
+        ? await saver.update.mutateAsync({ id: editing.id, form, confirmNew: override })
+        : await saver.create.mutateAsync({ form, confirmNew: override, requestId });
+      if (outcome.outcome === "possible_duplicate") {
+        setDuplicates(outcome.matches.map(matchToCustomer));
+        setSaving(false);
         return;
       }
+      setSaving(false);
+      if (docName) toast.info("Tax document upload is not connected yet. The customer was saved without it.");
+      else toast.success("Customer saved");
+      onClose();
+      onSaved(outcome.customerId);
+    } catch (err) {
+      setSaving(false);
+      setError(err instanceof Error ? err.message : "The customer was not saved. Nothing was changed.");
     }
-    setSaving(true);
-    const id = saveCustomer(editing?.id ?? null, form);
-    if (docName) addDocument(id, docName, "tax_document");
-    setSaving(false);
-    toast.success(docName ? "Customer and tax document saved" : "Customer saved");
-    onClose();
-    onSaved(id);
   }
 
   return (

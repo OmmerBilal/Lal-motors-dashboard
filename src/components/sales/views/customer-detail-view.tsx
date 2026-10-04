@@ -1,11 +1,12 @@
 "use client";
 
+import { useCustomerRecord, useCustomerHistory } from "@/lib/query/customers";
 import { ChevronLeft } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { HistoryPanel } from "@/components/sales/shared";
 import { useSalesData } from "@/components/sales/sales-data-context";
-import { itemTotals, saleBalance } from "@/lib/mock/sales";
+import { itemTotals } from "@/lib/mock/sales";
 
 export function CustomerDetailView({
   customerId,
@@ -22,13 +23,15 @@ export function CustomerDetailView({
   onOpenQuote: (id: string) => void;
   onOpenSale: (id: string) => void;
 }) {
-  const { getCustomer, quotes, sales, payments, addDocument } = useSalesData();
-  const customer = getCustomer(customerId);
+  const { quotes } = useSalesData();
+  const recordQuery = useCustomerRecord(customerId);
+  const historyQuery = useCustomerHistory(customerId);
+  const customer = recordQuery.data ?? null;
   if (!customer) return null;
 
   const customerQuotes = quotes.filter((q) => q.customerId === customerId);
-  const customerSales = sales.filter((s) => s.customerId === customerId);
-  const customerPayments = payments.filter((p) => customerSales.some((s) => s.id === p.saleId));
+  const customerSales = historyQuery.data?.sales ?? [];
+  const customerPayments = historyQuery.data?.payments ?? [];
 
   return (
     <div className="space-y-4">
@@ -78,7 +81,7 @@ export function CustomerDetailView({
             className="hidden"
             onChange={(e) => {
               if (e.target.files?.[0]) {
-                addDocument(customerId, e.target.files[0].name, "document");
+                toast.info("Document upload is not connected yet.");
                 toast.success("Document attached");
               }
               e.target.value = "";
@@ -108,16 +111,16 @@ export function CustomerDetailView({
         title="Sales / Invoices"
         rows={customerSales}
         onOpen={onOpenSale}
-        getNumber={(s) => s.saleNumber}
-        getSubtitle={(s) => saleBalance(s, payments).paymentStatus}
-        getTotal={(s) => saleBalance(s, payments).total}
+        getNumber={(s) => s.sale_number ?? s.id.slice(0, 8)}
+        getSubtitle={(s) => s.payment_status}
+        getTotal={(s) => Number(s.total)}
       />
       <HistoryPanel
         title="Payments"
         rows={customerPayments}
-        getNumber={(p) => p.paymentNumber}
+        getNumber={(p) => p.id.slice(0, 8)}
         getSubtitle={(p) => p.method}
-        getTotal={(p) => p.amount}
+        getTotal={(p) => Number(p.amount)}
       />
     </div>
   );

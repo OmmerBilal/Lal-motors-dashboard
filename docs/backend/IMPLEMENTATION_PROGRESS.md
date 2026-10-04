@@ -307,3 +307,13 @@ Known: UI for Auction, Dispatch and Receiving is not yet connected. Next item: V
 - UI: parts-data-context.tsx is DB-backed with the same API. part-detail-view reads donor, session, photo ids and history on demand, and the AI trigger is a not-connected message. capture-view no longer reports a saved part.
 - Not connected: warehouse capture (no donor), photo capture on existing parts from the Parts views, barcode scanning, label printing.
 - Next: browser and viewport QA for Parts, then the Customers UI (Module 07), then Module 08.
+
+## Customers UI connected (0028) - 2026-10-04
+
+- 0028: list_customers returns last and first name so the keyset cursor is built from the real row. (The UI first passed the display name, which was wrong; found while wiring.)
+- Data: src/lib/data/customers.ts; hooks: src/lib/query/customers.ts (targeted invalidation on customers only).
+- Context: sales-data-context customers come from the database. saveCustomer, findDuplicates and addDocument are removed.
+- Modal: possible duplicates shown with matches; Create anyway calls with confirm_new. Tax document upload says not connected.
+- Detail: header from the record; sales and payments from customer_history; quotes still mock (Module 08).
+- Checks: tsc clean, eslint clean, build exit 0. Tests rpc-customers 36/36. Browser QA NOT run.
+- Known: owner-ai.ts still reads mock customers for the AI command center (Module 16).

@@ -5,19 +5,14 @@ import { Plus, Search, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/patterns/status-badge";
-import { useSalesData } from "@/components/sales/sales-data-context";
+import { useCustomerList } from "@/lib/query/customers";
+import { listRowToCustomer } from "@/lib/data/customers";
 
 export function CustomersView({ onOpen, onNew }: { onOpen: (id: string) => void; onNew: () => void }) {
-  const { customers } = useSalesData();
   const [q, setQ] = useState("");
-
-  const results = useMemo(() => {
-    if (!q.trim()) return customers;
-    const query = q.toLowerCase();
-    return customers.filter((c) =>
-      `${c.firstName} ${c.lastName} ${c.companyName} ${c.phone} ${c.email} ${c.customerNumber} ${c.taxId}`.toLowerCase().includes(query)
-    );
-  }, [customers, q]);
+  // Server-side search and keyset paging. Only the visible page of lightweight rows is held in memory.
+  const list = useCustomerList(q);
+  const results = useMemo(() => (list.data?.pages.flatMap((p) => p.rows) ?? []).map(listRowToCustomer), [list.data]);
 
   return (
     <div className="rounded-lg border border-border bg-card">
@@ -50,6 +45,13 @@ export function CustomersView({ onOpen, onNew }: { onOpen: (id: string) => void;
           </button>
         ))}
       </div>
+      {list.hasNextPage && (
+        <div className="border-t border-border p-3">
+          <Button variant="outline" size="sm" className="w-full" disabled={list.isFetchingNextPage} onClick={() => list.fetchNextPage()}>
+            {list.isFetchingNextPage ? "Loading…" : "Load more customers"}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
