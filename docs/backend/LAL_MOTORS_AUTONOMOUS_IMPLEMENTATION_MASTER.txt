@@ -485,8 +485,12 @@ create/edit/search, duplicate hints, unauthorized access, history, pagination,
 390/430/768/1366/1440.
 
 MODULE 08 — QUOTES & SALES
-STATUS: [NOT STARTED]
+STATUS: [PARTIAL]
 ===========================
+Backend (done, applied): 0029 numbering, quote lifecycle, atomic convert, create_sale; 0030 read models; 0031 customer quotes. Test rpc-quotes-sales.mjs 68/68 (before the DEV DB outage).
+Frontend (connected): quotes list/detail/edit/status/convert; POS customer and sellable part search, cart, Draft/Reserve/Fulfill Now; sales list and detail with Reserve/Release/Fulfill; print from real sale data. Mock sales/quote/payment state removed from runtime.
+Not connected: customer tax exemption (not applied by create_sale), core charge and deposit (not supported by backend), returns and refunds, AI assistant, document/ID scan, part thumbnails in POS.
+Open before [DONE]: regression rerun after 0031/0032 (DEV DB unreachable at the time), browser and viewport QA at 390/430/768/1366/1440 (not run).
 
 Quote:
 Create → Customer → Lines → Totals → Edit → Convert to Sale.
@@ -520,8 +524,11 @@ Draft/Reserve/Release/Fulfill/Fulfill Now; last-unit race; multi-line rollback;
 wrong role; retry; out-of-stock visibility; print flow if present; responsive.
 
 MODULE 09 — PAYMENTS / ACCOUNTING
-STATUS: [NOT STARTED]
+STATUS: [PARTIAL]
 =================================
+Backend (applied): existing create/allocate/post/void from 0004; 0032 revokes direct INSERT on payments, adds list_payments, get_payment_detail, list_sale_payments. Test rpc-payments.mjs 57/57 (before the DEV DB outage, after one test-ordering fix).
+Frontend (connected): Payments list (keyset), create pending payment, detail with allocate, post confirmation, void/reversal with reason (admin-only for posted), Sale Detail payments list, Customer history from real payments.
+Open before [DONE]: money-stock and RLS matrix rerun after 0032 (DEV DB unreachable); browser and viewport QA (not run); no payment numbering yet (payments have no sequence).
 
 Exact workflow:
 Create Payment → Pending → Allocate → Post → balances update.

@@ -317,3 +317,11 @@ Known: UI for Auction, Dispatch and Receiving is not yet connected. Next item: V
 - Detail: header from the record; sales and payments from customer_history; quotes still mock (Module 08).
 - Checks: tsc clean, eslint clean, build exit 0. Tests rpc-customers 36/36. Browser QA NOT run.
 - Known: owner-ai.ts still reads mock customers for the AI command center (Module 16).
+
+## Module 08 and 09 checkpoint (2026-10-04)
+
+- Migrations applied on DEV: 0029, 0030, 0031 (customer quotes), 0032 (payments read models, direct payment INSERT revoked).
+- Test results: rpc-quotes-sales 68/68 and rpc-payments 57/57 before the DEV database became unreachable. Money-stock, parts, customers and RLS matrix were not rerun after 0032; the rerun is the first open item.
+- Static checks at this checkpoint: tsc clean, lint 0 errors (2 pre-existing warnings in scripts/dev-tests), build passes.
+- Browser and viewport QA: not run. Modules 08 and 09 are [PARTIAL].
+- Known gaps: customer tax exemption not applied server-side; core charge and deposit unsupported by backend; returns, AI assistant and ID scan not connected; no payment numbering.
