@@ -109,7 +109,7 @@ export function CurrentSaleStep({
 
       <div className="max-h-56 flex-1 space-y-2 overflow-y-auto">
         {items.map((item) => (
-          <div key={item.id} className={`flex items-center gap-2 rounded-lg border p-2.5 ${item.manual ? "border-accent-rose/25 bg-accent-rose/5" : "border-border"}`}>
+          <div key={item.id} data-testid="pos-cart-line" data-part-id={item.partId ?? undefined} data-sku={item.stockSku} className={`flex items-center gap-2 rounded-lg border p-2.5 ${item.manual ? "border-accent-rose/25 bg-accent-rose/5" : "border-border"}`}>
             <div className={`flex size-9 shrink-0 items-center justify-center rounded-md ${item.manual ? "bg-accent-rose/20 text-accent-rose-foreground" : "bg-primary/10 text-primary"}`}>
               {item.manual ? <Box className="size-4" /> : <Package className="size-4" />}
             </div>

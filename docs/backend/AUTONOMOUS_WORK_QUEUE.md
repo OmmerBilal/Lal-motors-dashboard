@@ -36,9 +36,8 @@ database before trusting it. Details live in IMPLEMENTATION_PROGRESS.md.
 External, NOT CONNECTED: Central Dispatch API, eBay, Shopify, Meta, TikTok, OpenAI (no key used).
 
 ## Module 08 / 09 status (2026-10-04)
-- [PARTIAL] Module 08 Quotes and Sales: backend and frontend connected; regression rerun after 0032 and browser/viewport QA pending.
-- [PARTIAL] Module 09 Payments: backend and UI connected; money-stock and RLS rerun and browser/viewport QA pending.
+- Superseded by "final state" below: both modules are [DONE].
 
 ## Module 08 / 09 final state (2026-10-04)
-- [PARTIAL] Module 08: E2E green; open: positive POS thumbnail image verification.
-- [PARTIAL] Module 09: E2E, security and regressions green; open: allocate/void responsive run.
+- [DONE] Module 08 Quotes and Sales: E2E 185/185 (one full run, 0 failed); POS thumbnail image verified; responsive 390/430/768/1366/1440 green; regressions rpc-quotes-sales 68/68, rpc-money-stock 63/63, rpc-parts 57/57, rpc-customers 36/36, RLS 114/114; tsc, lint, build green.
+- [DONE] Module 09 Payments: same E2E run covers pending, allocate, post, void and access rules; rpc-payments 70/70 (includes the migration 0034 regression); allocate, void and posted state responsive at all five widths.

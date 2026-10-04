@@ -106,6 +106,8 @@ export function CustomerStep({
             {matches.map((c) => (
               <button
                 key={c.id}
+                data-testid="pos-customer-option"
+                data-customer-id={c.id}
                 onClick={() => onSelectCustomer(c)}
                 className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-accent/40"
               >

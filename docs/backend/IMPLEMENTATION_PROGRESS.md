@@ -336,6 +336,31 @@ Verified against DEV (Postgres reachable again):
 - Migration 0033 (POS thumbnails): endpoint verified (200 for sellable parts, 400 for invalid ids, batched POST, no per-card or original-image requests). Positive thumbnail image load NOT verified: DEV has no processed thumbnail objects.
 - tsc clean; lint 0 errors and 0 warnings; build passes.
 
-Still open before DONE:
-- Module 08: a real processed thumbnail must be displayed (signed URL image load) and verified in the browser.
-- Module 09: the responsive checks for the allocate control and the void dialog on a pending payment were added but the final run was stopped by a memory-pressure reaper before they completed. Must be re-run.
+Superseded by the final completion pass below.
+
+## Module 08 and 09 final completion pass (2026-10-04): both DONE
+
+Status: Module 08 = [DONE], Module 09 = [DONE].
+
+Browser E2E (scripts/dev-tests/e2e-sales-payments.mjs, local Chromium, DEV): 185 passed, 0 failed, exit 0. One final complete run after the last test fix.
+- Module 08: quote create, save and reload, edit persisted, approve, convert with RESERVE, RELEASE and repeated release, fulfill and repeated fulfill, repeated conversion protection, POS FULFILL NOW, zero-stock visible as Out of Stock and not addable, double submit creates one sale, server quote and sale numbers, Parts Inventory keeps Out of Stock, POS thumbnail image rendered through a signed private URL, placeholder for a part without a thumbnail, batched thumbnail requests with no per-card media calls.
+- Module 09: create payment PENDING, allocation with balance unchanged before POST, over-allocation refused, POST updates amount_paid, balance_due and payment_status, partial and full payment, double-post blocked, invalid void refused, owner reversal restores the balance, manager denied reversal of a posted payment, already-voided payment denied to unauthorized roles, authorized retries idempotent, history and audit preserved.
+- Security matrix: anonymous and non-sales roles denied on quote, sale, reserve, fulfill, payment create/allocate/post/void/read, sales read; authorized manager accepted.
+- Responsive (actual innerWidth asserted at 390, 430, 768, 1366, 1440): no horizontal overflow on POS, quotes, quote detail, sales, sale detail, payments, payment detail, create-payment dialog, void dialog; allocate control inside the viewport; posted state shows no Post control.
+
+Backend regressions (DEV, one pass after all browser fixes): rpc-quotes-sales 68/68, rpc-money-stock 63/63, rpc-parts 57/57, rpc-customers 36/36, rpc-payments 70/70 (was 63; 7 new checks for migration 0034: already-voided payment denied to unauthorized roles, authorized retries idempotent), RLS matrix 114/114.
+
+Static checks: tsc --noEmit exit 0; npm run lint 0 errors; npm run build exit 0.
+
+Fixes made in this pass:
+- Test: POS card locator matched the results panel. Cards are now found by exact SKU via data-testid, and checked by part id.
+- Test: customer selection was a retry loop on a name regex. It now waits for the list_customers response and clicks the option by customer id (new data-testid on the option).
+- Test: placeholder check ran after the zero-stock card had left the results; moved to when it is rendered.
+- Test: thumbnail batch count included the Parts page that follows; counted on the POS screen only.
+- Test: suite had no closing summary or non-zero exit; added.
+- Application: test hooks only (data-testid, data-sku, data-part-id, data-customer-id) on the POS card, cart line and customer option. No behavior change.
+- Application: none. The in-stock Add button was never wrongly disabled; the backend returns available 1 for an in-stock fixture.
+
+Known gaps outside Modules 08 and 09 (not changed):
+- customers.customer_number is null for every new customer. create_customer does not assign a number and there is no generator. It shows blank in the POS selection and on printed invoices. A number format is not defined in the docs, so none was invented.
+- Payments have no sequence number yet.

@@ -485,13 +485,13 @@ create/edit/search, duplicate hints, unauthorized access, history, pagination,
 390/430/768/1366/1440.
 
 MODULE 08 — QUOTES & SALES
-STATUS: [PARTIAL]
+STATUS: [DONE]
 ===========================
-Open: real processed POS thumbnail image load verified in browser (route verified, positive image path not yet).
+Verified 2026-10-04 on DEV: browser E2E scripts/dev-tests/e2e-sales-payments.mjs 185/185 (quote create/save/reload/edit/approve, convert with RESERVE, RELEASE, repeated release, fulfill, repeated fulfill, POS FULFILL NOW, zero-stock visible as Out of Stock and not addable, double submit = one sale, server quote/sale numbers, Parts Inventory Out of Stock, security matrix, responsive 390/430/768/1366/1440). POS thumbnails: a real processed thumbnail renders through a signed private URL (natural width 320, HTTP 200 image); a part without one shows the placeholder; one batched POST /api/media/part-thumbnails per result set, no per-card media requests.
 Backend (done, applied): 0029 numbering, quote lifecycle, atomic convert, create_sale; 0030 read models; 0031 customer quotes. Test rpc-quotes-sales.mjs 68/68 (before the DEV DB outage).
 Frontend (connected): quotes list/detail/edit/status/convert; POS customer and sellable part search, cart, Draft/Reserve/Fulfill Now; sales list and detail with Reserve/Release/Fulfill; print from real sale data. Mock sales/quote/payment state removed from runtime.
-Not connected: customer tax exemption (not applied by create_sale), core charge and deposit (not supported by backend), returns and refunds, AI assistant, document/ID scan, part thumbnails in POS.
-Open before [DONE]: regression rerun after 0031/0032 (DEV DB unreachable at the time), browser and viewport QA at 390/430/768/1366/1440 (not run).
+Not connected (outside Module 08): customer tax exemption (not applied by create_sale), core charge and deposit (not supported by backend), returns and refunds, AI assistant, document/ID scan.
+Regressions (DEV): rpc-quotes-sales 68/68, rpc-money-stock 63/63, rpc-parts 57/57, rpc-customers 36/36, rpc-payments 70/70, RLS matrix 114/114.
 
 Quote:
 Create → Customer → Lines → Totals → Edit → Convert to Sale.
@@ -525,12 +525,13 @@ Draft/Reserve/Release/Fulfill/Fulfill Now; last-unit race; multi-line rollback;
 wrong role; retry; out-of-stock visibility; print flow if present; responsive.
 
 MODULE 09 — PAYMENTS / ACCOUNTING
-STATUS: [PARTIAL]
+STATUS: [DONE]
 =================================
-Open: allocate and void controls at each viewport on a pending payment (checks added, final run interrupted).
+Verified 2026-10-04 on DEV: browser E2E 185/185 covers Create Payment (PENDING), allocation with balance unchanged before POST, over-allocation refused, POST (amount_paid, balance_due, payment_status updated), partial and full payment, double-post blocked, invalid void (short reason) refused, owner reversal restoring the sale balance, manager denied reversal of a posted payment, already-voided payment denied to unauthorized roles and idempotent for authorized retries, history and audit preserved, and allocate/void controls and posted state at 390/430/768/1366/1440. Migration 0034 (authorize before the already-voided return) is covered permanently in rpc-payments.
 Backend (applied): existing create/allocate/post/void from 0004; 0032 revokes direct INSERT on payments, adds list_payments, get_payment_detail, list_sale_payments. Test rpc-payments.mjs 57/57 (before the DEV DB outage, after one test-ordering fix).
 Frontend (connected): Payments list (keyset), create pending payment, detail with allocate, post confirmation, void/reversal with reason (admin-only for posted), Sale Detail payments list, Customer history from real payments.
-Open before [DONE]: money-stock and RLS matrix rerun after 0032 (DEV DB unreachable); browser and viewport QA (not run); no payment numbering yet (payments have no sequence).
+Regressions (DEV): rpc-payments 70/70 (includes the 0034 regression), rpc-money-stock 63/63, RLS matrix 114/114.
+Known, not part of Module 09: payments have no sequence number yet.
 
 Exact workflow:
 Create Payment → Pending → Allocate → Post → balances update.
@@ -978,7 +979,7 @@ FINAL COMPLETION GATE
 
 Before declaring overall completion:
 
-1. No implementable module remains [NOT STARTED], [PARTIAL], or [IN PROGRESS].
+1. No implementable module remains [NOT STARTED], [PARTIAL], or [IN PROGRESS]. (Modules 08 and 09 are [DONE] as of 2026-10-04; the other module summary lines below this gate predate that and are not yet re-verified.)
 2. [BLOCKED] items must be genuine external integrations only.
 3. Run npm run lint.
 4. Run tsc --noEmit.

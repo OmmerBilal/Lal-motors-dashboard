@@ -173,6 +173,16 @@ const allocKept = (await q("select count(*)::int c from public.payment_allocatio
 check("12. allocation rows are kept after void", allocKept === 1);
 const voidAgain = await rpc(S.owner, "void_payment", { p_payment_id: pay1, p_reason: "Test reversal of posted payment" });
 check("12. voiding twice is a safe retry (no second reversal)", !voidAgain.error && voidAgain.data?.status === "void");
+// 0034 regression: an already-voided payment must not return data to a caller without a sales role.
+// Authorization runs before the idempotent retry return. Authorized retries (owner, sales staff) still succeed.
+for (const role of ["receiving", "dismantling", "scrap_driver", "container_loading", "employee"]) {
+  const r = await rpc(S[role], "void_payment", { p_payment_id: pay1, p_reason: "retry after void" });
+  check(`12. 0034 already-voided payment: ${role} denied, no data`, !!r.error && !r.data, r.code || "no error");
+}
+const ownerRetry0034 = await rpc(S.owner, "void_payment", { p_payment_id: pay1, p_reason: "retry after void" });
+check("12. 0034 authorized owner retry on voided payment is idempotent", !ownerRetry0034.error && ownerRetry0034.data?.status === "void", ownerRetry0034.msg);
+const managerRetry0034 = await rpc(S.manager, "void_payment", { p_payment_id: pay1, p_reason: "retry after void" });
+check("12. 0034 authorized sales-staff retry on voided payment is idempotent", !managerRetry0034.error && managerRetry0034.data?.status === "void", managerRetry0034.msg);
 const voidPending = await rpc(S.manager, "void_payment", { p_payment_id: payBig.data.id, p_reason: "Entered in error" });
 check("12. manager voids a pending payment", !voidPending.error && voidPending.data?.status === "void", voidPending.msg);
 const postVoid = await rpc(S.manager, "post_payment", { p_payment_id: payBig.data.id });

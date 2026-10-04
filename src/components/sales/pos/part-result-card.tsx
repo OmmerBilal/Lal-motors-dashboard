@@ -24,7 +24,12 @@ export function PartResultCard({
   const iconTone = outOfStock ? "bg-muted text-muted-foreground" : "bg-success/10 text-success";
 
   return (
-    <div className={`flex items-center gap-3 rounded-lg border p-3 transition-colors ${selected ? "border-primary/50 bg-primary/5 shadow-sm" : "border-border hover:border-primary/25"}`}>
+    <div
+      data-testid="pos-part-card"
+      data-part-id={part.id}
+      data-sku={part.stock_sku ?? ""}
+      className={`flex items-center gap-3 rounded-lg border p-3 transition-colors ${selected ? "border-primary/50 bg-primary/5 shadow-sm" : "border-border hover:border-primary/25"}`}
+    >
       <button onClick={onSelect} className="flex min-w-0 flex-1 items-center gap-3 text-left">
         <div className={`flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-md border ${selected ? "border-primary/30" : "border-border"} ${iconTone}`}>
           {thumbnailUrl ? (
