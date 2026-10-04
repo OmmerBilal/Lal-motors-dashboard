@@ -213,3 +213,13 @@ test (needs an Export module), and the Vehicle / Receiving / Dismantling / Part-
 - Guard triggers still block receiving or dismantling from changing price, carrier, purchase fields (direct client attempts tested).
 
 Known: UI for Auction, Dispatch and Receiving is not yet connected. Next item: Vehicle real-data integration.
+
+## Vehicle read model + Auction Inventory (0007–0010) — 2026-10-04
+
+- Migrations: 0007 read model (vehicle_stage, list_vehicles keyset, vehicle_stage_counts), 0008 carrier filter + vehicle_filter_options, 0009 KPI cards follow the approved card definitions exactly + reopen_vehicle (reviewer only), 0010 list adds engine and arrival_date.
+- Tests: scripts/dev-tests/read-vehicles.mjs 23/23 (pagination walk with no duplicates, KPI parity, reopen, reviewer-only reopen, stage filters, search, thumbnail join, carrier filter, scrap driver sees zero vehicles, keyset index usable).
+- Frontend: global TanStack QueryClient (src/lib/query/provider.tsx mounted in root layout). Service src/lib/data/vehicles.ts (RPC calls with the signed-in session). Hooks src/lib/query/vehicles.ts with stable keys and targeted invalidation. Mapper src/lib/data/vehicle-record.ts.
+- Auction Inventory home (src/components/vehicles/views/auction-inventory-home.tsx): list, search, filters, KPI cards, pagination, close and reopen now come from the database. Markup unchanged.
+- STILL MOCK (transitional, must be removed next): intake add paths (bulk, single, manual), vehicle detail, completion, corrections, and the VehicleDataProvider state that Dispatch, Dismantling and Owner dashboard read. Two sources of truth remain until those are moved.
+- Known limits: the footer count is the number loaded so far ("+" while more pages exist). Reopen uses a fixed audit note "Reopened from Auction Inventory" (no note dialog yet).
+- Verification: tsc clean, eslint clean on src, npm run build exit 0. Not yet verified in a real browser: no browser login was run (credentials are not placed in tool transcripts); mobile viewport QA for this screen is NOT done.

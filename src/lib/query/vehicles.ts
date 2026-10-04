@@ -6,6 +6,7 @@ import {
   getVehicleFilterOptions,
   getVehicleKpis,
   listVehicles,
+  reopenVehicle,
   type VehicleListCursor,
   type VehicleListFilters,
 } from "@/lib/data/vehicles";
@@ -50,6 +51,19 @@ export function useCloseVehicle() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: closeVehicle,
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: vehicleKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: vehicleKeys.kpis() });
+      queryClient.invalidateQueries({ queryKey: vehicleKeys.detail(variables.vehicleId) });
+    },
+  });
+}
+
+/** Reopening changes only the lists, KPIs and that vehicle's detail. */
+export function useReopenVehicle() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: reopenVehicle,
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: vehicleKeys.lists() });
       queryClient.invalidateQueries({ queryKey: vehicleKeys.kpis() });

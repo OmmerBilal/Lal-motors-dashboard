@@ -19,6 +19,8 @@ export type VehicleListRow = {
   make: string;
   model: string;
   trim: string;
+  engine: string;
+  arrival_date: string | null;
   status: string;
   transport_status: string;
   purchase_date: string;
@@ -85,7 +87,7 @@ export async function listVehicles(filters: VehicleListFilters, cursor: VehicleL
   if (error) fail(error);
   const rows = (data ?? []) as (VehicleListRow & { has_more: boolean })[];
   const hasMore = rows.length > 0 && rows[0].has_more;
-  return { rows: rows.map(({ has_more: _unused, ...row }) => row as VehicleListRow), hasMore };
+  return { rows: rows.map((r) => ({ ...r, has_more: undefined }) as unknown as VehicleListRow), hasMore };
 }
 
 export async function getVehicleKpis(): Promise<VehicleKpis> {
@@ -119,4 +121,14 @@ export async function closeVehicle(input: { vehicleId: string; reason: string; n
   });
   if (error) fail(error);
   return data as { vehicle_id: string; status: string; closed_reason: string; idempotent_replay: boolean };
+}
+
+export async function reopenVehicle(input: { vehicleId: string; note: string }) {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("reopen_vehicle", {
+    p_vehicle_id: input.vehicleId,
+    p_note: input.note,
+  });
+  if (error) fail(error);
+  return data as { vehicle_id: string; status: string; idempotent_replay: boolean };
 }

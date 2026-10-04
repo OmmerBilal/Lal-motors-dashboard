@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   CarFront,
   Camera,
@@ -29,12 +29,14 @@ import { EmptyState } from "@/components/patterns/empty-state";
 import {
   auctionStageInfo,
   closedReasonOptions,
-  computeAuctionInventoryStats,
   type AuctionStage,
   type ClosedReason,
   type VehicleRecord,
 } from "@/lib/mock/vehicles";
-import { useVehicleData } from "@/components/vehicles/vehicle-data-context";
+import { useVehicleList, useVehicleKpis, useVehicleFilterOptions, useCloseVehicle, useReopenVehicle } from "@/lib/query/vehicles";
+import type { VehicleListFilters } from "@/lib/data/vehicles";
+import { toVehicleRecord } from "@/lib/data/vehicle-record";
+import { toast } from "sonner";
 import type { IntakeMethod } from "@/components/vehicles/vehicle-workspace";
 
 const intakeCards: {
@@ -105,7 +107,6 @@ export function AuctionInventoryHome({
   onOpenVehicle: (id: string) => void;
   onStartIntake: (method: IntakeMethod) => void;
 }) {
-  const { vehicles, closeVehicle } = useVehicleData();
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState<AuctionStage | "all">("all");
   const [auctionFilter, setAuctionFilter] = useState("all");
@@ -116,36 +117,49 @@ export function AuctionInventoryHome({
   const [closeReason, setCloseReason] = useState<ClosedReason>("Scrapped");
   const [closeNote, setCloseNote] = useState("");
 
-  const stats = computeAuctionInventoryStats(vehicles);
+  // Server-side filtering and keyset pagination. Filters are part of the query key, so each
+  // combination has its own cache entry and returning to one renders from cache immediately.
+  const listFilters: VehicleListFilters = {
+    stage: stageFilter === "all" ? null : stageFilter,
+    auctionSource: auctionFilter === "all" ? null : auctionFilter,
+    carrierId: transporterFilter === "all" ? null : transporterFilter,
+    search,
+  };
+  const list = useVehicleList(listFilters);
+  const kpiQuery = useVehicleKpis();
+  const optionsQuery = useVehicleFilterOptions();
+  const closeMutation = useCloseVehicle();
+  const reopenMutation = useReopenVehicle();
 
-  const auctionOptions = useMemo(
-    () => [...new Set(vehicles.map((v) => v.auctionSource).filter(Boolean))].sort(),
-    [vehicles]
+  const vehicles = useMemo(
+    () => (list.data?.pages.flatMap((p) => p.rows) ?? []).map(toVehicleRecord),
+    [list.data]
   );
-  const transporterOptions = useMemo(
-    () => [...new Set(vehicles.map((v) => v.carrierName).filter((x): x is string => Boolean(x)))].sort(),
-    [vehicles]
-  );
+  const kpi = kpiQuery.data;
+  const stats = {
+    total: kpi?.total ?? 0,
+    waitingArrival: kpi?.waiting ?? 0,
+    inTransit: kpi?.transit ?? 0,
+    availableInYard: kpi?.available ?? 0,
+    overdue: kpi?.overdue ?? 0,
+    closed: kpi?.closed ?? 0,
+  };
+  const auctionOptions = optionsQuery.data?.auction_sources ?? [];
+  const transporterOptions = optionsQuery.data?.carriers ?? [];
 
-  const filtered = useMemo(() => {
-    let list = vehicles;
-    if (stageFilter !== "all") list = list.filter((v) => auctionStageInfo(v).stage === stageFilter);
-    if (auctionFilter !== "all") list = list.filter((v) => v.auctionSource === auctionFilter);
-    if (transporterFilter !== "all") list = list.filter((v) => v.carrierName === transporterFilter);
-    const q = search.trim().toLowerCase();
-    if (q) {
-      list = list.filter((v) =>
-        [v.vin, v.stockNumber, v.lotNumber, v.year, v.make, v.model]
-          .filter(Boolean)
-          .some((f) => String(f).toLowerCase().includes(q))
-      );
-    }
-    return list;
-  }, [vehicles, stageFilter, auctionFilter, transporterFilter, search]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const filtered = vehicles;
+  const loadedCount = vehicles.length;
+  const hasMore = !!list.hasNextPage;
+  const totalPages = Math.max(1, Math.ceil(loadedCount / PAGE_SIZE) + (hasMore ? 1 : 0));
   const currentPage = Math.min(page, totalPages);
-  const pageRows = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const pageRows = vehicles.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  // Navigating to a page beyond what is loaded fetches the next keyset page.
+  const needsMore = currentPage * PAGE_SIZE > loadedCount && hasMore;
+  useEffect(() => {
+    if (needsMore && !list.isFetchingNextPage) list.fetchNextPage();
+  }, [needsMore, list]);
+
   const allPageSelected = pageRows.length > 0 && pageRows.every((v) => selected.includes(v.id));
 
   function setStage(stage: AuctionStage | "all") {
@@ -210,7 +224,17 @@ export function AuctionInventoryHome({
 
   function submitClose() {
     if (!closeTarget) return;
-    closeVehicle(closeTarget.id, closeReason, closeNote || undefined);
+    if (closeNote.trim().length < 5) {
+      toast.error("Add a note of at least 5 characters before closing this vehicle.");
+      return;
+    }
+    closeMutation.mutate(
+      { vehicleId: closeTarget.id, reason: closeReason, note: closeNote.trim() },
+      {
+        onSuccess: () => toast.success("Vehicle closed. History is kept."),
+        onError: (err) => toast.error(err instanceof Error ? err.message : "Could not close this vehicle."),
+      }
+    );
     setCloseTarget(null);
   }
 
@@ -322,8 +346,8 @@ export function AuctionInventoryHome({
             <SelectContent>
               <SelectItem value="all">All Transporters</SelectItem>
               {transporterOptions.map((t) => (
-                <SelectItem key={t} value={t}>
-                  {t}
+                <SelectItem key={t.id} value={t.id}>
+                  {t.company}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -400,7 +424,7 @@ export function AuctionInventoryHome({
                               />
                               <DropdownMenuContent align="end">
                                 {v.closedReason ? (
-                                  <DropdownMenuItem onClick={() => closeVehicle(v.id, v.closedReason as ClosedReason, undefined)}>
+                                  <DropdownMenuItem onClick={() => reopenMutation.mutate({ vehicleId: v.id, note: "Reopened from Auction Inventory" })}>
                                     Reopen vehicle
                                   </DropdownMenuItem>
                                 ) : (
@@ -419,7 +443,7 @@ export function AuctionInventoryHome({
 
             <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
               <span>
-                Showing {(currentPage - 1) * PAGE_SIZE + 1} to {Math.min(currentPage * PAGE_SIZE, filtered.length)} of {filtered.length} vehicles
+                Showing {(currentPage - 1) * PAGE_SIZE + 1} to {Math.min(currentPage * PAGE_SIZE, filtered.length)} of {filtered.length}{hasMore ? "+" : ""} vehicles
               </span>
               <div className="flex items-center gap-1">
                 <Button
