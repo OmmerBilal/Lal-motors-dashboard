@@ -25,6 +25,7 @@ import { StatusBadge } from "@/components/patterns/status-badge";
 import type { User } from "@/lib/types";
 import { transportStatusLabels, type VehicleRecord } from "@/lib/mock/vehicles";
 import { useInboundVehicles } from "@/lib/query/dispatch";
+import { useOwnerPhotos } from "@/lib/query/media";
 import { useReceiveVehicle } from "@/lib/query/receiving";
 import { lookupForReceiving } from "@/lib/data/receiving";
 import { toVehicleRecord } from "@/lib/data/vehicle-record";
@@ -189,7 +190,11 @@ export function VehicleReceiving({ user }: { user: User }) {
     document.getElementById("vin-manual")?.focus();
   }
 
-  const allRequiredCaptured = requiredPhotoSlots.every((s) => photos[s.id]);
+  // The four slots come from the server's saved photos, so a reload or a return to this vehicle shows them again.
+  const savedPhotos = useOwnerPhotos("vehicle", matched?.id ?? null, "arrival_");
+  const savedPhotoFor = (slotId: string) =>
+    savedPhotos.data?.find((p) => p.role === "arrival_" + slotId)?.id ?? null;
+  const allRequiredCaptured = requiredPhotoSlots.every((s) => photos[s.id] || savedPhotoFor(s.id));
 
   function confirmArrival() {
     if (!matched) return;
@@ -366,6 +371,7 @@ export function VehicleReceiving({ user }: { user: User }) {
                   ownerId={matched.id}
                   role={"arrival_" + slot.id}
                   disabled={receiveMutation.isPending}
+                  persistedMediaId={savedPhotoFor(slot.id)}
                   onUploaded={() => setPhotos((prev) => ({ ...prev, [slot.id]: true }))}
                 />
               ))}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Camera, CircleAlert, CircleCheckBig, RefreshCw, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress, ProgressIndicator, ProgressTrack } from "@/components/ui/progress";
@@ -16,12 +17,27 @@ import { uploadMediaFile } from "@/lib/media/client-upload";
  */
 type Phase = "empty" | "selected" | "uploading" | "done" | "error";
 
+/** Signed preview of a saved photo. Read through the media route, so access is decided on the server. */
+export function usePersistedPhoto(mediaId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["media", "photo", mediaId ?? "", "medium"],
+    enabled: !!mediaId,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const res = await fetch(`/api/media/url?mediaId=${mediaId}&variant=medium`);
+      if (!res.ok) throw new Error("This photo could not be opened.");
+      return ((await res.json()) as { url: string }).url;
+    },
+  });
+}
+
 export function MediaCapture({
   label,
   ownerType,
   ownerId,
   role,
   disabled = false,
+  persistedMediaId = null,
   onUploaded,
 }: {
   label: string;
@@ -29,8 +45,13 @@ export function MediaCapture({
   ownerId: string;
   role: string;
   disabled?: boolean;
+  /** A photo already saved for this slot (from the server). It is shown as saved until the person replaces it. */
+  persistedMediaId?: string | null;
   onUploaded?: (mediaId: string) => void;
 }) {
+  const queryClient = useQueryClient();
+  const persisted = usePersistedPhoto(persistedMediaId);
+  const [replacing, setReplacing] = useState(false);
   const [phase, setPhase] = useState<Phase>("empty");
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -49,6 +70,7 @@ export function MediaCapture({
 
   function choose(next: File | undefined) {
     if (!next) return;
+    setReplacing(true);
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     requestIdRef.current = crypto.randomUUID();
     setFile(next);
@@ -74,6 +96,8 @@ export function MediaCapture({
       });
       setProgress(100);
       setPhase("done");
+      setReplacing(false);
+      queryClient.invalidateQueries({ queryKey: ["media", "owner", ownerType, ownerId] });
       onUploaded?.(mediaId);
     } catch (err) {
       setError(err instanceof Error ? err.message : "The photo could not be uploaded. Retry.");
@@ -131,6 +155,40 @@ export function MediaCapture({
       />
     </>
   );
+
+  // A saved photo, not replaced in this session: show it from the server, with Retake and Choose from device.
+  if (phase === "empty" && persistedMediaId && !replacing && !file) {
+    return (
+      <div className="flex w-full flex-col gap-2 rounded-xl border border-border bg-card p-2">
+        {capture}
+        <div className="relative overflow-hidden rounded-lg bg-muted">
+          {persisted.data ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={persisted.data} alt={`${label} saved photo`} className="aspect-video w-full object-cover" />
+          ) : (
+            <div className="flex aspect-video w-full items-center justify-center text-xs text-muted-foreground">
+              {persisted.isError ? "This photo could not be opened." : "Loading saved photo…"}
+            </div>
+          )}
+          <span className="absolute top-2 right-2 flex size-8 items-center justify-center rounded-full bg-success text-success-foreground">
+            <CircleCheckBig className="size-5" aria-hidden />
+          </span>
+        </div>
+        <div className="flex items-center justify-between gap-2 px-1">
+          <span className="text-sm font-semibold">{label}</span>
+          <span className="text-xs text-muted-foreground">Saved</span>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <Button className="h-12" variant="outline" disabled={disabled} onClick={() => inputRef.current?.click()}>
+            <Camera className="size-5" /> Retake
+          </Button>
+          <Button className="h-12" variant="outline" disabled={disabled} onClick={() => deviceRef.current?.click()}>
+            <Upload className="size-5" /> Choose another
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (phase === "empty") {
     return (
