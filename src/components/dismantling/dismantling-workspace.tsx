@@ -1,812 +1,481 @@
-import { useEffect, useRef, useState } from "react";
+"use client";
+
+import { useState } from "react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import {
-  Barcode,
-  Camera,
-  CarFront,
-  CheckCircle2,
-  CircleCheck,
-  Flag,
-  LogOut,
-  ScanLine,
-  Search,
-  Send,
-  TriangleAlert,
-  Wrench,
-  X,
-  Zap,
-} from "lucide-react";
+import { ArrowLeft, CircleCheckBig, Flag, PencilLine, Play, RefreshCw, Trash2, TriangleAlert, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { MediaCapture, usePersistedPhoto } from "@/components/media/media-capture";
+import { useEffectiveUser } from "@/lib/effective-user";
 import type { User } from "@/lib/types";
-import { useSession } from "@/lib/session";
-import type { VehicleRecord } from "@/lib/mock/vehicles";
-import { toVehicleRecord } from "@/lib/data/vehicle-record";
-import { MediaCapture } from "@/components/media/media-capture";
-import { PartCaptureSlot } from "@/components/dismantling/part-capture-slot";
-import {
-  DISMANTLING_ISSUE_TYPES,
-  DismantlingError,
-  countSessionEvidence,
-  finishDismantlingSession,
-  flagDismantlingIssue,
-  listSavedSessionParts,
-  lookupForDismantling,
-  resumeMyDismantlingSession,
-  startDismantlingSession,
-  type DismantlingIssueType,
-} from "@/lib/data/dismantling";
+import { ISSUE_TYPES, findMyDismantlingAssignment, type EmployeeAssignmentRow, type EmployeeWorkspace, type WorkspacePart } from "@/lib/data/dismantling-v2";
+import { useEmployeeMutations, useMyAssignments, useMyWorkspace } from "@/lib/query/dismantling-v2";
 
-type Phase = "home" | "find" | "notfound" | "alreadyDismantled" | "alreadyInProcess" | "confirm" | "session" | "processing" | "completed";
+const NAME_MIN = 2, NAME_MAX = 120, DETAILS_MIN = 3, DETAILS_MAX = 500;
 
-/** "full" = Vehicle Dismantling (evidence photos, then part photos). "quick" = Quick Part Capture. */
-type Mode = "full" | "quick";
-
-type PartPhoto = { id: string; takenAt: string };
-
-type QuickCapture = { id: string; partType: string; takenAt: string };
-
-type CompletedSummary = {
-  vehicle: VehicleRecord;
-  photosSaved: number;
-  partsProcessed: number;
-  needsReview: number;
-};
-
-function Field({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="flex items-center justify-between gap-3 border-b border-border py-2 text-sm last:border-0">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-semibold">{value}</span>
-    </div>
-  );
+function errorText(err: unknown) {
+  return err instanceof Error ? err.message : "The change was not saved. Nothing was changed.";
 }
 
-function PrimaryButton({ className = "", ...props }: React.ComponentProps<typeof Button>) {
-  return (
-    <Button
-      {...props}
-      className={`h-14 w-full bg-accent-gold text-base font-bold text-accent-gold-foreground shadow-sm hover:bg-accent-gold/90 ${className}`}
-    />
-  );
-}
+const vehicleLine = (v: { year: number; make: string; model: string }) => `${v.year} ${v.make} ${v.model}`;
+const shortTime = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "—");
 
+/**
+ * Dismantling Employee App. Assignment-driven: an employee sees only the vehicles assigned to them, and every
+ * change is made by a database RPC that checks the assignment. Owner, manager and engineer admin see a read-only
+ * preview with no way to perform employee work.
+ */
 export function DismantlingWorkspace({ user }: { user: User }) {
-  const { signOut: endSession } = useSession();
+  const { realUser } = useEffectiveUser();
+  const isEmployee = realUser.role === "dismantling";
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  // The open vehicle lives in the URL, so a reload or tab return resumes the same work from the server.
+  const assignmentId = searchParams.get("assignment");
+  const setAssignmentId = (id: string | null) => {
+    const next = new URLSearchParams(searchParams.toString());
+    if (id) next.set("assignment", id);
+    else next.delete("assignment");
+    const qs = next.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  };
 
-  const [phase, setPhase] = useState<Phase>("home");
-  const [mode, setMode] = useState<Mode>("full");
-  const [searchInput, setSearchInput] = useState("");
-  const [foundVehicle, setFoundVehicle] = useState<VehicleRecord | null>(null);
-  const [inProcessInfo, setInProcessInfo] = useState<{ employee: string; startTime: string } | null>(null);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [sessionVehicle, setSessionVehicle] = useState<VehicleRecord | null>(null);
-  const [sessionStartedAt, setSessionStartedAt] = useState<string>("");
-  const [evidenceCount, setEvidenceCount] = useState(0);
-  const [partPhotos, setPartPhotos] = useState<PartPhoto[]>([]);
-  const [capturing, setCapturing] = useState(false);
-  // Quick Part Capture shows the same saved parts as the vehicle session, newest first. Nothing is kept only in the browser.
-  const quickCaptures: QuickCapture[] = partPhotos
-    .map((p, i) => ({ id: p.id, partType: "Part " + (partPhotos.length - i), takenAt: p.takenAt }))
-    .sort((a, b) => (a.takenAt < b.takenAt ? 1 : -1));
-  const [finishConfirmOpen, setFinishConfirmOpen] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [completedSummary, setCompletedSummary] = useState<CompletedSummary | null>(null);
-  const [issueOpen, setIssueOpen] = useState(false);
-  const [issueType, setIssueType] = useState<DismantlingIssueType>(DISMANTLING_ISSUE_TYPES[0]);
-  const [issueNote, setIssueNote] = useState("");
-  const [issueBusy, setIssueBusy] = useState(false);
-  const manualInputRef = useRef<HTMLInputElement>(null);
-  const issueRequestRef = useRef<string>(crypto.randomUUID());
-
-  // Resume the employee's own open session after a reload or a restart.
-  useEffect(() => {
-    let alive = true;
-    resumeMyDismantlingSession(user.id)
-      .then(async (resumed) => {
-        if (!alive || !resumed) return;
-        const [evidence, saved] = await Promise.all([countSessionEvidence(resumed.sessionId), listSavedSessionParts(resumed.sessionId)]);
-        if (!alive) return;
-        setSessionId(resumed.sessionId);
-        setSessionVehicle(toVehicleRecord(resumed.vehicle));
-        setSessionStartedAt(resumed.startedAt);
-        setEvidenceCount(evidence);
-        setPartPhotos(saved.map((p) => ({ id: p.id, takenAt: p.takenAt })));
-      })
-      .catch(() => undefined);
-    return () => {
-      alive = false;
-    };
-  }, [user.id]);
-
-  function resetToFind() {
-    setPhase("find");
-    setMode("full");
-    setSearchInput("");
-    setFoundVehicle(null);
-    setInProcessInfo(null);
-    setSessionId(null);
-    setSessionVehicle(null);
-    setSessionStartedAt("");
-    setEvidenceCount(0);
-    setPartPhotos([]);
-    setCapturing(false);
-    setFinishConfirmOpen(false);
-    setSubmitting(false);
-    setCompletedSummary(null);
-  }
-
-  /** Home menu actions reuse the open session instead of forcing a new scan. */
-  function goToVehicleDismantling() {
-    setMode("full");
-    setPhase(sessionVehicle ? "session" : "find");
-  }
-
-  function goToQuickCapture() {
-    setMode("quick");
-    setPhase(sessionVehicle ? "session" : "find");
-  }
-
-  async function openMySession() {
-    const resumed = await resumeMyDismantlingSession(user.id);
-    if (!resumed) {
-      toast.error("Your session could not be opened. Try again.");
-      return;
-    }
-    const [evidence, saved] = await Promise.all([countSessionEvidence(resumed.sessionId), listSavedSessionParts(resumed.sessionId)]);
-    setSessionId(resumed.sessionId);
-    setSessionVehicle(toVehicleRecord(resumed.vehicle));
-    setSessionStartedAt(resumed.startedAt);
-    setEvidenceCount(evidence);
-    setPartPhotos(saved.map((p) => ({ id: p.id, takenAt: p.takenAt })));
-    setPhase("session");
-  }
-
-  async function lookupVehicle(raw: string) {
-    const q = raw.trim();
-    if (!q) return;
-    try {
-      const result = await lookupForDismantling(q, user.id);
-      if (result.status === "not_found") {
-        setFoundVehicle(null);
-        setPhase("notfound");
-        return;
-      }
-      const record = toVehicleRecord(result.vehicle);
-      setFoundVehicle(record);
-      if (result.status === "dismantled") {
-        setPhase("alreadyDismantled");
-        return;
-      }
-      if (result.status === "in_process") {
-        if (result.mine) {
-          await openMySession();
-          return;
-        }
-        setInProcessInfo({ employee: "Another employee", startTime: new Date(result.startedAt).toLocaleString() });
-        setPhase("alreadyInProcess");
-        return;
-      }
-      setPhase("confirm");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "The lookup failed. Try again.");
-    }
-  }
-
-
-  async function startDismantling() {
-    if (!foundVehicle) return;
-    setSubmitting(true);
-    try {
-      const r = await startDismantlingSession(foundVehicle.id);
-      setSessionId(r.session_id);
-      setSessionVehicle({ ...foundVehicle, status: "Processing", assignedId: user.id, assignedName: user.name });
-      setSessionStartedAt(new Date().toISOString());
-      setEvidenceCount(0);
-      setPartPhotos([]);
-        setPhase("session");
-    } catch (err) {
-      if (err instanceof DismantlingError && err.hint === "ALREADY_IN_PROCESS") {
-        setInProcessInfo({ employee: "Another employee", startTime: new Date().toLocaleString() });
-        setPhase("alreadyInProcess");
-        return;
-      }
-      if (err instanceof DismantlingError && err.hint === "ALREADY_DISMANTLED") {
-        setPhase("alreadyDismantled");
-        return;
-      }
-      toast.error(err instanceof Error ? err.message : "The session could not be started. Nothing was saved.");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  function startCapture() {
-    setCapturing(true);
-  }
-
-  function fullPartSaved(partId: string) {
-    setPartPhotos((xs) => [...xs, { id: partId, takenAt: new Date().toISOString() }]);
-    setCapturing(false);
-    toast.success("Part photo saved");
-  }
-
-  function quickPartSaved(partId: string) {
-    setPartPhotos((xs) => [...xs, { id: partId, takenAt: new Date().toISOString() }]);
-    setCapturing(false);
-    toast.success("Part saved to this vehicle");
-  }
-
-  // Saved photos are part of the record. Removing one is a manager decision during review.
-  function removePartPhoto(id: string) {
-    void id;
-    toast.info("Saved part photos stay on the record. A manager can reject a part during review.");
-  }
-
-  async function runProcessing() {
-    if (!sessionId || !sessionVehicle) return;
-    setSubmitting(true);
-    setPhase("processing");
-    try {
-      const r = await finishDismantlingSession(sessionId);
-      setCompletedSummary({
-        vehicle: sessionVehicle,
-        photosSaved: partPhotos.length,
-        partsProcessed: r.part_photos_captured,
-        needsReview: r.part_photos_captured,
-      });
-      setPhase("completed");
-    } catch (err) {
-      setPhase("session");
-      if (err instanceof DismantlingError && err.hint === "NO_EVIDENCE") {
-        toast.error("Add at least one vehicle evidence photo before finishing.");
-      } else if (err instanceof DismantlingError && err.hint === "PART_WITHOUT_PHOTO") {
-        toast.error(err.message);
-      } else {
-        toast.error(err instanceof Error ? err.message : "The vehicle could not be finished. Nothing was changed.");
-      }
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function submitIssue() {
-    if (!sessionId) {
-      toast.error("Issues are recorded during an active dismantling session. Nothing was saved.");
-      return;
-    }
-    if (issueNote.trim().length < 5) {
-      toast.error("Describe the issue in at least 5 characters.");
-      return;
-    }
-    setIssueBusy(true);
-    try {
-      await flagDismantlingIssue({ sessionId, issue: issueType, note: issueNote.trim(), requestId: issueRequestRef.current });
-      issueRequestRef.current = crypto.randomUUID();
-      toast.success("Issue flagged for manager review");
-      setIssueOpen(false);
-      setIssueType(DISMANTLING_ISSUE_TYPES[0]);
-      setIssueNote("");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "The issue was not saved. Try again.");
-    } finally {
-      setIssueBusy(false);
-    }
-  }
-
-  function logOut() {
-    void endSession();
+  if (!isEmployee) {
+    return (
+      <div className="space-y-5 pb-10">
+        <div role="status" className="rounded-xl border-2 border-warning bg-warning/15 p-4">
+          <p className="text-sm font-bold tracking-wide text-warning-foreground uppercase">Employee app preview — read only</p>
+          <p className="mt-1 text-sm">Sign in as the assigned dismantling employee to perform dismantling work. {user.name}, this screen does not change any employee work.</p>
+        </div>
+        <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+          Employee assignments and captures are not shown in this preview. Review dismantling work in Vehicle Dismantling Processing.
+        </p>
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-4 pb-10">
-      {/* Header */}
-      <div className="-mx-4 -mt-6 border-b-4 border-accent-gold bg-brand px-4 py-4 text-brand-foreground sm:-mx-6 sm:px-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-accent-gold text-accent-gold-foreground">
-              <Wrench className="size-6" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-[11px] font-bold tracking-[0.14em] text-brand-foreground/60 uppercase">LAL Motors</p>
-              <h2 className="text-lg font-bold sm:text-xl">Dismantling Employee App</h2>
-            </div>
-          </div>
-          <span className="flex shrink-0 items-center gap-2 rounded-full bg-brand-foreground/10 py-1 pr-3 pl-1 text-sm font-semibold">
-            <span className="flex size-7 items-center justify-center rounded-full bg-accent-gold text-xs font-bold text-accent-gold-foreground">
-              {user.name.charAt(0)}
-            </span>
-            {user.name}
-          </span>
-        </div>
+    <div className="space-y-5 pb-10">
+      <div className="-mx-4 -mt-6 bg-brand px-4 py-4 text-brand-foreground sm:-mx-6 sm:px-6">
+        <p className="text-[11px] font-bold tracking-[0.14em] text-brand-foreground/60 uppercase">Dismantling</p>
+        <h2 className="text-xl font-bold sm:text-2xl">{assignmentId ? "Vehicle Dismantling" : "My Assigned Vehicles"}</h2>
       </div>
-
-      <div className="mx-auto w-full max-w-xl space-y-4">
-        {/* HOME: choose Vehicle Dismantling (full flow) or Quick Part Capture */}
-        {phase === "home" && (
-          <div className="space-y-3">
-            {sessionVehicle && (
-              <div className="flex items-center justify-between rounded-lg bg-brand/95 px-3.5 py-2.5 text-xs font-semibold text-brand-foreground">
-                <span className="truncate">
-                  Active session · {sessionVehicle.year} {sessionVehicle.make} {sessionVehicle.model} · {sessionVehicle.vin.slice(-6)}
-                </span>
-                <span className="shrink-0 rounded-full bg-accent-gold px-2 py-0.5 text-[11px] text-accent-gold-foreground">In Process</span>
-              </div>
-            )}
-
-            <button
-              onClick={goToVehicleDismantling}
-              className="flex w-full items-center gap-4 rounded-xl border border-border bg-card p-5 text-left shadow-xs transition-colors hover:border-primary/40 hover:bg-accent/30"
-            >
-              <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-brand text-brand-foreground">
-                <Wrench className="size-6" />
-              </span>
-              <span className="min-w-0">
-                <span className="block text-lg font-bold">Vehicle Dismantling</span>
-                <span className="block text-sm text-muted-foreground">
-                  {sessionVehicle ? "Resume the active session" : "Find a vehicle, take photos, finish it out"}
-                </span>
-              </span>
-            </button>
-
-            <button
-              onClick={goToQuickCapture}
-              className="flex w-full items-center gap-4 rounded-xl border border-accent-gold/40 bg-accent-gold/10 p-5 text-left shadow-xs transition-colors hover:bg-accent-gold/20"
-            >
-              <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-accent-gold text-accent-gold-foreground">
-                <Zap className="size-6" />
-              </span>
-              <span className="min-w-0">
-                <span className="block text-lg font-bold">Quick Part Capture</span>
-                <span className="block text-sm text-muted-foreground">
-                  {sessionVehicle ? "Keep capturing parts off this vehicle" : "Photo only — fast repeat capture"}
-                </span>
-              </span>
-            </button>
-          </div>
-        )}
-
-        {/* STEP 1: FIND VEHICLE */}
-        {phase === "find" && (
-          <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
-            <h3 className="text-xl font-bold">Find Vehicle</h3>
-            <p className="mt-1 text-sm text-muted-foreground">Scan or search to load a vehicle.</p>
-
-            <div className="mt-4 grid grid-cols-3 gap-2">
-              <button
-                disabled
-                title="Scanning is not connected. Type the number below."
-                className="flex flex-col items-center gap-1.5 rounded-lg border border-border bg-muted/40 py-4 text-muted-foreground opacity-70"
-              >
-                <ScanLine className="size-6" />
-                <span className="text-xs font-bold sm:text-sm">Scan VIN (not connected)</span>
-              </button>
-              <button
-                disabled
-                title="Scanning is not connected. Type the number below."
-                className="flex flex-col items-center gap-1.5 rounded-lg border border-border bg-muted/40 py-4 text-muted-foreground opacity-70"
-              >
-                <Barcode className="size-6" />
-                <span className="text-xs font-bold sm:text-sm">Scan Lot # (not connected)</span>
-              </button>
-              <button
-                disabled
-                title="Scanning is not connected. Type the number below."
-                className="flex flex-col items-center gap-1.5 rounded-lg border border-border bg-muted/40 py-4 text-muted-foreground opacity-70"
-              >
-                <Barcode className="size-6" />
-                <span className="text-xs font-bold sm:text-sm">Scan Stock # (not connected)</span>
-              </button>
-            </div>
-
-            <div className="mt-5 space-y-1.5">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="manual-search">VIN / Lot # / Stock #</Label>
-                <button
-                  onClick={() => manualInputRef.current?.focus()}
-                  className="flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
-                >
-                  <CarFront className="size-3.5" /> Or Enter Manually
-                </button>
-              </div>
-              <Input
-                id="manual-search"
-                ref={manualInputRef}
-                placeholder="Type or paste here"
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && lookupVehicle(searchInput)}
-                className="h-12 text-base"
-              />
-            </div>
-            <PrimaryButton className="mt-3" disabled={!searchInput.trim()} onClick={() => lookupVehicle(searchInput)}>
-              <Search className="size-5" /> Find Vehicle
-            </PrimaryButton>
-          </div>
-        )}
-
-        {/* VEHICLE NOT FOUND */}
-        {phase === "notfound" && (
-          <div className="rounded-xl border border-destructive/30 bg-card p-5 text-center shadow-xs">
-            <span className="mx-auto flex size-14 items-center justify-center rounded-full bg-destructive/15 text-destructive">
-              <TriangleAlert className="size-7" />
-            </span>
-            <h3 className="mt-3 text-xl font-bold text-destructive">VEHICLE NOT FOUND</h3>
-            <p className="mt-1 text-sm text-muted-foreground">No vehicle matched that VIN, Lot # or Stock #.</p>
-            <div className="mt-5 grid grid-cols-2 gap-2.5">
-              <Button variant="outline" className="h-12" onClick={() => setPhase("find")}>
-                Try Again
-              </Button>
-              <Button variant="outline" className="h-12" onClick={() => manualInputRef.current?.focus()}>
-                <ScanLine className="size-4" /> Type VIN, Lot or Stock instead
-              </Button>
-              <Button
-                variant="outline"
-                className="h-12"
-                onClick={() => {
-                  setPhase("find");
-                  window.setTimeout(() => manualInputRef.current?.focus(), 0);
-                }}
-              >
-                Enter Manually
-              </Button>
-              <Button variant="outline" className="h-12 text-destructive" onClick={() => setIssueOpen(true)}>
-                <Flag className="size-4" /> Flag Issue
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* VEHICLE ALREADY DISMANTLED */}
-        {phase === "alreadyDismantled" && foundVehicle && (
-          <div className="rounded-xl border border-border bg-card p-5 text-center shadow-xs">
-            <span className="mx-auto flex size-14 items-center justify-center rounded-full bg-muted text-muted-foreground">
-              <CircleCheck className="size-7" />
-            </span>
-            <h3 className="mt-3 text-xl font-bold">VEHICLE ALREADY DISMANTLED</h3>
-            <p className="mt-1 text-sm text-muted-foreground">This vehicle has already been completed.</p>
-            <div className="mt-4 rounded-lg bg-muted/40 p-3 text-left">
-              <Field label="Vehicle" value={`${foundVehicle.year} ${foundVehicle.make} ${foundVehicle.model}`} />
-              <Field label="VIN" value={foundVehicle.vin} />
-              <Field
-                label="Status"
-                value={<span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-bold text-muted-foreground">Dismantled</span>}
-              />
-            </div>
-            <PrimaryButton className="mt-4" onClick={resetToFind}>
-              <ScanLine className="size-5" /> Scan Next Vehicle
-            </PrimaryButton>
-          </div>
-        )}
-
-        {/* VEHICLE ALREADY IN PROCESS */}
-        {phase === "alreadyInProcess" && foundVehicle && (
-          <div className="rounded-xl border border-warning/30 bg-card p-5 text-center shadow-xs">
-            <span className="mx-auto flex size-14 items-center justify-center rounded-full bg-warning/20 text-warning-foreground">
-              <TriangleAlert className="size-7" />
-            </span>
-            <h3 className="mt-3 text-xl font-bold text-warning-foreground">VEHICLE ALREADY IN PROCESS</h3>
-            <p className="mt-1 text-sm text-muted-foreground">Another employee is currently dismantling this vehicle.</p>
-            <div className="mt-4 rounded-lg bg-muted/40 p-3 text-left">
-              <Field label="Vehicle" value={`${foundVehicle.year} ${foundVehicle.make} ${foundVehicle.model}`} />
-              <Field label="Employee" value={inProcessInfo?.employee} />
-              <Field label="Start Time" value={inProcessInfo?.startTime} />
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-2.5">
-              <Button variant="outline" className="h-12" onClick={resetToFind}>
-                Scan Next Vehicle
-              </Button>
-              <Button variant="outline" className="h-12 text-destructive" onClick={() => setIssueOpen(true)}>
-                <Flag className="size-4" /> Flag Issue
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* STEP 2: VEHICLE FOUND / CONFIRM */}
-        {phase === "confirm" && foundVehicle && (
-          <div className="rounded-xl border border-success/30 bg-card p-5 shadow-xs">
-            <div className="flex items-center gap-2 text-success">
-              <CircleCheck className="size-6" />
-              <h3 className="text-xl font-bold">Vehicle Confirmed</h3>
-            </div>
-
-            <div className="mt-3 flex aspect-[4/3] w-full items-center justify-center rounded-xl bg-success/10 text-success">
-              <CarFront className="size-20" />
-            </div>
-
-            <div className="mt-3 space-y-0.5">
-              <b className="block text-lg">
-                {foundVehicle.year} {foundVehicle.make} {foundVehicle.model}
-              </b>
-              <p className="text-sm text-muted-foreground">VIN: {foundVehicle.vin}</p>
-              <p className="text-sm text-muted-foreground">Stock #: {foundVehicle.stockNumber || foundVehicle.lotNumber || "—"}</p>
-              <p className="text-sm text-muted-foreground">Location: {foundVehicle.location || "LAL Motors Yard"}</p>
-            </div>
-
-            <p className="mt-4 text-sm text-muted-foreground">Starting creates your session. Vehicle evidence photos are added next.</p>
-            <PrimaryButton className="mt-3" onClick={startDismantling} disabled={submitting}>
-
-              {mode === "quick" ? "Start Quick Part Capture" : "Start Taking Part Photos"}
-            </PrimaryButton>
-            <Button variant="ghost" className="mt-2 w-full text-muted-foreground" onClick={resetToFind}>
-              Not the right vehicle? Scan again
-            </Button>
-          </div>
-        )}
-
-        {/* STEP 3: TAKE PART PHOTOS (active session, approved Vehicle Dismantling flow) */}
-        {phase === "session" && sessionVehicle && mode === "full" && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between rounded-lg bg-brand/95 px-3.5 py-2.5 text-xs font-semibold text-brand-foreground">
-              <span className="truncate">
-                {sessionVehicle.year} {sessionVehicle.make} {sessionVehicle.model} · {sessionVehicle.vin.slice(-6)} · Started{" "}
-                {sessionStartedAt ? new Date(sessionStartedAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "—"}
-              </span>
-              <span className="shrink-0 rounded-full bg-accent-gold px-2 py-0.5 text-[11px] text-accent-gold-foreground">In Process</span>
-            </div>
-
-            <button
-              onClick={() => setMode("quick")}
-              className="flex w-full items-center justify-center gap-1.5 text-xs font-semibold text-accent-gold-foreground hover:underline"
-            >
-              <Zap className="size-3.5" /> Switch to Quick Part Capture for this vehicle
-            </button>
-
-            <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
-              <div className="mb-4">
-                <MediaCapture
-                  label="Vehicle evidence photo (required)"
-                  ownerType="dismantling_session"
-                  ownerId={sessionId ?? ""}
-                  role="vehicle_evidence"
-                  onUploaded={() => setEvidenceCount((n) => n + 1)}
-                />
-                <p className="mt-2 text-xs text-muted-foreground">{evidenceCount > 0 ? evidenceCount + " evidence photo(s) saved" : "At least one is required before you finish."}</p>
-              </div>
-              <h3 className="text-lg font-bold">Take Part Photos</h3>
-              <p className="mt-0.5 text-sm text-muted-foreground">Photograph every useful part. No labeling needed.</p>
-
-              {capturing && sessionId ? (
-                <PartCaptureSlot
-                  sessionId={sessionId}
-                  label="Part photo"
-                  onSaved={fullPartSaved}
-                  onDiscard={() => setCapturing(false)}
-                />
-              ) : (
-                <button
-                  onClick={startCapture}
-                  disabled={!sessionId}
-                  className="relative mt-4 flex aspect-[4/3] w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-xl bg-muted text-muted-foreground transition-colors hover:bg-muted/70 disabled:opacity-50"
-                >
-                  {partPhotos.length > 0 && (
-                    <span className="absolute top-2.5 left-2.5 rounded-full bg-brand px-2.5 py-1 text-xs font-bold text-brand-foreground shadow-sm">
-                      {partPhotos.length} photo{partPhotos.length === 1 ? "" : "s"} saved
-                    </span>
-                  )}
-                  {partPhotos.length > 0 ? <Wrench className="size-14 opacity-60" /> : <Camera className="size-12" />}
-                  <span className="text-sm font-bold">{partPhotos.length > 0 ? "Take Another Part Photo" : "Tap to Take Photo"}</span>
-                </button>
-              )}
-
-              {partPhotos.length > 0 && (
-                <div className="mt-4 grid grid-cols-4 gap-2 sm:grid-cols-5">
-                  {partPhotos.map((p, i) => (
-                    <div key={p.id} className="relative flex aspect-square items-center justify-center rounded-md border border-border bg-muted/50 text-muted-foreground">
-                      <Wrench className="size-5" />
-                      <span className="absolute bottom-1 left-1 text-[10px] font-semibold">{i + 1}</span>
-                      <button
-                        onClick={() => removePartPhoto(p.id)}
-                        aria-label="Remove photo"
-                        className="absolute -top-1.5 -right-1.5 flex size-5 items-center justify-center rounded-full bg-destructive text-white shadow-sm"
-                      >
-                        <X className="size-3" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <Button variant="outline" className="h-12 w-full text-destructive" onClick={() => setIssueOpen(true)}>
-              <Flag className="size-4" /> Flag Issue
-            </Button>
-
-            <PrimaryButton disabled={evidenceCount === 0 || partPhotos.length === 0 || submitting} onClick={() => setFinishConfirmOpen(true)}>
-              Save &amp; Finish Vehicle
-            </PrimaryButton>
-          </div>
-        )}
-
-        {/* QUICK PART CAPTURE (active session) — photo only, no typing, each part saved and
-            linked to the current donor vehicle the moment it's captured. No warehouse fields,
-            no pricing, no SKU — that belongs to later Parts Inventory processing. */}
-        {phase === "session" && sessionVehicle && mode === "quick" && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between rounded-lg bg-brand/95 px-3.5 py-2.5 text-xs font-semibold text-brand-foreground">
-              <span className="truncate">
-                Current Vehicle · {sessionVehicle.year} {sessionVehicle.make} {sessionVehicle.model} · VIN {sessionVehicle.vin.slice(-6)} · Stock/Lot{" "}
-                {sessionVehicle.stockNumber || sessionVehicle.lotNumber || "—"}
-              </span>
-              <span className="shrink-0 rounded-full bg-accent-gold px-2 py-0.5 text-[11px] text-accent-gold-foreground">In Process</span>
-            </div>
-
-            <button
-              onClick={() => setMode("full")}
-              className="flex w-full items-center justify-center gap-1.5 text-xs font-semibold text-primary hover:underline"
-            >
-              <Wrench className="size-3.5" /> Switch to Vehicle Dismantling for this vehicle
-            </button>
-
-            <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
-              <div className="flex items-center justify-between gap-2">
-                <h3 className="text-lg font-bold">Quick Part Capture</h3>
-                <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs font-bold text-muted-foreground">
-                  {quickCaptures.length} captured
-                </span>
-              </div>
-              <p className="mt-0.5 text-sm text-muted-foreground">Photo only. No typing. Each part saves instantly to this vehicle.</p>
-
-              {capturing && sessionId ? (
-                <div className="mt-4">
-                  <PartCaptureSlot
-                    sessionId={sessionId}
-                    label="Part photo"
-                    onSaved={quickPartSaved}
-                    onDiscard={() => setCapturing(false)}
-                  />
-                </div>
-              ) : (
-                <button
-                  onClick={startCapture}
-                  disabled={!sessionId}
-                  className="mt-4 flex aspect-[4/3] w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-xl bg-muted text-muted-foreground transition-colors hover:bg-muted/70 disabled:opacity-50"
-                >
-                  <Camera className="size-12" />
-                  <span className="text-sm font-bold">{quickCaptures.length > 0 ? "Save & Next: Take Next Part Photo" : "Take Part Photo"}</span>
-                </button>
-              )}
-            </div>
-
-            {quickCaptures.length > 0 && (
-              <div className="rounded-xl border border-border bg-card p-4">
-                <p className="mb-2 text-xs font-bold tracking-wide text-muted-foreground uppercase">Recent captures</p>
-                <div className="space-y-1.5">
-                  {quickCaptures.slice(0, 6).map((c) => (
-                    <div key={c.id} className="flex items-center justify-between rounded-md bg-muted/40 px-3 py-2 text-sm">
-                      <span className="flex min-w-0 items-center gap-2 font-semibold">
-                        <Wrench className="size-3.5 shrink-0 text-muted-foreground" /> <span className="truncate">{c.partType}</span>
-                      </span>
-                      <span className="shrink-0 text-xs text-muted-foreground">
-                        {new Date(c.takenAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <Button variant="outline" className="h-12 w-full text-destructive" onClick={() => setIssueOpen(true)}>
-              <Flag className="size-4" /> Flag Issue
-            </Button>
-
-            <Button variant="secondary" className="h-12 w-full" onClick={() => setPhase("home")}>
-              Done — Back to Menu
-            </Button>
-          </div>
-        )}
-
-        {/* STEP 5: PROCESSING */}
-        {phase === "processing" && (
-          <div className="rounded-xl border border-border bg-card p-6 text-center shadow-xs">
-            <span className="mx-auto flex size-16 animate-pulse items-center justify-center rounded-full bg-brand text-brand-foreground">
-              <Wrench className="size-7" />
-            </span>
-            <h3 className="mt-3 text-lg font-bold">Finishing vehicle…</h3>
-            <p className="mt-2 text-xs text-muted-foreground">Checking the photos and saving. Please wait.</p>
-          </div>
-        )}
-
-        {/* STEP 6: VEHICLE COMPLETED */}
-        {phase === "completed" && completedSummary && (
-          <div className="rounded-xl border border-success/30 bg-card p-5 text-center shadow-xs">
-            <span className="mx-auto flex size-16 items-center justify-center rounded-full bg-success text-success-foreground">
-              <CheckCircle2 className="size-8" />
-            </span>
-            <h3 className="mt-3 text-xl font-bold text-success">Vehicle Completed!</h3>
-            <p className="mt-0.5 text-sm text-muted-foreground">All photos saved and processed.</p>
-            <div className="mt-4 rounded-lg bg-muted/40 p-3 text-left">
-              <p className="mb-1.5 text-[11px] font-bold tracking-[0.1em] text-muted-foreground uppercase">Summary</p>
-              <Field label="Vehicle" value={`${completedSummary.vehicle.year} ${completedSummary.vehicle.make} ${completedSummary.vehicle.model}`} />
-              <Field label="VIN" value={completedSummary.vehicle.vin} />
-              <Field label="Photos Saved" value={completedSummary.photosSaved} />
-              <Field label="Parts Captured" value={completedSummary.partsProcessed} />
-              <Field label="Sent to Manager Review" value={completedSummary.needsReview} />
-              <Field
-                label="Status"
-                value={
-                  <span className="rounded-full bg-success/15 px-2.5 py-0.5 text-xs font-bold text-success">Dismantled</span>
-                }
-              />
-            </div>
-            <PrimaryButton className="mt-4" onClick={resetToFind}>
-              <ScanLine className="size-5" /> Scan Next Vehicle
-            </PrimaryButton>
-            <Button variant="ghost" className="mt-2 w-full text-muted-foreground" onClick={logOut}>
-              <LogOut className="size-4" /> Log Out
-            </Button>
-          </div>
-        )}
-      </div>
-
-      {/* Finish confirmation */}
-      <Dialog open={finishConfirmOpen} onOpenChange={setFinishConfirmOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Finish this vehicle?</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            Finish this vehicle and submit all {partPhotos.length} photo(s)?
-          </p>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setFinishConfirmOpen(false)}>
-              Go Back
-            </Button>
-            <Button
-              disabled={submitting}
-              onClick={() => {
-                setFinishConfirmOpen(false);
-                runProcessing();
-              }}
-            >
-              Finish Vehicle
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Flag issue */}
-      <Dialog open={issueOpen} onOpenChange={setIssueOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Flag an Issue</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label>Issue type</Label>
-              <Select value={issueType} onValueChange={(v) => setIssueType((v as DismantlingIssueType) ?? DISMANTLING_ISSUE_TYPES[0])}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {DISMANTLING_ISSUE_TYPES.map((o) => (
-                    <SelectItem key={o} value={o}>
-                      {o}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Note (required, 5+ characters)</Label>
-              <Textarea value={issueNote} onChange={(e) => setIssueNote(e.target.value)} rows={3} placeholder="Short note" />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIssueOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant="destructive" disabled={issueBusy || issueNote.trim().length < 5} onClick={submitIssue}>
-              <Send className="size-4" /> Save Issue &amp; Continue
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {assignmentId ? (
+        <AssignmentWork key={assignmentId} assignmentId={assignmentId} onBack={() => setAssignmentId(null)} />
+      ) : (
+        <EmployeeHome onOpen={setAssignmentId} />
+      )}
     </div>
+  );
+}
+
+function EmployeeHome({ onOpen }: { onOpen: (id: string) => void }) {
+  const mine = useMyAssignments();
+  const [tab, setTab] = useState<"assigned" | "in_progress" | "completed">("assigned");
+  const [term, setTerm] = useState("");
+  const [notAssigned, setNotAssigned] = useState(false);
+  const queryClient = useQueryClient();
+
+  const rows = (mine.data ?? []) as EmployeeAssignmentRow[];
+  const shown = rows.filter((r) => (tab === "assigned" ? r.assignment_status === "ASSIGNED" : tab === "in_progress" ? r.assignment_status === "IN_PROGRESS" : r.assignment_status === "COMPLETED"));
+  const counts = {
+    assigned: rows.filter((r) => r.assignment_status === "ASSIGNED").length,
+    in_progress: rows.filter((r) => r.assignment_status === "IN_PROGRESS").length,
+    completed: rows.filter((r) => r.assignment_status === "COMPLETED").length,
+  };
+
+  async function search() {
+    const clean = term.trim();
+    if (clean.length < 3) return;
+    try {
+      const res = await findMyDismantlingAssignment(clean);
+      if (res.result === "found" && res.assignment_id) {
+        setNotAssigned(false);
+        onOpen(res.assignment_id);
+      } else if (res.result === "not_assigned") {
+        setNotAssigned(true);
+      } else {
+        setNotAssigned(false);
+        toast.info("No vehicle matches that VIN, lot or stock number.");
+      }
+    } catch (err) {
+      toast.error(errorText(err));
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <>
+          <div className="grid grid-cols-3 gap-2">
+            {(["assigned", "in_progress", "completed"] as const).map((key) => (
+              <button
+                key={key}
+                onClick={() => setTab(key)}
+                className={`rounded-xl border p-3 text-left ${tab === key ? "border-primary bg-primary/5" : "border-border bg-card"}`}
+                aria-pressed={tab === key}
+              >
+                <span className="block text-2xl font-extrabold tabular-nums">{counts[key]}</span>
+                <span className="block text-xs font-semibold">{key === "assigned" ? "Assigned" : key === "in_progress" ? "In Progress" : "Completed"}</span>
+              </button>
+            ))}
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="assigned-search">Find an assigned vehicle (VIN, lot or stock #)</Label>
+            <div className="flex gap-2">
+              <Input id="assigned-search" value={term} onChange={(e) => setTerm(e.target.value)} onKeyDown={(e) => e.key === "Enter" && search()} placeholder="VIN, lot or stock number" className="h-11" />
+              <Button variant="outline" className="h-11" onClick={search} disabled={term.trim().length < 3}>Find</Button>
+            </div>
+            {notAssigned && (
+              <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm font-medium text-destructive">This vehicle is not assigned to you.</p>
+            )}
+          </div>
+        </>
+
+      <>
+          {mine.isPending && <p className="text-sm text-muted-foreground">Loading your vehicles…</p>}
+          {mine.isError && (
+            <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              Your vehicles could not be loaded. <button className="underline" onClick={() => queryClient.invalidateQueries({ queryKey: ["dismantling-v2", "mine"] })}>Try again</button>
+            </p>
+          )}
+          {!mine.isPending && shown.length === 0 && (
+            <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+              {tab === "assigned" ? "No vehicles are assigned to you right now." : tab === "in_progress" ? "No dismantling is in progress." : "No completed vehicles yet."}
+            </p>
+          )}
+          <ul className="grid gap-3 md:grid-cols-2">
+            {shown.map((r) => (
+              <li key={r.assignment_id} className="rounded-xl border border-border bg-card p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-bold leading-tight break-words">{vehicleLine(r)}</p>
+                    <p className="mt-1 font-mono text-xs break-all">VIN {r.vin ?? "—"}</p>
+                    <p className="text-xs text-muted-foreground">Lot {r.lot_number ?? "—"} · Stock {r.stock_number ?? "—"}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Assigned {shortTime(r.assigned_at)}{r.started_at ? ` · Started ${shortTime(r.started_at)}` : ""}</p>
+                  </div>
+                  {r.issues_flagged > 0 && <span className="shrink-0 rounded-full bg-warning px-2 py-0.5 text-xs font-bold text-warning-foreground">Issue</span>}
+                </div>
+                <div className="mt-3 flex items-center justify-between gap-2">
+                  <span className="text-xs text-muted-foreground">{r.parts_captured} part(s) captured</span>
+                  <Button
+                    className="h-11 min-w-32"
+                    variant={r.assignment_status === "COMPLETED" ? "outline" : "default"}
+                    onClick={() => onOpen(r.assignment_id)}
+                  >
+                    {r.assignment_status === "ASSIGNED" ? (<><Play className="size-4" /> Start Dismantling</>) : r.assignment_status === "IN_PROGRESS" ? (<><RefreshCw className="size-4" /> Resume Dismantling</>) : "View Completed"}
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+      </>
+    </div>
+  );
+}
+
+function AssignmentWork({ assignmentId, onBack }: { assignmentId: string; onBack: () => void }) {
+  const { realUser } = useEffectiveUser();
+  const workspace = useMyWorkspace(assignmentId);
+  const m = useEmployeeMutations(assignmentId);
+  const readOnly = realUser.role !== "dismantling";
+
+  if (workspace.isPending) return <p className="text-sm text-muted-foreground">Opening vehicle…</p>;
+  if (workspace.isError) {
+    return (
+      <div className="space-y-3">
+        <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{errorText(workspace.error)}</p>
+        <Button variant="outline" className="h-11" onClick={onBack}><ArrowLeft className="size-4" /> Back to My Assigned Vehicles</Button>
+      </div>
+    );
+  }
+  const ws = workspace.data as EmployeeWorkspace;
+  const started = ws.assignment.status === "IN_PROGRESS" && !!ws.session;
+  const completed = ws.assignment.status === "COMPLETED";
+
+  return (
+    <div className="space-y-4">
+      <button onClick={onBack} className="flex h-11 items-center gap-2 text-sm font-semibold text-primary">
+        <ArrowLeft className="size-4" /> Back to My Assigned Vehicles
+      </button>
+
+      <section className="rounded-xl border border-border bg-card p-4">
+        <h3 className="text-lg font-bold break-words">{vehicleLine(ws.vehicle)}</h3>
+        <p className="mt-1 font-mono text-xs break-all">VIN {ws.vehicle.vin ?? "—"}</p>
+        <p className="text-xs text-muted-foreground">Lot {ws.vehicle.lot_number ?? "—"} · Stock {ws.vehicle.stock_number ?? "—"} · {ws.vehicle.auction_source}</p>
+        <p className="mt-2 text-sm font-semibold">Status: {ws.assignment.status === "ASSIGNED" ? "Assigned" : ws.assignment.status === "IN_PROGRESS" ? "In progress" : "Completed"}</p>
+        {ws.assignment.status === "ASSIGNED" && !readOnly && (
+          <Button className="mt-3 h-12 w-full text-base" disabled={m.start.isPending} onClick={() => m.start.mutate(undefined, { onError: (e) => toast.error(errorText(e)) })}>
+            <Play className="size-5" /> {m.start.isPending ? "Starting…" : "Start Dismantling"}
+          </Button>
+        )}
+      </section>
+
+      {completed && <CompletionSummary ws={ws} />}
+
+      {started && !completed && (
+        <>
+          <EvidenceSection ws={ws} readOnly={readOnly} onSaved={() => m.refresh()} />
+          <CaptureSection ws={ws} readOnly={readOnly} m={m} />
+          <CapturedParts ws={ws} readOnly={readOnly} m={m} />
+          {!readOnly && <IssueSection ws={ws} m={m} />}
+          {!readOnly && <FinishSection ws={ws} m={m} onDone={() => m.refresh()} />}
+        </>
+      )}
+    </div>
+  );
+}
+
+function EvidenceSection({ ws, readOnly, onSaved }: { ws: EmployeeWorkspace; readOnly: boolean; onSaved: () => void }) {
+  const [extra, setExtra] = useState(0);
+  return (
+    <section className="space-y-3 rounded-xl border border-border bg-card p-4">
+      <div>
+        <h4 className="font-bold">Vehicle Evidence</h4>
+        <p className="text-xs text-muted-foreground">At least one saved vehicle photo is required before Finish Vehicle. {ws.evidence_asset_ids.length} saved.</p>
+      </div>
+      {!readOnly && ws.session && (
+        <div className="max-w-sm">
+          <MediaCapture
+            key={`evidence-${ws.session.id}-${extra}`}
+            label={ws.evidence_asset_ids.length > 0 ? "Add another evidence photo" : "Vehicle evidence photo"}
+            ownerType="dismantling_session"
+            ownerId={ws.session.id}
+            role="vehicle_evidence"
+            onUploaded={() => { setExtra((n) => n + 1); onSaved(); }}
+          />
+        </div>
+      )}
+    </section>
+  );
+}
+
+function CaptureSection({ ws, readOnly, m }: { ws: EmployeeWorkspace; readOnly: boolean; m: ReturnType<typeof useEmployeeMutations> }) {
+  const [name, setName] = useState("");
+  const [details, setDetails] = useState("");
+  const [pendingPartId, setPendingPartId] = useState<string | null>(null);
+  const sessionId = ws.session?.id ?? "";
+  const pendingPart = ws.parts.find((p) => p.id === pendingPartId) ?? null;
+
+  const validName = name.trim().length >= NAME_MIN && name.trim().length <= NAME_MAX;
+  const validDetails = details.trim().length >= DETAILS_MIN && details.trim().length <= DETAILS_MAX;
+
+  async function startCapture() {
+    try {
+      const res = await m.beginPart.mutateAsync({ sessionId, name: name.trim(), details: details.trim() });
+      setPendingPartId(res.part_id);
+    } catch (err) {
+      toast.error(errorText(err));
+    }
+  }
+
+  async function savePartAndNext() {
+    if (!pendingPartId) return;
+    try {
+      await m.savePart.mutateAsync(pendingPartId);
+      setPendingPartId(null);
+      setName("");
+      setDetails("");
+      toast.success("Part saved. Ready for the next part.");
+    } catch (err) {
+      toast.error(errorText(err));
+    }
+  }
+
+  if (readOnly) return null;
+
+  return (
+    <section className="space-y-3 rounded-xl border-2 border-primary/25 bg-card p-4">
+      <h4 className="font-bold">Capture Part</h4>
+      {!pendingPart ? (
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="capture-name">Part Name <span className="text-destructive">*</span></Label>
+            <Input id="capture-name" className="h-12 text-base" value={name} onChange={(e) => setName(e.target.value)} maxLength={NAME_MAX} placeholder="e.g. Front Left Headlight" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="capture-details">Part Details / Notes <span className="text-destructive">*</span></Label>
+            <Textarea id="capture-details" className="min-h-24 text-base" value={details} onChange={(e) => setDetails(e.target.value)} maxLength={DETAILS_MAX} placeholder="e.g. OEM headlight, lens intact, mounting tab damaged" />
+          </div>
+          <Button className="h-12 w-full text-base" disabled={!validName || !validDetails || m.beginPart.isPending} onClick={startCapture}>
+            <Wrench className="size-5" /> {m.beginPart.isPending ? "Saving…" : "Add this part"}
+          </Button>
+          <p className="text-xs text-muted-foreground">Next: take or choose a photo of this part, then Save Part &amp; Next.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <p className="rounded-md bg-warning/20 px-3 py-2 text-sm font-semibold text-warning-foreground">Part “{pendingPart.capture_name}” is not saved yet. Add its photo, then Save Part &amp; Next.</p>
+          <MediaCapture
+            key={`part-${pendingPart.id}`}
+            label="Part photo"
+            ownerType="part"
+            ownerId={pendingPart.id}
+            role="capture"
+            persistedMediaId={pendingPart.photo_asset_ids[0] ?? null}
+            onUploaded={() => m.refresh()}
+          />
+          <Button className="h-12 w-full text-base" disabled={pendingPart.photo_asset_ids.length === 0 && !pendingPart.capture_saved_at} onClick={savePartAndNext}>
+            <CircleCheckBig className="size-5" /> Save Part &amp; Next
+          </Button>
+          <Button variant="outline" className="h-11 w-full" onClick={() => m.abandonPart.mutate(pendingPart.id, { onSuccess: () => setPendingPartId(null), onError: (e) => toast.error(errorText(e)) })}>
+            <Trash2 className="size-4" /> Cancel this part
+          </Button>
+        </div>
+      )}
+      {!validName && name.length > 0 && <p className="text-xs text-destructive">Part name needs 2 to 120 characters.</p>}
+      {!validDetails && details.length > 0 && <p className="text-xs text-destructive">Part details need 3 to 500 characters.</p>}
+      <p className="text-xs text-muted-foreground">Warehouse, SKU, price and listing details are added later by management. Do not enter them here.</p>
+    </section>
+  );
+}
+
+function CapturedParts({ ws, readOnly, m }: { ws: EmployeeWorkspace; readOnly: boolean; m: ReturnType<typeof useEmployeeMutations> }) {
+  const [editing, setEditing] = useState<WorkspacePart | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editDetails, setEditDetails] = useState("");
+  const saved = ws.parts.filter((p) => p.capture_saved_at);
+  if (ws.parts.length === 0) {
+    return <p className="rounded-lg border border-dashed border-border p-4 text-center text-sm text-muted-foreground">No parts captured from this vehicle yet.</p>;
+  }
+  return (
+    <section className="space-y-3">
+      <h4 className="font-bold">Parts Captured From This Vehicle ({saved.length} saved)</h4>
+      <ul className="grid gap-3 sm:grid-cols-2">
+        {ws.parts.map((p) => (
+          <CapturedPartCard key={p.id} part={p} readOnly={readOnly || ws.assignment.status !== "IN_PROGRESS"} onEdit={() => { setEditing(p); setEditName(p.capture_name); setEditDetails(p.capture_details); }} />
+        ))}
+      </ul>
+      {editing && (
+        <Dialog open onOpenChange={(o) => !o && setEditing(null)}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Correct part capture</DialogTitle></DialogHeader>
+            <div className="space-y-3">
+              <Input className="h-12 text-base" value={editName} onChange={(e) => setEditName(e.target.value)} maxLength={NAME_MAX} aria-label="Part Name" />
+              <Textarea className="min-h-24 text-base" value={editDetails} onChange={(e) => setEditDetails(e.target.value)} maxLength={DETAILS_MAX} aria-label="Part Details / Notes" />
+            </div>
+            <DialogFooter className="flex flex-col gap-2 sm:flex-row">
+              <Button className="h-11 w-full" disabled={m.updatePart.isPending} onClick={() => m.updatePart.mutate({ partId: editing.id, name: editName.trim(), details: editDetails.trim() }, { onSuccess: () => { setEditing(null); toast.success("Capture updated."); }, onError: (e) => toast.error(errorText(e)) })}>Save changes</Button>
+              <Button variant="outline" className="h-11 w-full" onClick={() => setEditing(null)}>Cancel</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </section>
+  );
+}
+
+function CapturedPartCard({ part, readOnly, onEdit }: { part: WorkspacePart; readOnly: boolean; onEdit: () => void }) {
+  const photo = usePersistedPhoto(part.photo_asset_ids[0] ?? null);
+  const isSaved = !!part.capture_saved_at;
+  return (
+    <li className="flex min-w-0 gap-3 rounded-xl border border-border bg-card p-3">
+      <div className="size-20 shrink-0 overflow-hidden rounded-lg bg-muted">
+        {photo.data ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={photo.data} alt={`${part.capture_name} photo`} className="size-full object-cover" />
+        ) : (
+          <div className="flex size-full items-center justify-center text-[10px] text-muted-foreground">{part.photo_asset_ids.length ? "Loading" : "No photo"}</div>
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 flex-wrap items-start justify-between gap-x-2 gap-y-1">
+          <p className="min-w-0 font-semibold leading-tight break-words">{part.capture_name}</p>
+          <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold whitespace-nowrap ${isSaved ? "bg-success text-success-foreground" : "bg-warning text-warning-foreground"}`}>{isSaved ? "✓ Saved" : "NOT SAVED"}</span>
+        </div>
+        <p className="mt-0.5 text-xs text-muted-foreground break-words">{part.capture_details}</p>
+        <p className="mt-1 text-[11px] text-muted-foreground">Captured {shortTime(part.captured_at)}</p>
+        {!readOnly && isSaved && (
+          <button onClick={onEdit} className="mt-1 flex h-9 items-center gap-1 text-xs font-semibold text-primary"><PencilLine className="size-3.5" /> Correct</button>
+        )}
+      </div>
+    </li>
+  );
+}
+
+function IssueSection({ ws, m }: { ws: EmployeeWorkspace; m: ReturnType<typeof useEmployeeMutations> }) {
+  const [open, setOpen] = useState(false);
+  const [issue, setIssue] = useState<string>(ISSUE_TYPES[0]);
+  const [note, setNote] = useState("");
+  if (!ws.session) return null;
+  return (
+    <section className="rounded-xl border border-border bg-card p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h4 className="font-bold">Report an Issue (Optional)</h4>
+          <p className="text-xs text-muted-foreground">Use only when something is wrong: vehicle mismatch, unexpected damage, a missing component, an unsafe condition, or a record discrepancy. Not needed for a normal vehicle.</p>
+        </div>
+        <Button variant="outline" className="h-11" onClick={() => setOpen(true)}><Flag className="size-4" /> Report an issue</Button>
+      </div>
+      {ws.issues.length > 0 && <p className="mt-2 text-xs text-warning-foreground">{ws.issues.length} issue(s) reported on this vehicle.</p>}
+      {open && (
+        <Dialog open onOpenChange={(o) => !o && setOpen(false)}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Report an issue (optional)</DialogTitle></DialogHeader>
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label>Issue type</Label>
+                <Select value={issue} onValueChange={(v) => v && setIssue(v)}>
+                  <SelectTrigger className="h-11 w-full"><SelectValue /></SelectTrigger>
+                  <SelectContent>{ISSUE_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="issue-note">What is wrong? (at least 5 characters)</Label>
+                <Textarea id="issue-note" className="min-h-24" value={note} onChange={(e) => setNote(e.target.value)} />
+              </div>
+            </div>
+            <DialogFooter className="flex flex-col gap-2 sm:flex-row">
+              <Button className="h-11 w-full" disabled={note.trim().length < 5 || m.flagIssue.isPending}
+                onClick={() => m.flagIssue.mutate({ sessionId: ws.session!.id, issue, note: note.trim() }, { onSuccess: () => { setOpen(false); setNote(""); toast.success("Issue reported."); }, onError: (e) => toast.error(errorText(e)) })}>
+                Submit issue
+              </Button>
+              <Button variant="outline" className="h-11 w-full" onClick={() => setOpen(false)}>Cancel</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </section>
+  );
+}
+
+function FinishSection({ ws, m, onDone }: { ws: EmployeeWorkspace; m: ReturnType<typeof useEmployeeMutations>; onDone: () => void }) {
+  const [error, setError] = useState<string | null>(null);
+  const unsaved = ws.parts.filter((p) => !p.capture_saved_at).length;
+  const hasEvidence = ws.evidence_asset_ids.length > 0;
+  return (
+    <section className="space-y-2 rounded-xl border border-border bg-card p-4">
+      <Button className="h-14 w-full text-lg" disabled={!ws.session || m.finish.isPending}
+        onClick={() => ws.session && m.finish.mutate(ws.session.id, { onSuccess: () => { setError(null); onDone(); toast.success("Vehicle dismantling completed."); }, onError: (e) => setError(errorText(e)) })}>
+        <CircleCheckBig className="size-5" /> {m.finish.isPending ? "Finishing…" : "Finish Vehicle"}
+      </Button>
+      {(!hasEvidence || unsaved > 0) && (
+        <p className="text-xs text-muted-foreground">
+          {!hasEvidence && "Add at least one vehicle evidence photo. "}
+          {unsaved > 0 && `${unsaved} captured part(s) are not saved yet.`}
+        </p>
+      )}
+      {error && <p role="alert" className="flex items-start gap-2 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive"><TriangleAlert className="mt-0.5 size-4 shrink-0" />{error}</p>}
+    </section>
+  );
+}
+
+function CompletionSummary({ ws }: { ws: EmployeeWorkspace }) {
+  return (
+    <section className="space-y-3 rounded-xl border border-success/40 bg-success/10 p-4">
+      <h4 className="font-bold text-success">Vehicle Dismantling Completed</h4>
+      <dl className="grid grid-cols-2 gap-2 text-sm">
+        <dt className="text-muted-foreground">Vehicle</dt><dd className="text-right font-medium break-words">{vehicleLine(ws.vehicle)}</dd>
+        <dt className="text-muted-foreground">Parts captured</dt><dd className="text-right font-medium">{ws.parts.length}</dd>
+        <dt className="text-muted-foreground">Issues</dt><dd className="text-right font-medium">{ws.issues.length}</dd>
+        <dt className="text-muted-foreground">Started</dt><dd className="text-right font-medium">{shortTime(ws.assignment.started_at)}</dd>
+        <dt className="text-muted-foreground">Finished</dt><dd className="text-right font-medium">{shortTime(ws.assignment.completed_at)}</dd>
+      </dl>
+    </section>
   );
 }
