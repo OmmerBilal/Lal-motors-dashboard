@@ -67,11 +67,11 @@ function parseLine(line: string, index: number): IntakeItem["draft"] {
       }
     }
   }
-  draft.auctionSource = draft.auctionSource || "Copart";
-  draft.mileageStatus = draft.mileageStatus || "Unknown";
-  draft.titleStatus = draft.titleStatus || "Pending";
-  draft.location = draft.location || "LAL Motors Yard";
-  draft.stockNumber = draft.stockNumber || `ST-PEND-${index + 1}`;
+  // Intake records only what the text says. A missing auction source, stock number, location or status stays blank,
+  // so a person fills it in. No placeholder identifier or business default is invented here.
+  const sourceMatch = line.match(/(copart|iaa|manheim)/i);
+  draft.auctionSource = sourceMatch ? sourceMatch[1].charAt(0).toUpperCase() + sourceMatch[1].slice(1).toLowerCase() : "";
+  if (!draft.auctionSource) uncertain.push("auctionSource");
 
   return { ...draft, uncertainFields: uncertain };
 }

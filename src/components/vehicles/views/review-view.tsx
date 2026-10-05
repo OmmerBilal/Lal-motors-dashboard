@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { vehicleFieldLabels, vehicleFieldOrder, vehicleTitle, type IntakeItem } from "@/lib/mock/vehicles";
 import { buildIntakeItems } from "@/lib/mock/parse-intake";
 import { previewVehicleMatch, type IntakeMatchStatus } from "@/lib/data/vehicles";
+import { ExistingVehicleMerge } from "@/components/vehicles/views/existing-vehicle-merge";
 import { useIntakeVehicles } from "@/lib/query/vehicles";
 import { toast } from "sonner";
 import type { IntakeMethod } from "@/components/vehicles/vehicle-workspace";
@@ -138,6 +139,10 @@ export function ReviewView({
                 onSave={(d) => saveEdit(item.id, d)}
                 onConfirm={() => confirm([item.id])}
                 onOpenExisting={(id) => onOpenVehicle(id)}
+                onMerged={() => {
+                  toast.success("Updated the existing vehicle with the chosen fields");
+                  removeItem(item.id);
+                }}
               />
             )}
           </div>
@@ -156,11 +161,13 @@ function ReviewEditor({
   onSave,
   onConfirm,
   onOpenExisting,
+  onMerged,
 }: {
   item: IntakeItem;
   onSave: (d: IntakeItem["draft"]) => void;
   onConfirm: () => void;
   onOpenExisting: (id: string) => void;
+  onMerged: () => void;
 }) {
   const [draft, setDraft] = useState(item.draft);
   const uncertain = useMemo(() => new Set(item.draft.uncertainFields || []), [item.draft.uncertainFields]);
@@ -185,20 +192,18 @@ function ReviewEditor({
         ))}
       </div>
       {item.errors.length > 0 && <p className="mt-3 text-sm font-medium text-destructive">{item.errors.join(" · ")}</p>}
-      {item.match.status === "existing" && (
-        <p className="mt-3 text-sm text-muted-foreground">
-          This vehicle is already in inventory, so it is not added again. Open the existing record to change it.
-        </p>
-      )}
-      {item.match.status === "conflict" && (
-        <p className="mt-3 text-sm text-warning-foreground">
-          The identifiers match a different vehicle record. Nothing is added or overwritten here. Open the existing record to resolve it.
-        </p>
-      )}
       {["existing", "conflict"].includes(item.match.status) && item.match.vehicle?.id && (
-        <Button variant="outline" size="sm" className="mt-3" onClick={() => onOpenExisting(item.match.vehicle!.id)}>
-          Open existing record
-        </Button>
+        <>
+          <p className="mt-3 text-xs text-muted-foreground">
+            {item.match.status === "conflict"
+              ? "The identifiers point at this existing record. A new record is not created. Compare and choose below, or open it."
+              : "This vehicle is already in inventory, so it is not added again. Compare and choose below, or open it."}
+          </p>
+          <ExistingVehicleMerge vehicleId={item.match.vehicle.id} draft={draft} onMerged={onMerged} />
+          <Button variant="outline" size="sm" className="mt-3 min-h-11" onClick={() => onOpenExisting(item.match.vehicle!.id)}>
+            Open existing record
+          </Button>
+        </>
       )}
       <div className="mt-4 flex flex-wrap gap-2">
         <Button variant="outline" onClick={() => onSave(draft)}>

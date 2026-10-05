@@ -3,6 +3,7 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   addVehicleNote,
+  applyVehicleMerge,
   createIntakeBatch,
   decideCompletion,
   editVehicleFields,
@@ -108,6 +109,19 @@ export function useDecideCompletion() {
       queryClient.invalidateQueries({ queryKey: workspaceKeys.completions() });
       queryClient.invalidateQueries({ queryKey: vehicleKeys.kpis() });
       queryClient.invalidateQueries({ queryKey: workspaceKeys.activity(undefined) });
+    },
+  });
+}
+
+export function useApplyVehicleMerge(vehicleId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { expectedUpdatedAt: string; changes: Record<string, string> }) =>
+      applyVehicleMerge({ vehicleId, ...input }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: workspaceKeys.record(vehicleId) });
+      queryClient.invalidateQueries({ queryKey: workspaceKeys.events(vehicleId) });
+      queryClient.invalidateQueries({ queryKey: vehicleKeys.lists() });
     },
   });
 }

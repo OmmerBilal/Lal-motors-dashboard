@@ -77,12 +77,24 @@ export function fullVehicleRecord(row: VehicleRow): VehicleRecord {
   };
 }
 
-export async function getVehicleRecord(vehicleId: string): Promise<{ record: VehicleRecord; stage: string }> {
+export async function getVehicleRecord(vehicleId: string): Promise<{ record: VehicleRecord; stage: string; updatedAt: string }> {
   const supabase = createClient();
   const { data, error } = await supabase.rpc("vehicle_get", { p_vehicle_id: vehicleId });
   if (error) fail(error);
   const row = data as VehicleRow;
-  return { record: fullVehicleRecord(row), stage: row.stage };
+  return { record: fullVehicleRecord(row), stage: row.stage, updatedAt: str(row.updated_at) };
+}
+
+/** Safe existing-record merge: only the chosen fields, and only if the row is still the one that was compared. */
+export async function applyVehicleMerge(input: { vehicleId: string; expectedUpdatedAt: string; changes: Record<string, string> }): Promise<VehicleRecord> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("vehicle_apply_merge", {
+    p_vehicle_id: input.vehicleId,
+    p_expected_updated_at: input.expectedUpdatedAt,
+    p_changes: input.changes,
+  });
+  if (error) fail(error);
+  return fullVehicleRecord(data as VehicleRow);
 }
 
 /** Descriptive edits only. Identity, status, assignment, carrier and closure are refused by the RPC. */
