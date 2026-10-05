@@ -6,6 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import crypto from "node:crypto";
 import { createRequire } from "node:module";
+import { loadDevCredentials } from "./dev-credentials.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const req = createRequire(ROOT + "/package.json");
@@ -16,7 +17,7 @@ const envLocal = parse(ROOT + "/.env.local");
 const envPub = parse(ROOT + "/.env");
 const SUPA = envPub.NEXT_PUBLIC_SUPABASE_URL || envLocal.NEXT_PUBLIC_SUPABASE_URL;
 const PUB = envPub.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || envLocal.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-const creds = JSON.parse(fs.readFileSync(ROOT + "/dev-test-credentials.json", "utf8"));
+const creds = loadDevCredentials();
 const byRole = Object.fromEntries(creds.map((u) => [u.role, u]));
 const db = new pg.Client({ connectionString: envLocal.connection_string, ssl: { rejectUnauthorized: false } });
 await db.connect();

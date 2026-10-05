@@ -5,6 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
+import { loadDevCredentials } from "./dev-credentials.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const req = createRequire(ROOT + "/package.json");
@@ -15,7 +16,7 @@ const envLocal = parse(ROOT + "/.env.local");
 const SUPA = envPub.NEXT_PUBLIC_SUPABASE_URL || envLocal.NEXT_PUBLIC_SUPABASE_URL;
 const PUB = envPub.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || envLocal.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 const BASE = process.env.BASE_URL || "http://localhost:3100";
-const creds = JSON.parse(fs.readFileSync(ROOT + "/dev-test-credentials.json", "utf8"));
+const creds = loadDevCredentials();
 const manager = creds.find((u) => u.role === "manager");
 const COOKIE = `sb-${new URL(SUPA).hostname.split(".")[0]}-auth-token`;
 

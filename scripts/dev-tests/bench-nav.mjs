@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
+import { loadDevCredentials } from "./dev-credentials.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const req = createRequire(ROOT + "/package.json");
@@ -16,7 +17,7 @@ const PUB = envPub.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 const COOKIE = `sb-${new URL(SUPA).hostname.split(".")[0]}-auth-token`;
 const BASE = process.argv[2] || "http://localhost:3200";
 const RUNS = Number(process.argv[3] || 15);
-const creds = JSON.parse(fs.readFileSync(ROOT + "/dev-test-credentials.json", "utf8"));
+const creds = loadDevCredentials();
 const u = creds.find((x) => x.role === "owner");
 
 const c = createClient(SUPA, PUB, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });

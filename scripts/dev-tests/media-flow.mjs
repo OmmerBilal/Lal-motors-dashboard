@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import crypto from "node:crypto";
 import { createRequire } from "node:module";
+import { loadDevCredentials } from "./dev-credentials.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const req = createRequire(ROOT + "/package.json");
@@ -23,7 +24,7 @@ const SECRET = envLocal.secret_key;
 const REF = new URL(SUPA).hostname.split(".")[0];
 const COOKIE = `sb-${REF}-auth-token`;
 const BASE = process.env.BASE_URL || "http://localhost:3100";
-const creds = JSON.parse(fs.readFileSync(ROOT + "/dev-test-credentials.json", "utf8"));
+const creds = loadDevCredentials();
 const byRole = Object.fromEntries(creds.map((u) => [u.role, u]));
 const pgc = new pg.Client({ connectionString: envLocal.connection_string, ssl: { rejectUnauthorized: false } });
 await pgc.connect();
