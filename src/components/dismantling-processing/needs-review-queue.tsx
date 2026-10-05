@@ -12,7 +12,7 @@ import { StatusBadge } from "@/components/patterns/status-badge";
 import { EmptyState } from "@/components/patterns/empty-state";
 import { useDismantlingProcessingData, type ReviewCandidate } from "@/components/dismantling-processing/use-dismantling-data";
 import { useApprovePart, useEditApprovePart, useKeepForReview, useMarkDuplicate, useRejectPart } from "@/lib/query/processing";
-import { rejectReasons } from "@/lib/mock/dismantling-processing";
+import { rejectReasons } from "@/lib/dismantling/part-classification";
 import type { User } from "@/lib/types";
 import { toast } from "sonner";
 

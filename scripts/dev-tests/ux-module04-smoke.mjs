@@ -21,12 +21,15 @@ const account = creds.find((u) => u.role === "dismantling");
 const COOKIE = `sb-${new URL(SUPA).hostname.split(".")[0]}-auth-token`;
 const WIDTHS = (process.env.WIDTHS || "390,430,768").split(",").map(Number);
 
-const c = createClient(SUPA, PUB, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
-const { data, error } = await c.auth.signInWithPassword({ email: account.email, password: account.password });
-if (error) { console.log("FAIL | sign-in"); process.exit(1); }
-const value = "base64-" + Buffer.from(JSON.stringify(data.session), "utf8").toString("base64url");
-const CHUNK = 3180;
-const chunks = value.length <= CHUNK ? [[COOKIE, value]] : Array.from({ length: Math.ceil(value.length / CHUNK) }, (_, i) => [`${COOKIE}.${i}`, value.slice(i * CHUNK, (i + 1) * CHUNK)]);
+// A fresh sign-in per width: refresh tokens rotate, so one session cannot be shared across browser contexts.
+async function chunksForSession() {
+  const c = createClient(SUPA, PUB, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
+  const { data, error } = await c.auth.signInWithPassword({ email: account.email, password: account.password });
+  if (error) throw new Error("sign-in: " + error.message);
+  const value = "base64-" + Buffer.from(JSON.stringify(data.session), "utf8").toString("base64url");
+  const CHUNK = 3180;
+  return value.length <= CHUNK ? [[COOKIE, value]] : Array.from({ length: Math.ceil(value.length / CHUNK) }, (_, i) => [`${COOKIE}.${i}`, value.slice(i * CHUNK, (i + 1) * CHUNK)]);
+}
 
 const browser = await chromium.launch({ executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe", headless: true });
 let pass = 0, fail = 0;
@@ -38,6 +41,7 @@ async function overflow(page, label, width) {
 
 for (const width of WIDTHS) {
   const context = await browser.newContext({ viewport: { width, height: 900 }, deviceScaleFactor: 1, isMobile: width < 500, hasTouch: width < 500 });
+  const chunks = await chunksForSession();
   await context.addCookies(chunks.map(([name, v]) => ({ name, value: v, url: BASE })));
   const page = await context.newPage();
   await page.goto(BASE + "/dismantling", { waitUntil: "domcontentloaded", timeout: 60_000 });

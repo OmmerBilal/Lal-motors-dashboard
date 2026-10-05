@@ -56,7 +56,6 @@ async function post(role, route, body) {
 
 const restore = [];
 const runTag = crypto.randomUUID().slice(0, 6).toUpperCase();
-const managerId = (await q("select id from public.profiles where email=$1", [byRole.manager.email]))[0].id;
 
 // ------------------------------------------------------------------ access: management roles only, no anonymous use
 const anon = await post(null, "/api/ai/command", { tool: "find_customer", arguments: { query: "Smith" } });

@@ -24,7 +24,7 @@ import {
   categoryBucketLabels,
   categoryBucketOrder,
   detailedCategoryLabel,
-} from "@/lib/mock/dismantling-processing";
+} from "@/lib/dismantling/part-classification";
 import { PhotoGalleryDialog, type PhotoTile } from "@/components/dismantling-processing/photo-gallery-dialog";
 
 const periods: { id: PeriodId; label: string }[] = [

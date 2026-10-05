@@ -24,7 +24,7 @@ const knownMakes = [
   "Volkswagen",
 ];
 
-function parseLine(line: string, index: number): IntakeItem["draft"] {
+function parseLine(line: string): IntakeItem["draft"] {
   const draft: Record<string, string> = {};
   const uncertain: string[] = [];
 
@@ -88,12 +88,12 @@ export function buildIntakeItems(
       const parsed = JSON.parse(sourceText) as Record<string, string>;
       drafts = [{ ...parsed, uncertainFields: [] }];
     } catch {
-      drafts = [parseLine(sourceText, 0)];
+      drafts = [parseLine(sourceText)];
     }
   } else if (method === "scan") {
     drafts = [];
   } else if (method === "single") {
-    drafts = [parseLine(sourceText, 0)];
+    drafts = [parseLine(sourceText)];
   } else {
     const lines = sourceText
       .split(/\n+/)
