@@ -1,16 +1,19 @@
-# Autonomous work queue — after closure (2026-10-05)
+# Autonomous work queue — final technical closure (2026-10-05, commit 780da81)
 
-Done in this phase (see IMPLEMENTATION_PROGRESS.md for commits and counts):
-- Modules 01, 02, 03 implementation complete — manual QA pending.
-- Modules 15, 16 implementation complete — manual QA pending (16: OpenAI key check needed).
-- Modules 10–14 implementation complete — manual QA pending (unchanged this phase).
-- Modules 08, 09 done.
+Status (see LAL_MOTORS_AUTONOMOUS_IMPLEMENTATION_MASTER.txt):
+- 01, 02, 03, 04, 05, 06, 07 — IMPLEMENTATION COMPLETE — MANUAL QA PENDING
+- 08, 09 — DONE
+- 10–15 — IMPLEMENTATION COMPLETE — MANUAL QA PENDING
+- 16 — IMPLEMENTATION COMPLETE — MANUAL QA PENDING; OPENAI LIVE CONNECTION NEEDS KEY/ACCOUNT CHECK
 
-Open, in priority order:
-1. Module 04: run a full dismantling session start-to-finish in a browser (DEV fixture vehicle).
-2. Module 05: connect "Analyze Part" (manager/admin only) through the Module 16 explicit path; add a browser test for review actions once a pending review item exists in DEV.
-3. Module 06: browser upload test for a part photo (camera and device); part detail sections; a real Out of Stock row assertion.
-4. Module 07: browser create (with duplicate warning), edit and detail flows.
-5. Business decisions (not blockers): scrap office role for auction; customer number format; whether receiving requires photos beyond the four arrival slots.
-6. OpenAI: provide a valid key/account, then rerun ai-live-smoke and ai-stream-smoke.
-7. Manual QA for Modules 01–03, 10–16 (deferred by request).
+Business decisions (not blockers):
+1. Customer number format (new customers may be NULL; operational screens use the real name or company).
+2. Confirm the Scrap management role set: owner, engineer_admin, manager.
+3. Confirm whether an additional Analyze Part image (Take Photo / Choose from Device) is wanted. Today the stored captured photo is the only input.
+
+Operational:
+4. OpenAI: supply a valid key or account, then rerun ai-live-smoke and ai-stream-smoke.
+5. Manual business QA for every module, as deferred by request.
+6. DEV data housekeeping: TEST and TMRG fixtures, and one clean-day daily_close row for 2026-01-01, are recorded in IMPLEMENTATION_PROGRESS.md.
+
+Not pushed. Push only after an explicit instruction in chat.

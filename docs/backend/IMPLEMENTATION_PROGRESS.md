@@ -445,3 +445,43 @@ Not run in this closure: the team and manager dashboard browser flows; the full 
 6. Receiving: the server requires four arrival photos; this is enforced in receive_vehicle, not only in the screen.
 7. OpenAI: the stored key is refused (invalid_key). Live provider success is not verified. The safe failure path is tested.
 8. The attack matrix classifies refusals by message text. A refusal with an unrelated message would count as a refusal.
+
+
+---
+
+## Final technical closure — 2026-10-05 (local commit 780da81, nothing pushed)
+
+### Corrections made in this pass
+1. **Scrap authority.** `is_scrap_office()` is now owner, engineer_admin and manager (migration 0055). The auction role had been a generic office proxy and reached Scrap approval, payments, corrections, daily close, reports and financial reads. Test expectations now assert the correct rule: rpc-scrap asserts an auction refusal (42501) where it previously asserted access; rls-matrix no longer grants auction a scrap_loads read; route-gate expects auction redirected from /scrap. The rpc-scrap count stays at 182, because one expectation was replaced by its opposite.
+2. **AI tool registry.** Tool roles were broader than the RPCs they call (export_manager in customer and sales tools; engineer_admin in the owner-only management summary). They now match the database guards.
+3. **Attack matrix rebuilt.** Explicit ALLOW or DENY per role. DENY only on SQLSTATE 42501. Not-found, invalid and generic errors never count as authorization. Probes use placeholder ids, so guards run before any lookup and nothing can change. AI tools are probed over HTTP (403 forbidden or 200).
+4. **Module 05 Analyze Part.** Connected through the Module 16 pipeline (see the closure notes below).
+5. **Camera audit.** Parts detail and processing photos use the shared capture (real upload). Warehouse capture is an honest Not Connected card. The POS manual-item photo controls are removed (no media owner). The customer resale-document control is Not Connected text.
+6. **Back and previous.** Invoice finalize requires a second confirmation, with Back and no server call. The AI proposal has Back (keeps the proposal pending, no write), separate from Cancel (explicit rejection). Scrap driver and container loader Back controls navigate without server calls.
+
+### Exact regression counts (sequential, final build)
+HTTP and AI: route-gate 34/34; ai-stream-smoke 12/12; rpc-ai-tools 33/33; media-flow 24/24.
+Database: rls-matrix 114; rpc-vehicles 59; rpc-vehicle-authority 36; rpc-vehicle-merge 15; dispatch 24 (baseline held); rpc-dispatch-read 14; rpc-dismantling 45; rpc-processing 57 (baseline held); rpc-processing-read 8 (one more check runs when a review row exists, which it did in this run); rpc-part-analysis 14; rpc-parts 57 (baseline held); rpc-parts-sellability 14; rpc-customers 36 (baseline held); rpc-customers-m07 14; rpc-quotes-sales 68; rpc-payments 70; rpc-money-stock 63 (baseline held); rpc-scrap 182 (baseline held; expectation corrected, see above); rpc-containers 173; rpc-owner-dashboard 32; rpc-team-activity 51; rpc-team-management 44; rpc-attack-matrix 245/245 (69 ALLOW, 175 DENY, 6 not exercised).
+Browser: ux-responsive-smoke 10/10 (390 and 1440 on /vehicles and /ai-command-center); ux-module01-flow 36/36 (390, 430, 768, 1440); ux-module02-flow 18/18 (390, 1440); ux-module03-flow 8/8 (390, 1440); ux-module04-smoke 21/21 (390, 430, 768); ux-module05-smoke 4/4 (390, 1440); ux-module06-flow 8/8 (390, 1440); ux-module07-smoke 4/4 (390, 1440); ux-camera-audit 10/10 (390, 1440).
+
+Browser widths are confirmed by innerWidth in each script. The 430 and 768 widths are covered only where listed.
+
+### Static checks
+`npx tsc --noEmit`: pass. `npm run lint`: 0 errors, 0 warnings. `npm run build`: pass.
+
+### Secret scan
+Changed and new files scanned for key-shaped tokens, JWT-shaped tokens, service-key assignments and the dev-test password: no matches. `.env`, `.env.local` and `dev-test-credentials.json` are git-ignored. The service key is read from `.env.local` by the test scripts that need it and is never printed. The watchdog script and logs are untracked and excluded.
+
+### Test side effects in DEV (recorded, not reverted)
+- `daily_closes`: the attack-matrix probe created one clean-day close row for 2026-01-01 as the manager (intended behaviour for a clean day). The table is append-only; the row remains.
+- Fixture rows: TMRG- and TEST- vehicles and customers; one TEST analysis photo row pointing at an uploaded fixture object (`test/analysis-fixture/`); receiving and scrap media rows from the upload checks; one scrap load from the driver camera check.
+
+### Open items: business decisions and manual QA (not blockers)
+1. Customer number format requires a business decision. New customers may have customer_number = NULL. Every operational workflow tolerates NULL and uses the customer's real name or company.
+2. Scrap office scope: confirm that owner, engineer_admin and manager are the complete Scrap management set. Auction is no longer included.
+3. Receiving: the server requires the four arrival photos; this is enforced in receive_vehicle.
+4. Analyze Part: the draft is advisory. No extra image is offered in this screen (Take Photo / Choose from Device for an additional analysis image was optional and is not built).
+5. Invoice review has no server operation back to draft, so no back step is offered there. Review is an explicit submission.
+6. OpenAI: the stored key is refused (invalid_key). The provider path is tested for controlled failure; live success is not verified.
+7. The attack matrix classifies refusals by SQLSTATE 42501 only. ALLOW checks prove the authorization check was passed (no 42501 or 28000), not that the business action succeeded.
+8. Container and parts photo slots use the shared capture and were verified for visibility only in the browser. A real upload was run on the scrap driver path and on the AI image input.
