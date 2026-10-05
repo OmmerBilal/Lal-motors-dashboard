@@ -3,7 +3,6 @@
 import { useCustomerRecord, useCustomerHistory } from "@/lib/query/customers";
 import { useCustomerQuotes } from "@/lib/query/sales";
 import { ChevronLeft } from "lucide-react";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { HistoryPanel } from "@/components/sales/shared";
 
@@ -72,18 +71,7 @@ export function CustomerDetailView({
             </div>
           ))}
         </div>
-        <label className="mt-4 inline-flex cursor-pointer items-center rounded-md border border-border bg-background px-3 py-2 text-xs font-semibold text-primary">
-          Attach resale certificate / document
-          <input
-            type="file"
-            accept="image/*,.pdf"
-            className="hidden"
-            onChange={(e) => {
-              if (e.target.files?.[0]) toast.info("Document upload is not connected yet. Nothing was attached.");
-              e.target.value = "";
-            }}
-          />
-        </label>
+        <p className="mt-4 text-xs text-muted-foreground">Documents: Not Connected. A resale certificate cannot be attached yet.</p>
       </div>
 
       <HistoryPanel

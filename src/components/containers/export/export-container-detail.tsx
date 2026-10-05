@@ -189,6 +189,8 @@ function DraftInvoice({ inv }: { inv: ExportInvoice }) {
   const [notes, setNotes] = useState(inv.notes);
   const [lines, setLines] = useState<LineDraft[]>(() => toDraft(inv.items));
   const [finalRequest] = useState(() => crypto.randomUUID());
+  // Finalizing is irreversible: a person confirms it on a second step, and can go back without any server call.
+  const [confirmingFinalize, setConfirmingFinalize] = useState(false);
   const busy = saveDraft.isPending || review.isPending || finalize.isPending;
   const payload = toPayload(lines);
   const draftTotal = payload.reduce((n, l) => n + Math.round(l.quantity * l.unit_price * 100), 0) / 100;
@@ -228,9 +230,22 @@ function DraftInvoice({ inv }: { inv: ExportInvoice }) {
             Send to review
           </Button>
         )}
-        <Button disabled={busy || !inv.consignee_id} onClick={() => finalize.mutate({ invoiceId: inv.id, requestId: finalRequest }, { onSuccess: (f) => toast.success(`Invoice ${f.invoice_number} finalized.`), onError: (e) => toast.error(e.message) })}>
-          Finalize invoice
-        </Button>
+        {!confirmingFinalize ? (
+          <Button disabled={busy || !inv.consignee_id} onClick={() => setConfirmingFinalize(true)}>
+            Finalize invoice…
+          </Button>
+        ) : (
+          <div className="w-full space-y-2 rounded-md border border-warning/40 bg-warning/10 p-3">
+            <p className="text-sm font-semibold">Finalize this invoice? This cannot be undone.</p>
+            <p className="text-xs text-muted-foreground">The content is fixed after finalizing. A later correction is a new revision with a reason. Going back changes nothing.</p>
+            <div className="grid grid-cols-1 gap-2 sm:flex">
+              <Button variant="outline" className="min-h-11" disabled={busy} onClick={() => setConfirmingFinalize(false)}>Back</Button>
+              <Button className="min-h-11" disabled={busy || !inv.consignee_id} onClick={() => finalize.mutate({ invoiceId: inv.id, requestId: finalRequest }, { onSuccess: (f) => { setConfirmingFinalize(false); toast.success(`Invoice ${f.invoice_number} finalized.`); }, onError: (e) => toast.error(e.message) })}>
+                Confirm finalize
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
       {inv.status === "Draft" && <p className="text-xs text-muted-foreground">Finalize uses the last saved draft. Save before finalizing.</p>}
     </section>

@@ -32,7 +32,7 @@ const ROUTE_RULES: RouteRule[] = [
   { prefix: "/operations", roles: ["engineer_admin", "manager"] },
   { prefix: "/sales", roles: ["engineer_admin", "manager"] },
   { prefix: "/containers", roles: ["engineer_admin", "export_manager", "container_loading"] },
-  { prefix: "/scrap", roles: ["engineer_admin", "manager", "auction", "scrap_driver"] },
+  { prefix: "/scrap", roles: ["engineer_admin", "manager", "scrap_driver"] },
   { prefix: "/audit", roles: ["engineer_admin"] },
   { prefix: "/team", roles: OWNER_ONLY },
   { prefix: "/preview", roles: OWNER_ONLY },

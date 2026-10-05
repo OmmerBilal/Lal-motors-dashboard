@@ -66,7 +66,7 @@ const matrix = {
   engineer_admin:    { allow: ["sales", "customers", "vehicles", "parts", "audit_logs", "container_jobs", "export_invoices"], deny: [] },
   manager:           { allow: ["sales", "customers", "vehicles", "parts", "scrap_loads"], deny: ["consignees", "export_invoices", "export_payments", "container_shipping_info", "audit_logs"] },
   employee:          { allow: ["parts", "part_operations"], deny: ["sales", "customers", "payments", "consignees", "export_invoices", "scrap_load_financials", "audit_logs"] },
-  auction:           { allow: ["vehicles", "scrap_loads"], deny: ["sales", "customers", "parts", "consignees", "export_invoices", "payments"] },
+  auction:           { allow: ["vehicles"], deny: ["sales", "customers", "parts", "consignees", "export_invoices", "payments", "scrap_loads"] },
   receiving:         { allow: ["vehicles"], deny: ["sales", "customers", "parts", "consignees", "export_invoices", "scrap_load_financials", "payments"] },
   dismantling:       { allow: ["dismantling_sessions", "parts", "vehicles"], deny: ["sales", "customers", "payments", "consignees", "export_invoices", "scrap_load_financials", "audit_logs"] },
   scrap_driver:      { allow: ["scrap_loads"], deny: ["sales", "customers", "payments", "consignees", "export_invoices", "scrap_load_financials", "vehicles", "parts", "container_jobs", "user_roles", "audit_logs"] },

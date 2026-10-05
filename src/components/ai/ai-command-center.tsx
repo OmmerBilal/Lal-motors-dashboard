@@ -271,10 +271,13 @@ export function AiCommandCenter({ role }: { role: string }) {
               <p className="text-sm">{reply.preview.summary}</p>
               <p className="text-xs text-muted-foreground">Target: {reply.preview.target}</p>
               <FieldList fields={reply.preview.fields} />
-              <p className="text-xs text-muted-foreground">Approving applies this change once. Cancel discards the proposal.</p>
+              <p className="text-xs text-muted-foreground">Approving applies this change once. Back keeps the proposal pending and changes nothing. Cancel rejects it.</p>
               <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
                 <Button type="button" className="min-h-11" onClick={() => decide(reply.requestId, "approve")} disabled={busy}>
                   <Check /> Approve
+                </Button>
+                <Button type="button" variant="outline" className="min-h-11" onClick={() => setReply(null)} disabled={busy}>
+                  Back
                 </Button>
                 <Button type="button" variant="outline" className="min-h-11" onClick={() => decide(reply.requestId, "reject")} disabled={busy}>
                   <X /> Cancel

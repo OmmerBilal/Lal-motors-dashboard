@@ -2,16 +2,15 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { Camera, PackagePlus, Plus, Upload } from "lucide-react";
+import { PackagePlus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export function ManualItemPanel({ onAdd }: { onAdd: (input: { description: string; price: number; quantity: number; photoName?: string }) => void }) {
+export function ManualItemPanel({ onAdd }: { onAdd: (input: { description: string; price: number; quantity: number }) => void }) {
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
   const [quantity, setQuantity] = useState("1");
-  const [photoName, setPhotoName] = useState("");
 
   function add() {
     const priceNum = Number(price);
@@ -20,11 +19,10 @@ export function ManualItemPanel({ onAdd }: { onAdd: (input: { description: strin
       toast.error("Enter a description, valid price and quantity.");
       return;
     }
-    onAdd({ description: description.trim(), price: priceNum, quantity: qtyNum, photoName: photoName || undefined });
+    onAdd({ description: description.trim(), price: priceNum, quantity: qtyNum });
     setDescription("");
     setPrice("");
     setQuantity("1");
-    setPhotoName("");
   }
 
   return (
@@ -50,17 +48,7 @@ export function ManualItemPanel({ onAdd }: { onAdd: (input: { description: strin
             <Input className="h-9 text-sm" type="number" min={1} value={quantity} onChange={(e) => setQuantity(e.target.value)} />
           </div>
         </div>
-        <div className="flex gap-1.5">
-          <label className="flex cursor-pointer items-center gap-1 rounded-md border border-dashed border-border px-2 py-1.5 text-[11px] font-semibold text-primary hover:bg-primary/5">
-            <Camera className="size-3.5" /> Take Photo
-            <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => setPhotoName(e.target.files?.[0]?.name || "")} />
-          </label>
-          <label className="flex cursor-pointer items-center gap-1 rounded-md border border-dashed border-border px-2 py-1.5 text-[11px] font-semibold text-primary hover:bg-primary/5">
-            <Upload className="size-3.5" /> Upload
-            <input type="file" accept="image/*" className="hidden" onChange={(e) => setPhotoName(e.target.files?.[0]?.name || "")} />
-          </label>
-        </div>
-        {photoName && <p className="text-xs text-muted-foreground">{photoName}</p>}
+        <p className="text-[11px] text-muted-foreground">Manual items have no photo record yet. Photos are not attached to a manual sale line.</p>
         <Button className="w-full font-semibold shadow-sm" onClick={add}>
           <Plus className="size-4" /> Add to Sale
         </Button>

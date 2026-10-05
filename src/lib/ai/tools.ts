@@ -23,8 +23,11 @@ export type Tool = {
   execute?: (ctx: ToolContext, args: Record<string, unknown>, requestId: string) => Promise<unknown>;
 };
 
-const MANAGEMENT = ["owner", "engineer_admin", "manager", "export_manager"];
+/** Management tools call RPCs whose guards admit owner, engineer_admin and manager. export_manager is not in this set. */
+const SALES_OFFICE = ["owner", "engineer_admin", "manager"];
 const OWNER_ENGINEER = ["owner", "engineer_admin"];
+/** owner_dashboard_summary is owner-only in the database; the tool follows it. */
+const OWNER_ONLY = ["owner"];
 
 /** Key-sorted serialisation: jsonb round-trips reorder keys, so a fingerprint must not depend on key order. */
 function canonical(value: unknown): string {
@@ -71,32 +74,32 @@ const customerFields = z.object({
 export const TOOLS: Tool[] = [
   // ------------------------------------------------------------------ reads
   {
-    name: "find_customer", kind: "read", description: "Search customers by name, phone, company or email.", roles: MANAGEMENT,
+    name: "find_customer", kind: "read", description: "Search customers by name, phone, company or email.", roles: SALES_OFFICE,
     args: z.object({ query: z.string().trim().min(2).max(120) }),
     run: (ctx, a) => rpc(ctx, "list_customers", { p_search: a.query, p_limit: 10 }),
   },
   {
-    name: "get_customer_history", kind: "read", description: "Sales, quotes and payments for one customer.", roles: MANAGEMENT,
+    name: "get_customer_history", kind: "read", description: "Sales, quotes and payments for one customer.", roles: SALES_OFFICE,
     args: z.object({ customer_id: uuid }),
     run: (ctx, a) => rpc(ctx, "customer_history", { p_customer_id: a.customer_id }),
   },
   {
-    name: "get_sale", kind: "read", description: "One sale with its lines, fulfilment and balance.", roles: MANAGEMENT,
+    name: "get_sale", kind: "read", description: "One sale with its lines, fulfilment and balance.", roles: SALES_OFFICE,
     args: z.object({ sale_id: uuid }),
     run: (ctx, a) => rpc(ctx, "get_sale_detail", { p_sale_id: a.sale_id }),
   },
   {
-    name: "get_quote", kind: "read", description: "One quote with its lines and status.", roles: MANAGEMENT,
+    name: "get_quote", kind: "read", description: "One quote with its lines and status.", roles: SALES_OFFICE,
     args: z.object({ quote_id: uuid }),
     run: (ctx, a) => rpc(ctx, "get_quote_detail", { p_quote_id: a.quote_id }),
   },
   {
-    name: "get_payment_status", kind: "read", description: "One customer payment: amount, status and allocations.", roles: MANAGEMENT,
+    name: "get_payment_status", kind: "read", description: "One customer payment: amount, status and allocations.", roles: SALES_OFFICE,
     args: z.object({ payment_id: uuid }),
     run: (ctx, a) => rpc(ctx, "get_payment_detail", { p_payment_id: a.payment_id }),
   },
   {
-    name: "find_part", kind: "read", description: "Search parts by name, SKU or number.", roles: MANAGEMENT,
+    name: "find_part", kind: "read", description: "Search parts by name, SKU or number.", roles: SALES_OFFICE,
     args: z.object({ query: z.string().trim().min(2).max(120) }),
     run: (ctx, a) => rpc(ctx, "list_parts", { p_search: a.query, p_limit: 10 }),
   },
@@ -106,7 +109,7 @@ export const TOOLS: Tool[] = [
     run: (ctx) => rpc(ctx, "list_parts", { p_status: "manager_review", p_limit: 25 }),
   },
   {
-    name: "find_vehicle", kind: "read", description: "Search vehicles by VIN, lot or stock number.", roles: MANAGEMENT,
+    name: "find_vehicle", kind: "read", description: "Search vehicles by VIN, lot or stock number.", roles: SALES_OFFICE,
     args: z.object({ query: z.string().trim().min(3).max(60) }),
     run: (ctx, a) => rpc(ctx, "list_vehicles", { p_search: a.query, p_limit: 10 }),
   },
@@ -126,7 +129,7 @@ export const TOOLS: Tool[] = [
     run: (ctx, a) => rpc(ctx, "export_get_container", { p_container_id: a.container_id }),
   },
   {
-    name: "get_management_summary", kind: "read", description: "Owner dashboard figures for a date range (defaults to the last 7 days).", roles: OWNER_ENGINEER,
+    name: "get_management_summary", kind: "read", description: "Owner dashboard figures for a date range (defaults to the last 7 days).", roles: OWNER_ONLY,
     args: z.object({ from: z.iso.date().optional(), to: z.iso.date().optional() }),
     run: (ctx, a) => rpc(ctx, "owner_dashboard_summary", { p_from: a.from ?? daysAgo(6), p_to: a.to ?? today() }),
   },
@@ -138,7 +141,7 @@ export const TOOLS: Tool[] = [
 
   // ------------------------------------------------------------------ writes (proposal -> approval -> revalidation -> RPC)
   {
-    name: "create_customer", kind: "write", description: "Create a customer (after the user approves).", roles: MANAGEMENT,
+    name: "create_customer", kind: "write", description: "Create a customer (after the user approves).", roles: SALES_OFFICE,
     args: customerFields.extend({ first_name: z.string().trim().min(1).max(80) }),
     preview: async (_ctx, a) => ({
       summary: `Create customer ${a.first_name} ${a.last_name ?? ""}`.trim(),
@@ -149,7 +152,7 @@ export const TOOLS: Tool[] = [
     execute: (ctx, a, requestId) => rpc(ctx, "create_customer", { p_data: a, p_client_request_id: requestId }),
   },
   {
-    name: "update_customer", kind: "write", description: "Update allowed fields of one customer (after approval).", roles: MANAGEMENT,
+    name: "update_customer", kind: "write", description: "Update allowed fields of one customer (after approval).", roles: SALES_OFFICE,
     args: z.object({ customer_id: uuid, fields: customerFields }),
     preview: async (ctx, a) => {
       // The customer's own row (read as the caller, so RLS applies). Any change to it after proposal makes the approval stale.
@@ -165,7 +168,7 @@ export const TOOLS: Tool[] = [
     execute: (ctx, a) => rpc(ctx, "update_customer", { p_customer_id: a.customer_id, p_data: a.fields }),
   },
   {
-    name: "reserve_sale", kind: "write", description: "Reserve stock for a sale (after approval).", roles: MANAGEMENT,
+    name: "reserve_sale", kind: "write", description: "Reserve stock for a sale (after approval).", roles: SALES_OFFICE,
     args: z.object({ sale_id: uuid }),
     preview: async (ctx, a) => {
       const current = await rpc(ctx, "get_sale_detail", { p_sale_id: a.sale_id });
@@ -174,7 +177,7 @@ export const TOOLS: Tool[] = [
     execute: (ctx, a) => rpc(ctx, "reserve_stock", { p_sale_id: a.sale_id }),
   },
   {
-    name: "fulfill_sale", kind: "write", description: "Fulfil a reserved sale (after approval).", roles: MANAGEMENT,
+    name: "fulfill_sale", kind: "write", description: "Fulfil a reserved sale (after approval).", roles: SALES_OFFICE,
     args: z.object({ sale_id: uuid }),
     preview: async (ctx, a) => {
       const current = await rpc(ctx, "get_sale_detail", { p_sale_id: a.sale_id });

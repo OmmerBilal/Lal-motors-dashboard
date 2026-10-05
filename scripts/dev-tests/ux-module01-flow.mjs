@@ -68,6 +68,8 @@ for (const width of WIDTHS) {
   await overflow(page, "review", width);
   await page.getByRole("button", { name: /Select/ }).first().waitFor({ timeout: 10_000 }).catch(() => {});
   const row = page.locator("button", { hasText: /EXISTING VEHICLE|CONFLICT/ }).first();
+  // The match check runs after the review appears; wait for its row before opening it.
+  await row.waitFor({ timeout: 60_000 });
   await row.click();
   await page.getByText("EXISTING VEHICLE FOUND").waitFor({ timeout: 20_000 });
   await overflow(page, "existing-match comparison", width);

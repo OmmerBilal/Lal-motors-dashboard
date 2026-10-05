@@ -75,7 +75,7 @@ const cases = {
   engineer_admin: [["/sales", ALLOW()], ["/team", DENY_TO("/vehicles")], ["/ai-command-center", ALLOW()]],
   manager: [["/sales", ALLOW()], ["/containers", DENY_TO("/dismantling-processing")], ["/audit", DENY_TO("/dismantling-processing")]],
   employee: [["/parts", ALLOW()], ["/sales", DENY_TO("/parts")], ["/containers", DENY_TO("/parts")]],
-  auction: [["/vehicles", ALLOW()], ["/scrap", ALLOW()], ["/parts", DENY_TO("/vehicles")]],
+  auction: [["/vehicles", ALLOW()], ["/scrap", DENY_TO("/vehicles")], ["/parts", DENY_TO("/vehicles")]],
   receiving: [["/vehicle-receiving", ALLOW()], ["/vehicles", DENY_TO("/vehicle-receiving")]],
   dismantling: [["/dismantling", ALLOW()], ["/parts", DENY_TO("/dismantling")], ["/sales", DENY_TO("/dismantling")]],
   scrap_driver: [["/scrap", ALLOW()], ["/sales", DENY_TO("/scrap")], ["/containers", DENY_TO("/scrap")], ["/team", DENY_TO("/scrap")], ["/vehicles", DENY_TO("/scrap")], ["/preview/scrap-driver", DENY_TO("/scrap")]],

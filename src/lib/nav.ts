@@ -91,7 +91,6 @@ export function getPrimaryNav(role: Role): NavItem[] {
       return [
         { id: "vehicle-workspace", label: "Auction Vehicle Intake", href: "/vehicles", icon: CarFront },
         { id: "central-dispatch", label: "Central Dispatch", href: "/central-dispatch", icon: Truck },
-        { id: "scrap", label: "Scrap Loads", href: "/scrap", icon: Truck },
       ];
     case "receiving":
       return [

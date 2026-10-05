@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Camera, ChevronLeft, MapPin, PackageCheck, Sparkles, Upload } from "lucide-react";
+import { Camera, ChevronLeft, MapPin, PackageCheck, Sparkles } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +16,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { StatusBadge } from "@/components/patterns/status-badge";
-import { usePartsData, usePartDetailRecord } from "@/components/parts/parts-data-context";
+import { MediaCapture } from "@/components/media/media-capture";
+import { partsKeys, usePartsData, usePartDetailRecord } from "@/components/parts/parts-data-context";
 import {
   operationalStatusOptions,
   partFieldLabels,
@@ -42,7 +44,8 @@ export function PartDetailView({
   onBack: () => void;
 }) {
   const { user } = useSession();
-  const { getPart, setDraft, setStatus, approve, saveOperations, addFinalPhoto } = usePartsData();
+  const { getPart, setDraft, setStatus, approve, saveOperations } = usePartsData();
+  const queryClient = useQueryClient();
   const part = getPart(partId);
   const [command, setCommand] = useState("Process this part.");
   const [busy] = useState(false);
@@ -155,14 +158,15 @@ export function PartDetailView({
           </div>
           {manager && (
             <div className="mt-4 flex flex-wrap gap-2">
-              <label className="flex cursor-pointer items-center gap-2 rounded-md bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground">
-                <Camera className="size-4" /> Take final cleaned photos
-                <input type="file" accept="image/*" capture="environment" multiple className="hidden" onChange={() => addFinalPhoto(part!.id)} />
-              </label>
-              <label className="flex cursor-pointer items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-xs font-semibold text-primary">
-                <Upload className="size-4" /> Choose final photos
-                <input type="file" accept="image/*" multiple className="hidden" onChange={() => addFinalPhoto(part!.id)} />
-              </label>
+              <div className="w-full max-w-sm">
+                <MediaCapture
+                  label="Final cleaned photo"
+                  ownerType="part"
+                  ownerId={part!.id}
+                  role="final"
+                  onUploaded={() => queryClient.invalidateQueries({ queryKey: partsKeys.all })}
+                />
+              </div>
             </div>
           )}
         </div>

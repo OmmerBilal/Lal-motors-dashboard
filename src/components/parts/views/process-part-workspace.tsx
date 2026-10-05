@@ -23,7 +23,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/patterns/status-badge";
-import { usePartsData } from "@/components/parts/parts-data-context";
+import { partsKeys, usePartsData } from "@/components/parts/parts-data-context";
+import { MediaCapture } from "@/components/media/media-capture";
+import { useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/lib/session";
 import {
   partStageLabels,
@@ -62,7 +64,8 @@ export function ProcessPartWorkspace({
   onBack: () => void;
 }) {
   const { user } = useSession();
-  const { getPart, patchPart, completeProcessing, setNotSellable, addProcessingPhoto } = usePartsData();
+  const { getPart, patchPart, completeProcessing, setNotSellable } = usePartsData();
+  const queryClient = useQueryClient();
   const part = getPart(partId);
 
   const [tab, setTab] = useState("details");
@@ -150,14 +153,6 @@ export function ProcessPartWorkspace({
     setNotSellable(part!.id, reason, reasonNotes, user.name);
     toast.success("Removed from sellable inventory");
     setNotSellableOpen(false);
-  }
-
-  function pickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const url = URL.createObjectURL(file);
-    addProcessingPhoto(part!.id, url, user.name);
-    e.target.value = "";
   }
 
   function toggleChannel(c: string) {
@@ -252,15 +247,15 @@ export function ProcessPartWorkspace({
           </div>
           <p className="text-xs text-muted-foreground">{part.photos.length} photo(s) linked. Original dismantling/capture evidence is preserved.</p>
           {manager && !locked && (
-            <div className="flex flex-wrap gap-2">
-              <label className="flex cursor-pointer items-center gap-2 rounded-md bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground">
-                <Camera className="size-4" /> Replace Main Photo
-                <input type="file" accept="image/*" capture="environment" className="hidden" onChange={pickPhoto} />
-              </label>
-              <label className="flex cursor-pointer items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-xs font-semibold text-primary">
-                <Camera className="size-4" /> Add Photos
-                <input type="file" accept="image/*" className="hidden" onChange={pickPhoto} />
-              </label>
+            <div className="max-w-sm">
+              <MediaCapture
+                label="Add final photo"
+                ownerType="part"
+                ownerId={part!.id}
+                role="final"
+                disabled={!manager}
+                onUploaded={() => queryClient.invalidateQueries({ queryKey: partsKeys.all })}
+              />
             </div>
           )}
         </TabsContent>

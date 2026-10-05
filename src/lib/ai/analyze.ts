@@ -91,24 +91,38 @@ export type AnalysisOutcome =
 
 type Emit = (stage: ProgressStage) => void;
 
-/** Runs one analysis for a signed-in caller. Returns a draft or a controlled error. Never writes business data. */
+/** Runs one analysis for a signed-in caller from an uploaded form. Returns a draft or a controlled error. Never writes business data. */
 export async function analyzeImage(ctx: ToolContext, form: FormData, emit: Emit = () => {}): Promise<AnalysisOutcome> {
   const purposeParsed = z.enum(["part", "listing", "auction_screenshot"]).safeParse(form.get("purpose"));
   if (!purposeParsed.success) return { kind: "error", category: "invalid", message: "Choose what to analyse." };
   const purpose = purposeParsed.data as Purpose;
-  if (!PURPOSE_ROLES[purpose].some((r) => ctx.roles.includes(r))) {
-    return { kind: "error", category: "forbidden", message: "Your role cannot run this analysis." };
-  }
   const file = form.get("image");
   if (!(file instanceof File) || !file.type.startsWith("image/") || file.size === 0 || file.size > MAX_UPLOAD_BYTES) {
     return { kind: "error", category: "invalid", message: "Upload one image of up to 10 MB." };
   }
   const known = String(form.get("known") ?? "").slice(0, 1000);
   const reanalyze = form.get("reanalyze") === "true";
+  return analyzeBytes(ctx, purpose, Buffer.from(await file.arrayBuffer()), known, reanalyze, emit);
+}
 
+/**
+ * The analysis itself, from image bytes the server already holds (an uploaded form or a stored part photo).
+ * Role check, compression, cache and the bounded provider call are all here, so every AI image path shares them.
+ */
+export async function analyzeBytes(
+  ctx: ToolContext,
+  purpose: Purpose,
+  raw: Buffer,
+  known: string,
+  reanalyze: boolean,
+  emit: Emit = () => {},
+): Promise<AnalysisOutcome> {
+  if (!PURPOSE_ROLES[purpose].some((r) => ctx.roles.includes(r))) {
+    return { kind: "error", category: "forbidden", message: "Your role cannot run this analysis." };
+  }
   emit("preparing_image");
   // Compress before anything else: smaller upload to the provider, and a stable hash for the cache.
-  const compressed = await sharp(Buffer.from(await file.arrayBuffer()))
+  const compressed = await sharp(raw)
     .rotate()
     .resize({ width: 1024, height: 1024, fit: "inside", withoutEnlargement: true })
     .jpeg({ quality: 80 })

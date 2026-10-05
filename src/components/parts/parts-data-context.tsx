@@ -50,13 +50,11 @@ type PartsDataValue = {
   setDraft: (id: string, draft: PartDraft) => void;
   setStatus: (id: string, status: PartStatus | "rejected", actorName: string, summary: string) => void;
   approve: (id: string, draft: PartDraft, actorName: string) => string;
-  addFinalPhoto: (id: string) => void;
   saveOperations: (id: string, input: ProcessingInput, actorName: string) => void;
   patchPart: (id: string, patch: Partial<PartRecord>, actorName: string, logAction: string, logSummary: string) => void;
   setStage: (id: string, stage: PartStage, actorName: string, summary: string) => void;
   completeProcessing: (id: string, actorName: string) => void;
   setNotSellable: (id: string, reason: string, notes: string, actorName: string) => void;
-  addProcessingPhoto: (id: string, url: string, actorName: string) => void;
 };
 
 const PartsDataContext = createContext<PartsDataValue | null>(null);
@@ -275,14 +273,6 @@ export function PartsDataProvider({ children }: { children: React.ReactNode }) {
     return "";
   }, []);
 
-  // Photos attach through the shared capture component on the part. These two entry points are not wired.
-  const addFinalPhoto = useCallback(() => {
-    toast.info("Photo capture on this part is not connected in this view yet.");
-  }, []);
-  const addProcessingPhoto = useCallback(() => {
-    toast.info("Photo capture on this part is not connected in this view yet.");
-  }, []);
-
   const value = useMemo<PartsDataValue>(
     () => ({
       parts,
@@ -296,15 +286,13 @@ export function PartsDataProvider({ children }: { children: React.ReactNode }) {
       setDraft,
       setStatus,
       approve,
-      addFinalPhoto,
       saveOperations,
       patchPart,
       setStage,
       completeProcessing,
       setNotSellable,
-      addProcessingPhoto,
     }),
-    [parts, listQ.hasNextPage, listQ.isFetchingNextPage, fetchNextParts, getPart, addCapture, setDraft, setStatus, approve, addFinalPhoto, saveOperations, patchPart, setStage, completeProcessing, setNotSellable, addProcessingPhoto]
+    [parts, listQ.hasNextPage, listQ.isFetchingNextPage, fetchNextParts, getPart, addCapture, setDraft, setStatus, approve, saveOperations, patchPart, setStage, completeProcessing, setNotSellable]
   );
 
   return <PartsDataContext.Provider value={value}>{children}</PartsDataContext.Provider>;

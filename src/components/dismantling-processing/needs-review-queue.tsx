@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, Camera, Check, CheckCheck, Copy, Pencil, X } from "lucide-react";
+import { AnalyzePartDialog } from "@/components/dismantling-processing/analyze-part-dialog";
+import { ArrowLeft, Camera, Check, CheckCheck, Copy, Pencil, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,6 +32,7 @@ export function NeedsReviewQueue({
   const duplicateMut = useMarkDuplicate();
   const keepMut = useKeepForReview();
 
+  const [analyzeTarget, setAnalyzeTarget] = useState<ReviewCandidate | null>(null);
   const [editTarget, setEditTarget] = useState<ReviewCandidate | null>(null);
   const [editPartType, setEditPartType] = useState("");
   const [editOem, setEditOem] = useState("");
@@ -193,6 +195,11 @@ export function NeedsReviewQueue({
               <Button size="sm" variant="outline" onClick={() => openEdit(candidate)}>
                 <Pencil className="size-4" /> Edit &amp; Approve
               </Button>
+              {candidate.event.partId && (
+                <Button size="sm" variant="outline" onClick={() => setAnalyzeTarget(candidate)}>
+                  <Sparkles className="size-4" /> Analyze part
+                </Button>
+              )}
               <Button size="sm" variant="destructive" onClick={() => openReject(candidate)}>
                 <X className="size-4" /> Reject / Not Inventory
               </Button>
@@ -207,6 +214,15 @@ export function NeedsReviewQueue({
         <Button variant="outline" className="min-h-11 w-full sm:w-auto" onClick={() => loadMoreReview()} disabled={reviewLoadingMore}>
           {reviewLoadingMore ? "Loading…" : "Load more items to review"}
         </Button>
+      )}
+
+      {analyzeTarget?.event.partId && (
+        <AnalyzePartDialog
+          open={!!analyzeTarget}
+          partId={analyzeTarget.event.partId}
+          partLabel={`${analyzeTarget.vehicle.year} ${analyzeTarget.vehicle.make} ${analyzeTarget.vehicle.model} · ${analyzeTarget.event.partType ?? "part"}`}
+          onOpenChange={(o) => !o && setAnalyzeTarget(null)}
+        />
       )}
 
       <Dialog open={!!editTarget} onOpenChange={(o) => !o && setEditTarget(null)}>

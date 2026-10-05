@@ -384,10 +384,15 @@ for (const [name, fn] of Object.entries(matrix)) {
 }
 check("matrix: anonymous denied driver create", !!(await rpc(anon, "scrap_driver_create_load", { p_client_request_id: crypto.randomUUID() })).error);
 
-// Office roles that the existing scrap rule grants (owner, engineer_admin, manager, auction) can read the summary.
-for (const role of ["owner", "engineer_admin", "manager", "auction"]) {
+// Scrap management authority is owner, engineer_admin and manager (migration 0055). These may read the summary.
+for (const role of ["owner", "engineer_admin", "manager"]) {
   const r = await rpc(S[role], "scrap_manager_summary", { p_from: businessDate, p_to: businessDate });
-  check(`matrix: ${role} may read management summary (scrap office role)`, !r.error, r.msg);
+  check(`matrix: ${role} may read management summary (scrap management role)`, !r.error, r.msg);
+}
+// An auction employee is not a Scrap manager: refused with the authorization error code, not a generic failure.
+{
+  const r = await S.auction.rpc("scrap_manager_summary", { p_from: businessDate, p_to: businessDate });
+  check("matrix: auction is refused the management summary (42501 forbidden)", !!r.error && r.error.code === "42501", r.error ? `${r.error.code} ${r.error.message?.slice(0, 60)}` : "no error");
 }
 
 // Driver cannot approve through a direct update of the financial table either.
