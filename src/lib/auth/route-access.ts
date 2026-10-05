@@ -27,7 +27,7 @@ const ROUTE_RULES: RouteRule[] = [
   { prefix: "/vehicle-receiving", roles: ["engineer_admin", "receiving"] },
   { prefix: "/dismantling-processing", roles: ["engineer_admin", "manager"] },
   { prefix: "/dismantling", roles: ["engineer_admin", "dismantling"] },
-  { prefix: "/ai-command-center", roles: ["engineer_admin"] },
+  { prefix: "/ai-command-center", roles: ["engineer_admin", "manager", "export_manager"] },
   { prefix: "/parts", roles: ["engineer_admin", "manager", "employee"] },
   { prefix: "/operations", roles: ["engineer_admin", "manager"] },
   { prefix: "/sales", roles: ["engineer_admin", "manager"] },
@@ -39,6 +39,8 @@ const ROUTE_RULES: RouteRule[] = [
   // Media API: every active role may call it. Who can attach or read which file is decided by
   // RLS on media_assets (can_access_media / media_owner_exists) inside the service, not here.
   { prefix: "/api/media", roles: ROLE_KEYS_ALL },
+  // AI API: every active role reaches the route, which checks the caller and the role itself and answers with JSON.
+  { prefix: "/api/ai", roles: ROLE_KEYS_ALL },
 ];
 
 // Routes every signed-in, active user may load. "/" only redirects to the user's home.
