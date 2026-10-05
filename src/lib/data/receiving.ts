@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/client";
 import type { VehicleListRow } from "@/lib/data/vehicles";
+import { receiveStateBlocker } from "@/lib/receive-eligibility";
 
 export type ReceivingLookup =
   | { status: "not_found"; vehicle: null }
@@ -51,8 +52,9 @@ export async function lookupVehicleById(vehicleId: string): Promise<ReceivingLoo
   const { data, error } = await supabase.rpc("vehicle_get", { p_vehicle_id: vehicleId });
   if (error) throw new Error(error.message);
   const row = data as VehicleListRow & { status: string; closed_reason: string | null };
-  if (row.closed_reason) throw new Error("This vehicle is closed or removed and cannot be received.");
-  if (row.status === "Dismantled") throw new Error("This vehicle is dismantled and cannot be received.");
+  const blocker = receiveStateBlocker({ status: row.status, closedReason: row.closed_reason, receivingStatus: row.receiving_status });
+  if (blocker === "closed") throw new Error("This vehicle is closed or removed and cannot be received.");
+  if (blocker === "dismantled") throw new Error("This vehicle is dismantled and cannot be received.");
   return row.receiving_status === "received"
     ? { status: "received", vehicle: row }
     : { status: "ready", vehicle: row };

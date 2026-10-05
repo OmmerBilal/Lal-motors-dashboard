@@ -30,12 +30,12 @@ import { StatusBadge } from "@/components/patterns/status-badge";
 import { EmptyState } from "@/components/patterns/empty-state";
 import {
   auctionStageInfo,
-  canReceiveVehicle,
   closedReasonOptions,
   type AuctionStage,
   type ClosedReason,
   type VehicleRecord,
 } from "@/lib/mock/vehicles";
+import { canReceiveVehicle } from "@/lib/receive-eligibility";
 import { useVehicleList, useVehicleKpis, useVehicleFilterOptions, useCloseVehicle, useReopenVehicle } from "@/lib/query/vehicles";
 import type { VehicleListFilters } from "@/lib/data/vehicles";
 import { toVehicleRecord } from "@/lib/data/vehicle-record";
@@ -110,7 +110,8 @@ export function AuctionInventoryHome({
   onOpenVehicle: (id: string) => void;
   onStartIntake: (method: IntakeMethod) => void;
 }) {
-  const { user } = useEffectiveUser();
+  // Receive is authorized by the signed-in account, so it uses the real role. Under /preview/auction the effective role is "auction".
+  const { realUser } = useEffectiveUser();
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState<AuctionStage | "all">("all");
@@ -417,11 +418,6 @@ export function AuctionInventoryHome({
                         <td className="p-2.5">
                           <div className="flex items-center justify-end gap-1">
                             {v.receivingStatus === "received" && <StatusBadge tone="success">Received</StatusBadge>}
-                            {canReceiveVehicle(v, user.role) && (
-                              <Button size="sm" className="h-7 text-xs" onClick={() => router.push(`/vehicle-receiving?vehicle=${v.id}`)}>
-                                Receive Vehicle
-                              </Button>
-                            )}
                             <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onOpenVehicle(v.id)}>
                               View
                             </Button>
@@ -434,6 +430,9 @@ export function AuctionInventoryHome({
                                 }
                               />
                               <DropdownMenuContent align="end">
+                                {canReceiveVehicle(v, realUser.role) && (
+                                  <DropdownMenuItem onClick={() => router.push(`/vehicle-receiving?vehicle=${v.id}`)}>Receive Vehicle</DropdownMenuItem>
+                                )}
                                 {v.closedReason ? (
                                   <DropdownMenuItem onClick={() => reopenMutation.mutate({ vehicleId: v.id, note: "Reopened from Auction Inventory" })}>
                                     Reopen vehicle

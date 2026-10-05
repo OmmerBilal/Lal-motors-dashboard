@@ -8,9 +8,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { StatusBadge } from "@/components/patterns/status-badge";
 import type { User } from "@/lib/types";
+import { useEffectiveUser } from "@/lib/effective-user";
+import { canReceiveVehicle } from "@/lib/receive-eligibility";
 import {
   auctionStageInfo,
-  canReceiveVehicle,
   cash,
   transportStatusLabels,
   vehicleFieldLabels,
@@ -76,6 +77,8 @@ function errorText(err: unknown) {
 
 export function DetailView({ user, vehicle }: { user: User; vehicle: VehicleRecord }) {
   const router = useRouter();
+  // Receive is authorized by the signed-in account (receive_vehicle checks auth.uid), so it uses the real role, not the preview role.
+  const { realUser } = useEffectiveUser();
   const eventsQuery = useVehicleEvents(vehicle.id);
   const editMutation = useEditVehicle(vehicle.id);
   const noteMutation = useAddVehicleNote(vehicle.id);
@@ -152,7 +155,7 @@ export function DetailView({ user, vehicle }: { user: User; vehicle: VehicleReco
           <h3 className="text-base font-semibold">{vehicleTitle(vehicle)}</h3>
           <div className="flex items-center gap-2">
             <StatusBadge>{vehicle.status}</StatusBadge>
-            {canReceiveVehicle(vehicle, user.role) && (
+            {canReceiveVehicle(vehicle, realUser.role) && (
               <Button size="sm" onClick={() => router.push(`/vehicle-receiving?vehicle=${vehicle.id}`)}>
                 Receive Vehicle
               </Button>

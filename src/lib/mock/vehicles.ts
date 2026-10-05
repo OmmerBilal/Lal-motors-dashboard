@@ -271,17 +271,6 @@ export function auctionStageInfo(v: VehicleRecord): {
   return { stage: "waiting", label: "Waiting Arrival", tone: "warning" };
 }
 
-/** Roles that may receive a vehicle. Matches receive_vehicle (0006, 0059) and the /vehicle-receiving route. */
-export const RECEIVE_ROLES: readonly string[] = ["owner", "engineer_admin", "receiving"];
-
-/**
- * Whether the Receive action is offered. An open, non-dismantled vehicle that is not yet received can be received.
- * The database enforces the same rules in receive_vehicle; this only decides what the screen shows.
- */
-export function canReceiveVehicle(v: VehicleRecord, role: string): boolean {
-  return RECEIVE_ROLES.includes(role) && !v.closedReason && v.status !== "Dismantled" && v.receivingStatus !== "received";
-}
-
 /** Copart uses the Lot #, IAA uses the Stock # for the combined transportation table column. */
 export function lotOrStockDisplay(v: VehicleRecord) {
   const isCopart = v.auctionSource?.toLowerCase().includes("copart");
