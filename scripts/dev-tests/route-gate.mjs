@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { execFileSync } from "node:child_process";
+import { loadDevCredentials } from "./dev-credentials.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const req = createRequire(ROOT + "/package.json");
@@ -21,7 +22,7 @@ const PUB = envPub.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 const REF = new URL(SUPA).hostname.split(".")[0];
 const COOKIE = `sb-${REF}-auth-token`;
 const BASE = process.env.BASE_URL || "http://localhost:3100";
-const creds = JSON.parse(fs.readFileSync(ROOT + "/dev-test-credentials.json", "utf8"));
+const creds = loadDevCredentials();
 const byRole = Object.fromEntries(creds.map((u) => [u.role, u]));
 
 // @supabase/ssr cookie encoding: "base64-" + base64url(JSON), chunked at 3180 chars as .0 .1 ...
