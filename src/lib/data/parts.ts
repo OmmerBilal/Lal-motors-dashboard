@@ -70,28 +70,21 @@ function fail(error: { message: string; hint?: string | null } | null): never {
 }
 
 /** Whole Parts Inventory, keyset-paged. Zero-quantity rows are included. */
-export async function listAllParts(): Promise<PartListRow[]> {
+/** One keyset page of the parts list. The list is never loaded whole: callers ask for the next page. */
+export async function listPartsPage(cursor: { createdAt: string; id: string } | null, limit = 50): Promise<{ rows: PartListRow[]; hasMore: boolean }> {
   const supabase = createClient();
-  const all: PartListRow[] = [];
-  let cursor: { createdAt: string; id: string } | null = null;
-  for (let guard = 0; guard < 200; guard++) {
-    const { data, error } = await supabase.rpc("list_parts", {
-      p_search: null,
-      p_stage: null,
-      p_status: null,
-      p_operational: null,
-      p_limit: 100,
-      p_cursor_created_at: cursor?.createdAt ?? null,
-      p_cursor_id: cursor?.id ?? null,
-    });
-    if (error) fail(error);
-    const rows = (data ?? []) as PartListRow[];
-    all.push(...rows);
-    if (!rows.length || !rows[0].has_more) break;
-    const last = rows[rows.length - 1];
-    cursor = { createdAt: last.created_at, id: last.id };
-  }
-  return all;
+  const { data, error } = await supabase.rpc("list_parts", {
+    p_search: null,
+    p_stage: null,
+    p_status: null,
+    p_operational: null,
+    p_limit: limit,
+    p_cursor_created_at: cursor?.createdAt ?? null,
+    p_cursor_id: cursor?.id ?? null,
+  });
+  if (error) fail(error);
+  const rows = (data ?? []) as PartListRow[];
+  return { rows, hasMore: rows.length > 0 && !!rows[0].has_more };
 }
 
 export async function getPartDetail(partId: string): Promise<PartDetailPayload> {

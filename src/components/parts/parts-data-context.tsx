@@ -1,12 +1,12 @@
 "use client";
 
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { PartDraft, PartRecord, PartStage, PartStatus } from "@/lib/mock/parts";
 import {
   getPartDetail,
-  listAllParts,
+  listPartsPage,
   markPartNotSellable,
   reopenPartProcessing,
   rowToPart,
@@ -41,6 +41,10 @@ export const partsKeys = {
 
 type PartsDataValue = {
   parts: PartRecord[];
+  /** The list is paged. Only pages already requested are in `parts`; the views ask for the next page. */
+  hasMoreParts: boolean;
+  loadingMoreParts: boolean;
+  loadMoreParts: () => void;
   getPart: (id: string) => PartRecord | undefined;
   addCapture: () => string;
   setDraft: (id: string, draft: PartDraft) => void;
@@ -93,12 +97,24 @@ function errText(err: unknown, fallback: string) {
 
 export function PartsDataProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
-  const listQ = useQuery({ queryKey: partsKeys.list(), queryFn: listAllParts, staleTime: 60_000 });
+  const listQ = useInfiniteQuery({
+    queryKey: partsKeys.list(),
+    initialPageParam: null as { createdAt: string; id: string } | null,
+    queryFn: ({ pageParam }) => listPartsPage(pageParam, 50),
+    getNextPageParam: (last, pages) => {
+      if (!last.hasMore || last.rows.length === 0) return undefined;
+      const tail = last.rows[last.rows.length - 1];
+      void pages;
+      return { createdAt: tail.created_at, id: tail.id };
+    },
+    staleTime: 60_000,
+  });
   const [overlay, setOverlay] = useState<Record<string, PartDraft>>({});
 
+  const fetchNextParts = listQ.fetchNextPage;
   const parts = useMemo<PartRecord[]>(
     () =>
-      (listQ.data ?? []).map((row) => {
+      (listQ.data?.pages.flatMap((page) => page.rows) ?? []).map((row) => {
         const base = rowToPart(row);
         return overlay[row.id] ? { ...base, draft: { ...base.draft, ...overlay[row.id] } } : base;
       }),
@@ -270,6 +286,11 @@ export function PartsDataProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<PartsDataValue>(
     () => ({
       parts,
+      hasMoreParts: !!listQ.hasNextPage,
+      loadingMoreParts: listQ.isFetchingNextPage,
+      loadMoreParts: () => {
+        void fetchNextParts();
+      },
       getPart,
       addCapture,
       setDraft,
@@ -283,7 +304,7 @@ export function PartsDataProvider({ children }: { children: React.ReactNode }) {
       setNotSellable,
       addProcessingPhoto,
     }),
-    [parts, getPart, addCapture, setDraft, setStatus, approve, addFinalPhoto, saveOperations, patchPart, setStage, completeProcessing, setNotSellable, addProcessingPhoto]
+    [parts, listQ.hasNextPage, listQ.isFetchingNextPage, fetchNextParts, getPart, addCapture, setDraft, setStatus, approve, addFinalPhoto, saveOperations, patchPart, setStage, completeProcessing, setNotSellable, addProcessingPhoto]
   );
 
   return <PartsDataContext.Provider value={value}>{children}</PartsDataContext.Provider>;

@@ -1,6 +1,7 @@
 "use client";
 
 import { ScanLine } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/patterns/empty-state";
 import { StatusBadge } from "@/components/patterns/status-badge";
 import { usePartsData } from "@/components/parts/parts-data-context";
@@ -49,6 +50,18 @@ export function PartsListView({ scope, onOpen }: { scope: "pending" | "inventory
           <EmptyState icon={ScanLine} title="No records in this queue" />
         </div>
       )}
+      <LoadMorePartsButton />
     </div>
+  );
+}
+
+/** Next page of the parts list from the server. Shown only when more rows exist. */
+function LoadMorePartsButton() {
+  const { hasMoreParts, loadingMoreParts, loadMoreParts } = usePartsData();
+  if (!hasMoreParts) return null;
+  return (
+    <Button variant="outline" className="min-h-11 w-full sm:w-auto" onClick={loadMoreParts} disabled={loadingMoreParts}>
+      {loadingMoreParts ? "Loading…" : "Load more parts"}
+    </Button>
   );
 }

@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/shell/app-shell";
-import { PartsDataProvider } from "@/components/parts/parts-data-context";
 import { createClient } from "@/lib/supabase/server";
 
 // Mounted once here (instead of per-page) so shared records/state survive
@@ -21,8 +20,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <PartsDataProvider>
-      <AppShell>{children}</AppShell>
-    </PartsDataProvider>
+    <AppShell>{children}</AppShell>
   );
 }
