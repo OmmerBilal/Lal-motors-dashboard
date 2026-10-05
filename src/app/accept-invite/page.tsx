@@ -1,55 +1,25 @@
 "use client";
 
-import { Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Suspense } from "react";
 import { AuthCard } from "@/components/auth/auth-card";
-import { pendingInvites } from "@/lib/mock/team";
+import { Button } from "@/components/ui/button";
 
+/**
+ * Invitation activation. The invite record exists in the database (team_invite_member), but the email link and the
+ * password step run through the Supabase Auth invite flow, which is NOT CONNECTED. Until it is, this page makes no
+ * claim that an account was activated and does not accept a password.
+ */
 function AcceptInviteInner() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const token = searchParams.get("token") || "";
-  const invite = pendingInvites.find((i) => i.id === token) ?? pendingInvites[0];
-  const [password, setPassword] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    window.setTimeout(() => {
-      router.push("/login");
-    }, 300);
-  }
-
   return (
-    <AuthCard
-      title="Accept your invitation"
-      description={`Welcome ${invite?.name || "to LAL Motors"}. Create your password to activate your assigned account.`}
-    >
-      <form onSubmit={submit} className="mt-6 space-y-4">
-        <div className="space-y-1.5">
-          <Label htmlFor="password">New password</Label>
-          <Input
-            id="password"
-            type="password"
-            autoComplete="new-password"
-            minLength={12}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-          <small className="text-xs text-muted-foreground">At least 12 characters, including letters and numbers.</small>
-        </div>
-        <Button type="submit" disabled={busy} className="w-full">
-          {busy ? "Please wait…" : "Activate account"}
-        </Button>
-      </form>
-      <a href="/login" className="mt-4 block text-center text-sm font-medium text-primary hover:underline">
-        Back to staff login
-      </a>
+    <AuthCard title="Accept your invitation" description="Invitation activation is not connected yet.">
+      <div className="mt-6 space-y-4">
+        <p className="rounded-md border border-border bg-muted/40 p-3 text-sm">
+          Invitation activation — <b>NOT CONNECTED</b>. Your account is not activated by this page. Ask the owner to confirm your access.
+        </p>
+        <a href="/login" className="block">
+          <Button variant="outline" className="w-full">Back to staff login</Button>
+        </a>
+      </div>
     </AuthCard>
   );
 }

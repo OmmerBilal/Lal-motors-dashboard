@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useTeamData } from "@/components/team/team-data-context";
+import { useTeamMutations } from "@/lib/query/team";
 import type { Role } from "@/lib/types";
 
 const inviteRoles: { value: Role; label: string }[] = [
@@ -19,23 +19,27 @@ const inviteRoles: { value: Role; label: string }[] = [
 ];
 
 export function InviteDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
-  const { inviteMember } = useTeamData();
+  const { invite } = useTeamMutations();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<Role>("employee");
-  const [sending, setSending] = useState(false);
+  const [requestId, setRequestId] = useState(() => crypto.randomUUID());
 
   function send() {
-    setSending(true);
-    window.setTimeout(() => {
-      inviteMember(name, email, role);
-      setSending(false);
-      setName("");
-      setEmail("");
-      setRole("employee");
-      onOpenChange(false);
-      toast.success("Invitation email sent");
-    }, 300);
+    invite.mutate(
+      { email: email.trim(), name: name.trim(), roleKey: role, requestId },
+      {
+        onSuccess: () => {
+          toast.success("Invitation recorded. Email delivery is not connected, so no email was sent.");
+          setName("");
+          setEmail("");
+          setRole("employee");
+          setRequestId(crypto.randomUUID());
+          onOpenChange(false);
+        },
+        onError: (e) => toast.error(e.message),
+      }
+    );
   }
 
   return (
@@ -69,15 +73,15 @@ export function InviteDialog({ open, onOpenChange }: { open: boolean; onOpenChan
             </Select>
           </div>
           <p className="text-xs text-muted-foreground">
-            We will email an invitation link. The employee will create a password and log in with their LAL Motors email.
+            The invitation is recorded now. Email delivery is NOT CONNECTED, so no email is sent. Share access manually until it is.
           </p>
         </div>
         <div className="flex justify-end gap-2 border-t border-border pt-4">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button disabled={sending || !name.trim() || !email.trim()} onClick={send}>
-            {sending ? "Sending…" : "Send Invite"}
+          <Button disabled={invite.isPending || !name.trim() || !email.trim()} onClick={send}>
+            {invite.isPending ? "Recording…" : "Record Invite"}
           </Button>
         </div>
       </DialogContent>

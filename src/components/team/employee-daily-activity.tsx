@@ -1,25 +1,18 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { parts } from "@/lib/mock/parts";
-import { vehicleEvents } from "@/lib/mock/vehicles";
-import { localDay } from "@/lib/mock/scrap";
-import type { TeamMember } from "@/lib/mock/team";
+import { useDayActivity } from "@/lib/query/team";
+import { yardDay } from "@/components/scrap/scrap-shared";
 
-export function EmployeeDailyActivity({ member, onClose }: { member: TeamMember; onClose: () => void }) {
-  const [date, setDate] = useState(localDay());
-
-  const captures = useMemo(
-    () => parts.filter((p) => p.capturedByName === member.name && p.createdAt.slice(0, 10) === date),
-    [member.name, date]
-  );
-  const actions = useMemo(
-    () => vehicleEvents.filter((e) => e.actorId === member.id && e.createdAt.slice(0, 10) === date),
-    [member.id, date]
-  );
+/** One employee's real activity for one day: parts they captured and the vehicle actions they recorded. */
+export function EmployeeDailyActivity({ member, onClose }: { member: { id: string; name: string }; onClose: () => void }) {
+  const [date, setDate] = useState(yardDay());
+  const day = useDayActivity(member.id, date);
+  const parts = day.data?.parts ?? [];
+  const actions = day.data?.actions ?? [];
 
   return (
     <div className="rounded-lg border border-border bg-card p-4">
@@ -27,7 +20,7 @@ export function EmployeeDailyActivity({ member, onClose }: { member: TeamMember;
         <div>
           <h3 className="text-sm font-semibold">{member.name} · Daily activity</h3>
           <p className="text-xs text-muted-foreground">
-            {captures.length} parts captured on {date}
+            {day.isPending ? "Loading…" : `${parts.length} parts captured on ${date}`}
           </p>
         </div>
         <Button variant="ghost" size="sm" onClick={onClose}>
@@ -36,30 +29,26 @@ export function EmployeeDailyActivity({ member, onClose }: { member: TeamMember;
       </div>
       <div className="mb-4 max-w-xs space-y-1.5">
         <Label className="text-xs">Select day</Label>
-        <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        <Input type="date" value={date} max={yardDay()} onChange={(e) => e.target.value && setDate(e.target.value)} />
       </div>
+      {day.isError && <p className="text-sm text-destructive">{day.error.message}</p>}
       <div className="space-y-2">
-        {captures.map((p) => (
-          <article key={p.id} className="flex items-start gap-3 rounded-md border border-border p-2.5">
-            <div className="flex size-12 shrink-0 items-center justify-center rounded-md bg-muted text-xs text-muted-foreground">Photo</div>
-            <div>
-              <b className="block text-sm">{p.draft.partName || "Pending identification"}</b>
-              <small className="block text-xs text-muted-foreground">{new Date(p.createdAt).toLocaleString()} · {p.status}</small>
-              <small className="block text-xs text-muted-foreground">Record {p.id}</small>
-            </div>
+        {parts.map((p) => (
+          <article key={p.id} className="rounded-md border border-border p-2.5">
+            <b className="block text-sm">{p.part_name || "Pending identification"}</b>
+            <small className="block text-xs text-muted-foreground">{new Date(p.created_at).toLocaleString()} · {p.status}</small>
           </article>
         ))}
-        {!captures.length && <p className="text-sm text-muted-foreground">No parts captured on this day.</p>}
+        {day.isSuccess && !parts.length && <p className="text-sm text-muted-foreground">No parts captured on this day.</p>}
       </div>
-      <h4 className="mt-4 mb-2 text-sm font-semibold">Other recorded actions ({actions.length})</h4>
+      <h4 className="mt-4 mb-2 text-sm font-semibold">Recorded vehicle actions ({actions.length})</h4>
       <div className="space-y-1.5">
-        {actions.map((a, i) => (
-          <p key={`${a.id}-${i}`} className="text-sm">
-            <b>{a.action.replaceAll("_", " ")}</b>{" "}
-            <small className="text-xs text-muted-foreground">{new Date(a.createdAt).toLocaleString()}</small>
+        {actions.map((a) => (
+          <p key={a.id} className="text-sm">
+            <b>{a.action.replaceAll("_", " ")}</b> <small className="text-xs text-muted-foreground">{new Date(a.created_at).toLocaleString()}</small>
           </p>
         ))}
-        {!actions.length && <p className="text-sm text-muted-foreground">No other actions recorded on this day.</p>}
+        {day.isSuccess && !actions.length && <p className="text-sm text-muted-foreground">No vehicle actions recorded on this day.</p>}
       </div>
     </div>
   );
