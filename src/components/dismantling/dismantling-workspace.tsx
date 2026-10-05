@@ -89,7 +89,10 @@ export function DismantlingWorkspace({ user }: { user: User }) {
   const [evidenceCount, setEvidenceCount] = useState(0);
   const [partPhotos, setPartPhotos] = useState<PartPhoto[]>([]);
   const [capturing, setCapturing] = useState(false);
-  const [quickCaptures, setQuickCaptures] = useState<QuickCapture[]>([]);
+  // Quick Part Capture shows the same saved parts as the vehicle session, newest first. Nothing is kept only in the browser.
+  const quickCaptures: QuickCapture[] = partPhotos
+    .map((p, i) => ({ id: p.id, partType: "Part " + (partPhotos.length - i), takenAt: p.takenAt }))
+    .sort((a, b) => (a.takenAt < b.takenAt ? 1 : -1));
   const [finishConfirmOpen, setFinishConfirmOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [completedSummary, setCompletedSummary] = useState<CompletedSummary | null>(null);
@@ -132,7 +135,6 @@ export function DismantlingWorkspace({ user }: { user: User }) {
     setEvidenceCount(0);
     setPartPhotos([]);
     setCapturing(false);
-    setQuickCaptures([]);
     setFinishConfirmOpen(false);
     setSubmitting(false);
     setCompletedSummary(null);
@@ -195,12 +197,6 @@ export function DismantlingWorkspace({ user }: { user: User }) {
     }
   }
 
-  // Barcode and photo scanning are not connected. Scan buttons focus typed entry instead.
-  function simulateScan(field: "vin" | "lot" | "stock") {
-    void field;
-    toast.info("Barcode scanning is not connected. Type the VIN, lot or stock number.");
-    manualInputRef.current?.focus();
-  }
 
   async function startDismantling() {
     if (!foundVehicle) return;
@@ -212,8 +208,7 @@ export function DismantlingWorkspace({ user }: { user: User }) {
       setSessionStartedAt(new Date().toISOString());
       setEvidenceCount(0);
       setPartPhotos([]);
-      setQuickCaptures([]);
-      setPhase("session");
+        setPhase("session");
     } catch (err) {
       if (err instanceof DismantlingError && err.hint === "ALREADY_IN_PROCESS") {
         setInProcessInfo({ employee: "Another employee", startTime: new Date().toLocaleString() });
@@ -241,7 +236,7 @@ export function DismantlingWorkspace({ user }: { user: User }) {
   }
 
   function quickPartSaved(partId: string) {
-    setQuickCaptures((xs) => [{ id: partId, partType: "Part " + (xs.length + 1), takenAt: new Date().toISOString() }, ...xs]);
+    setPartPhotos((xs) => [...xs, { id: partId, takenAt: new Date().toISOString() }]);
     setCapturing(false);
     toast.success("Part saved to this vehicle");
   }
@@ -260,7 +255,7 @@ export function DismantlingWorkspace({ user }: { user: User }) {
       const r = await finishDismantlingSession(sessionId);
       setCompletedSummary({
         vehicle: sessionVehicle,
-        photosSaved: partPhotos.length + quickCaptures.length,
+        photosSaved: partPhotos.length,
         partsProcessed: r.part_photos_captured,
         needsReview: r.part_photos_captured,
       });
@@ -383,25 +378,28 @@ export function DismantlingWorkspace({ user }: { user: User }) {
 
             <div className="mt-4 grid grid-cols-3 gap-2">
               <button
-                onClick={() => simulateScan("vin")}
-                className="flex flex-col items-center gap-1.5 rounded-lg border border-primary/25 bg-primary/8 py-4 text-primary transition-colors hover:bg-primary/15"
+                disabled
+                title="Scanning is not connected. Type the number below."
+                className="flex flex-col items-center gap-1.5 rounded-lg border border-border bg-muted/40 py-4 text-muted-foreground opacity-70"
               >
                 <ScanLine className="size-6" />
-                <span className="text-xs font-bold sm:text-sm">Scan VIN</span>
+                <span className="text-xs font-bold sm:text-sm">Scan VIN (not connected)</span>
               </button>
               <button
-                onClick={() => simulateScan("lot")}
-                className="flex flex-col items-center gap-1.5 rounded-lg border border-primary/25 bg-primary/8 py-4 text-primary transition-colors hover:bg-primary/15"
+                disabled
+                title="Scanning is not connected. Type the number below."
+                className="flex flex-col items-center gap-1.5 rounded-lg border border-border bg-muted/40 py-4 text-muted-foreground opacity-70"
               >
                 <Barcode className="size-6" />
-                <span className="text-xs font-bold sm:text-sm">Scan Lot #</span>
+                <span className="text-xs font-bold sm:text-sm">Scan Lot # (not connected)</span>
               </button>
               <button
-                onClick={() => simulateScan("stock")}
-                className="flex flex-col items-center gap-1.5 rounded-lg border border-primary/25 bg-primary/8 py-4 text-primary transition-colors hover:bg-primary/15"
+                disabled
+                title="Scanning is not connected. Type the number below."
+                className="flex flex-col items-center gap-1.5 rounded-lg border border-border bg-muted/40 py-4 text-muted-foreground opacity-70"
               >
                 <Barcode className="size-6" />
-                <span className="text-xs font-bold sm:text-sm">Scan Stock #</span>
+                <span className="text-xs font-bold sm:text-sm">Scan Stock # (not connected)</span>
               </button>
             </div>
 
@@ -443,8 +441,8 @@ export function DismantlingWorkspace({ user }: { user: User }) {
               <Button variant="outline" className="h-12" onClick={() => setPhase("find")}>
                 Try Again
               </Button>
-              <Button variant="outline" className="h-12" onClick={() => simulateScan("vin")}>
-                <ScanLine className="size-4" /> Scan Again
+              <Button variant="outline" className="h-12" onClick={() => manualInputRef.current?.focus()}>
+                <ScanLine className="size-4" /> Type VIN, Lot or Stock instead
               </Button>
               <Button
                 variant="outline"
