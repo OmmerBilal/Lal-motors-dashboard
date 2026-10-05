@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +10,7 @@ import { StatusBadge } from "@/components/patterns/status-badge";
 import type { User } from "@/lib/types";
 import {
   auctionStageInfo,
+  canReceiveVehicle,
   cash,
   transportStatusLabels,
   vehicleFieldLabels,
@@ -73,6 +75,7 @@ function errorText(err: unknown) {
 }
 
 export function DetailView({ user, vehicle }: { user: User; vehicle: VehicleRecord }) {
+  const router = useRouter();
   const eventsQuery = useVehicleEvents(vehicle.id);
   const editMutation = useEditVehicle(vehicle.id);
   const noteMutation = useAddVehicleNote(vehicle.id);
@@ -147,7 +150,14 @@ export function DetailView({ user, vehicle }: { user: User; vehicle: VehicleReco
       <section className="rounded-lg border border-border bg-card p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-base font-semibold">{vehicleTitle(vehicle)}</h3>
-          <StatusBadge>{vehicle.status}</StatusBadge>
+          <div className="flex items-center gap-2">
+            <StatusBadge>{vehicle.status}</StatusBadge>
+            {canReceiveVehicle(vehicle, user.role) && (
+              <Button size="sm" onClick={() => router.push(`/vehicle-receiving?vehicle=${vehicle.id}`)}>
+                Receive Vehicle
+              </Button>
+            )}
+          </div>
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
           VIN {vehicle.vin || "—"} · Lot {vehicle.lotNumber || "—"} · Stock {vehicle.stockNumber || "—"}

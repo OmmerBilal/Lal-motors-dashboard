@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
   BadgeCheck,
@@ -27,7 +28,7 @@ import { transportStatusLabels, type VehicleRecord } from "@/lib/mock/vehicles";
 import { useInboundVehicles } from "@/lib/query/dispatch";
 import { useOwnerPhotos } from "@/lib/query/media";
 import { useReceiveVehicle } from "@/lib/query/receiving";
-import { lookupForReceiving } from "@/lib/data/receiving";
+import { lookupForReceiving, lookupVehicleById, type ReceivingLookup } from "@/lib/data/receiving";
 import { toVehicleRecord } from "@/lib/data/vehicle-record";
 import { MediaCapture } from "@/components/media/media-capture";
 
@@ -151,38 +152,57 @@ export function VehicleReceiving({ user }: { user: User }) {
     setConfirmed(null);
   }
 
+  // Shared by the VIN search and the Auction deep link. It only calls state setters, so it is stable for the effect below.
+  const applyLookup = useCallback((result: ReceivingLookup, previousId: string | null) => {
+    // Photos already saved for this vehicle stay on screen; only a different vehicle starts with an empty set.
+    if (result.status !== "not_found" && result.vehicle.id !== previousId) {
+      setPhotos({});
+      setExtraPhotoCount(0);
+    }
+    if (result.status === "not_found") {
+      setMatched(null);
+      setAlreadyReceived(null);
+      setNoMatch(true);
+      setVinProblems((n) => n + 1);
+      return;
+    }
+    setNoMatch(false);
+    const record = toVehicleRecord(result.vehicle);
+    if (result.status === "received") {
+      setAlreadyReceived(record);
+      setMatched(null);
+    } else {
+      setMatched(record);
+      setAlreadyReceived(null);
+    }
+  }, []);
+
   async function lookupVin(vin: string) {
     const clean = vin.trim();
     if (!clean) return;
     setConfirmed(null);
     const previousId = matched?.id ?? null;
     try {
-      const result = await lookupForReceiving(clean);
-      // Photos already saved for this vehicle stay on screen; only a different vehicle starts with an empty set.
-      if (result.status !== "not_found" && result.vehicle.id !== previousId) {
-        setPhotos({});
-        setExtraPhotoCount(0);
-      }
-      if (result.status === "not_found") {
-        setMatched(null);
-        setAlreadyReceived(null);
-        setNoMatch(true);
-        setVinProblems((n) => n + 1);
-        return;
-      }
-      setNoMatch(false);
-      const record = toVehicleRecord(result.vehicle);
-      if (result.status === "received") {
-        setAlreadyReceived(record);
-        setMatched(null);
-      } else {
-        setMatched(record);
-        setAlreadyReceived(null);
-      }
+      applyLookup(await lookupForReceiving(clean), previousId);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "The lookup failed. Try again.");
     }
   }
+
+  // Auction's "Receive Vehicle" opens this page with ?vehicle=<id>. The vehicle is re-read by id and preselected,
+  // so no VIN is retyped. The ref keeps the lookup to one run per link.
+  const linkedVehicleId = useSearchParams().get("vehicle");
+  const openedLinkRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!linkedVehicleId || openedLinkRef.current === linkedVehicleId) return;
+    openedLinkRef.current = linkedVehicleId;
+    lookupVehicleById(linkedVehicleId)
+      .then((result) => {
+        if (result.vehicle) setVinInput(result.vehicle.vin ?? "");
+        applyLookup(result, null);
+      })
+      .catch((err: unknown) => toast.error(err instanceof Error ? err.message : "This vehicle could not be opened."));
+  }, [linkedVehicleId, applyLookup]);
 
   // Barcode and photo scanning are not connected. This focuses the manual entry instead.
   function simulateScan() {

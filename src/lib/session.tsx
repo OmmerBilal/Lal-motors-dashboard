@@ -29,11 +29,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Only the first authentication bootstrap shows the full-screen "Loading session…". After that, every session event
+  // (token refresh, tab focus, visibility) is a background revalidation, so the mounted app tree and its workflow stay.
+  const [booting, setBooting] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
+    // The user id the app is currently showing. Routine events for this same user change nothing on screen.
+    let currentUserId: string | null = null;
 
     async function loadProfile(authUserId: string) {
       const { data: profile, error: profileError } = await supabase
@@ -50,9 +54,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       if (!active) return;
 
       if (profileError || roleError || !profile) {
+        // A failed background refresh must not sign the user out of a working screen; only an empty bootstrap shows an error.
         setError("Could not load your profile. Contact an administrator.");
-        setUser(null);
-        setLoading(false);
+        setUser((prev) => (prev && prev.id === authUserId ? prev : null));
+        setBooting(false);
         return;
       }
 
@@ -65,13 +70,17 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       if (!roleKey) {
         setError("Your account has no role assigned yet. Contact an administrator.");
         setUser(null);
-        setLoading(false);
+        setBooting(false);
         return;
       }
 
-      setUser({ id: profile.id, name: profile.name, email: profile.email, role: roleKey });
+      const next: User = { id: profile.id, name: profile.name, email: profile.email, role: roleKey };
+      // Keep the same object when nothing changed, so consumers do not re-render or reset.
+      setUser((prev) =>
+        prev && prev.id === next.id && prev.name === next.name && prev.email === next.email && prev.role === next.role ? prev : next,
+      );
       setError(null);
-      setLoading(false);
+      setBooting(false);
     }
 
     // getSession() reads the local session; the proxy already verified the request server-side,
@@ -79,29 +88,38 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     supabase.auth.getSession().then(({ data }) => {
       if (!active) return;
       if (data.session?.user) {
+        currentUserId = data.session.user.id;
         loadProfile(data.session.user.id);
       } else {
         setUser(null);
-        setLoading(false);
+        setBooting(false);
       }
     });
 
-    const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: subscription } = supabase.auth.onAuthStateChange((event, session) => {
       if (!active) return;
       if (session?.user) {
-        setLoading(true);
+        // TOKEN_REFRESHED, routine SIGNED_IN for the same user, focus and visibility revalidation:
+        // background only. No loading state, no profile reload, no navigation.
+        if (session.user.id === currentUserId) return;
+        currentUserId = session.user.id;
         loadProfile(session.user.id);
-      } else {
-        setUser(null);
-        setLoading(false);
+        return;
       }
+      // Other events without a session (for example the initial empty event) are left to the bootstrap above.
+      if (event !== "SIGNED_OUT") return;
+      // A genuine sign-out: the only event that clears the user and leaves the protected app.
+      currentUserId = null;
+      setUser(null);
+      setBooting(false);
+      router.replace("/login");
     });
 
     return () => {
       active = false;
       subscription.subscription.unsubscribe();
     };
-  }, [supabase]);
+  }, [supabase, router]);
 
   const value = useMemo<SessionContextValue | null>(() => {
     if (!user) return null;
@@ -109,12 +127,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       user,
       signOut: async () => {
         await supabase.auth.signOut();
-        router.push("/login");
+        router.replace("/login");
       },
     };
   }, [user, supabase, router]);
 
-  if (loading) {
+  if (booting) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <p className="text-sm text-muted-foreground">Loading session…</p>

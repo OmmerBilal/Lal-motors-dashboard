@@ -41,6 +41,23 @@ export async function lookupForReceiving(term: string): Promise<ReceivingLookup>
     : { status: "ready", vehicle: exact };
 }
 
+/**
+ * Opens one vehicle by id for the Auction "Receive Vehicle" link. The id is only a pointer: the vehicle is re-read from
+ * the database, so no VIN is retyped and no data from the link is trusted. Closed and dismantled vehicles are refused here
+ * as well as by receive_vehicle.
+ */
+export async function lookupVehicleById(vehicleId: string): Promise<ReceivingLookup> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("vehicle_get", { p_vehicle_id: vehicleId });
+  if (error) throw new Error(error.message);
+  const row = data as VehicleListRow & { status: string; closed_reason: string | null };
+  if (row.closed_reason) throw new Error("This vehicle is closed or removed and cannot be received.");
+  if (row.status === "Dismantled") throw new Error("This vehicle is dismantled and cannot be received.");
+  return row.receiving_status === "received"
+    ? { status: "received", vehicle: row }
+    : { status: "ready", vehicle: row };
+}
+
 /** Atomic server-side receipt: requires the four arrival photos and a valid lifecycle transition. */
 export async function receiveVehicleNow(vehicleId: string) {
   const supabase = createClient();

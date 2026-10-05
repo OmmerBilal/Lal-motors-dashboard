@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { vehicleFieldLabels, vehicleFieldOrder, vehicleTitle, type IntakeItem } from "@/lib/mock/vehicles";
 import { buildIntakeItems } from "@/lib/mock/parse-intake";
-import { previewVehicleMatch, type IntakeMatchStatus } from "@/lib/data/vehicles";
+import { evaluateIntakeBatch, type IntakeMatchStatus } from "@/lib/data/vehicles";
 import { ExistingVehicleMerge } from "@/components/vehicles/views/existing-vehicle-merge";
 import { useIntakeVehicles } from "@/lib/query/vehicles";
 import { toast } from "sonner";
@@ -32,22 +32,30 @@ export function ReviewView({
   useEffect(() => {
     let alive = true;
     (async () => {
-      const checked = await Promise.all(
-        items.map(async (item): Promise<IntakeItem> => {
-          if (item.errors.length) return item;
-          try {
-            const m = await previewVehicleMatch(item.draft);
-            const status: IntakeMatchStatus = m.status;
-            return {
-              ...item,
-              match: status === "new" ? { status } : { status, vehicle: m.vehicle_id ? { id: m.vehicle_id } : undefined },
-            };
-          } catch {
-            return { ...item, errors: [...item.errors, "Could not check for duplicates. Try again."] };
-          }
-        })
-      );
+      // One server check for the whole batch: duplicates inside the batch and existing vehicles are both decided on the
+      // server, against the same rules the commit uses. Rows that fail local validation are not sent.
+      const candidates = items.filter((i) => !i.errors.length);
+      let results;
+      try {
+        results = await evaluateIntakeBatch(candidates.map((i) => ({ ...i.draft, sourceText: i.sourceExcerpt ?? "" })));
+      } catch {
+        if (!alive) return;
+        setItems(items.map((i) => (i.errors.length ? i : { ...i, errors: [...i.errors, "Could not check this batch for duplicates. Try again."] })));
+        setChecking(false);
+        return;
+      }
       if (!alive) return;
+      const byId = new Map<string, { status: IntakeMatchStatus; vehicle_id?: string | null; reason?: string | null }>();
+      results.forEach((r) => byId.set(candidates[r.index].id, r));
+      const checked: IntakeItem[] = items.map((item): IntakeItem => {
+        const r = byId.get(item.id);
+        if (!r) return item;
+        if (r.status === "invalid") return { ...item, match: { status: "invalid" }, errors: [...item.errors, r.reason ?? "This row is incomplete."] };
+        return {
+          ...item,
+          match: r.status === "new" ? { status: "new" } : { status: r.status, vehicle: r.vehicle_id ? { id: r.vehicle_id } : undefined },
+        };
+      });
       setItems(checked);
       setSelected(checked.filter((i) => !i.errors.length && i.match.status === "new").map((i) => i.id));
       setChecking(false);
@@ -61,7 +69,7 @@ export function ReviewView({
 
   const ready = items.filter((x) => !x.errors.length && x.match.status === "new").length;
   const needsReview = items.filter((x) => x.errors.length).length;
-  const duplicates = items.filter((x) => ["existing", "conflict"].includes(x.match.status)).length;
+  const duplicates = items.filter((x) => ["existing", "conflict", "duplicate"].includes(x.match.status)).length;
 
   function removeItem(id: string) {
     setItems((xs) => xs.filter((x) => x.id !== id));
@@ -77,17 +85,17 @@ export function ReviewView({
     const chosen = items.filter((i) => ids.includes(i.id) && i.match.status === "new" && !i.errors.length);
     if (chosen.length === 0) return;
     commit.mutate(
-      chosen.map((i) => i.draft),
+      chosen.map((i) => ({ ...i.draft, sourceText: i.sourceExcerpt ?? "" })),
       {
         onSuccess: (r) => {
-          toast.success(`${r.created} created · ${r.existing} already in inventory · ${r.conflicts} need attention`);
+          toast.success(`${r.created} created · ${r.existing} already in inventory · ${r.duplicates} duplicate · ${r.conflicts} conflict`);
           if (r.messages.length) toast.error(r.messages.slice(0, 3).join(" | "));
-          setItems((xs) => {
-            const next = xs.filter((x) => !ids.includes(x.id));
-            if (next.length === 0) onDone();
-            return next;
-          });
+          // Compute the remaining rows from the current list, then update state and call the parent from this event
+          // handler. Calling the parent inside a state updater runs it during render and triggers React's warning.
+          const remaining = items.filter((x) => !ids.includes(x.id));
+          setItems(remaining);
           setSelected((xs) => xs.filter((x) => !ids.includes(x)));
+          if (remaining.length === 0) onDone();
         },
         onError: (err) => toast.error(err instanceof Error ? err.message : "Could not save these vehicles. Nothing was changed."),
       }
@@ -96,7 +104,7 @@ export function ReviewView({
 
   return (
     <div className="space-y-4">
-      {checking && <p className="text-sm text-muted-foreground">Checking the database for existing vehicles…</p>}
+      {checking && <p className="text-sm text-muted-foreground">Checking this batch for duplicates and existing vehicles…</p>}
       <div className="flex flex-wrap gap-4 rounded-lg border border-border bg-card p-4 text-sm">
         <b>{items.length} vehicles detected</b>
         <span className="text-success">✓ {ready} ready</span>
@@ -126,7 +134,9 @@ export function ReviewView({
                       ? "EXISTING VEHICLE"
                       : item.match.status === "conflict"
                         ? "CONFLICT"
-                        : "READY"}
+                        : item.match.status === "duplicate"
+                          ? "DUPLICATE IN BATCH"
+                          : "READY"}
                 </small>
               </button>
               <Button variant="ghost" size="sm" onClick={() => removeItem(item.id)}>
@@ -204,6 +214,16 @@ function ReviewEditor({
             Open existing record
           </Button>
         </>
+      )}
+      {item.match.status === "duplicate" && (
+        <p className="mt-3 text-xs text-muted-foreground">
+          The same vehicle appears earlier in this batch with identical details. It is not added twice. Remove this row, or keep the earlier one.
+        </p>
+      )}
+      {item.match.status === "conflict" && !item.match.vehicle?.id && (
+        <p className="mt-3 text-xs text-warning-foreground">
+          This identifier appears in this batch with different details. Neither row is added until you resolve it: remove the wrong row, or correct it and check the batch again.
+        </p>
       )}
       <div className="mt-4 flex flex-wrap gap-2">
         <Button variant="outline" onClick={() => onSave(draft)}>

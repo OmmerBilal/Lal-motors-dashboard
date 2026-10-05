@@ -138,7 +138,7 @@ export async function reopenVehicle(input: { vehicleId: string; note: string }) 
   return data as { vehicle_id: string; status: string; idempotent_replay: boolean };
 }
 
-export type IntakeMatchStatus = "new" | "existing" | "conflict";
+export type IntakeMatchStatus = "new" | "existing" | "conflict" | "duplicate" | "invalid";
 
 /** The subset of an intake draft the database needs for identity matching and creation. */
 export type IntakeDraftInput = {
@@ -172,52 +172,44 @@ export async function previewVehicleMatch(draft: IntakeDraftInput): Promise<{ st
   return data as { status: IntakeMatchStatus; vehicle_id?: string; reason?: string };
 }
 
-function draftFields(d: IntakeDraftInput) {
-  return {
-    auction_item_number: d.auctionItemNumber,
-    year: d.year,
-    make: d.make,
-    model: d.model,
-    trim: d.trim,
-    engine: d.engine,
-    mileage: d.mileage,
-    title_status: d.titleStatus,
-    location: d.location,
-    purchase_price: d.purchasePrice,
-    auction_fees: d.auctionFees,
-    transportation_cost: d.transportationCost,
-  };
+export type IntakeCommitResult = { created: number; existing: number; conflicts: number; duplicates: number; invalid: number; failed: number; messages: string[] };
+
+/** Row-level answer from the server's batch check (same rules as the commit). Read-only. */
+export type BatchRowResult = { index: number; status: IntakeMatchStatus; vehicle_id?: string | null; reason?: string | null; duplicate_of?: number | null };
+
+/** The draft as the server needs it: the reviewed fields plus the source line, which the duplicate check compares. */
+function batchRow(d: IntakeDraftInput & { uncertainFields?: string[]; sourceText?: string }) {
+  return { ...d, sourceText: d.sourceText ?? "" };
 }
 
-export type IntakeCommitResult = { created: number; existing: number; conflicts: number; failed: number; messages: string[] };
+/** Checks a whole batch against the batch itself and the database. Nothing is written. */
+export async function evaluateIntakeBatch(drafts: (IntakeDraftInput & { sourceText?: string })[]): Promise<BatchRowResult[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("intake_evaluate_batch", { p_rows: drafts.map(batchRow) });
+  if (error) fail(error);
+  return (data ?? []) as BatchRowResult[];
+}
 
 /**
- * Confirms reviewed drafts. Each draft goes through match_or_create_vehicle, which re-checks the
- * identity under a lock, so a repeated bulk import never creates a second row. Sequential on
- * purpose: the batch is a few dozen rows and ordering keeps the messages readable.
+ * Creates the new rows of a batch. The server evaluates the rows again and creates only the ones it classifies as new,
+ * so a duplicate or conflicting row is never created, whatever the browser sent.
  */
-export async function intakeVehicles(drafts: IntakeDraftInput[]): Promise<IntakeCommitResult> {
+export async function intakeVehicles(drafts: (IntakeDraftInput & { sourceText?: string })[]): Promise<IntakeCommitResult> {
   const supabase = createClient();
-  const result: IntakeCommitResult = { created: 0, existing: 0, conflicts: 0, failed: 0, messages: [] };
-  for (const d of drafts) {
-    const { data, error } = await supabase.rpc("match_or_create_vehicle", {
-      p_vin: d.vin || null,
-      p_lot_number: d.lotNumber || null,
-      p_stock_number: d.stockNumber || null,
-      p_auction_source: d.auctionSource || null,
-      p_fields: draftFields(d),
-    });
-    if (error) {
-      result.failed++;
-      result.messages.push(`${d.vin || d.stockNumber || d.lotNumber || "Vehicle"}: ${error.message}`);
-      continue;
-    }
-    const outcome = (data as { outcome: string; reason?: string }).outcome;
-    if (outcome === "created") result.created++;
-    else if (outcome === "existing") result.existing++;
-    else {
-      result.conflicts++;
-      result.messages.push(`${d.vin || d.stockNumber || d.lotNumber || "Vehicle"}: ${(data as { reason?: string }).reason ?? "conflict"}`);
+  const result: IntakeCommitResult = { created: 0, existing: 0, conflicts: 0, duplicates: 0, invalid: 0, failed: 0, messages: [] };
+  const { data, error } = await supabase.rpc("intake_commit_batch", { p_rows: drafts.map(batchRow) });
+  if (error) fail(error);
+  const payload = data as { results: { index: number; status: string; reason?: string | null; vehicle_id?: string | null }[]; counts: Record<string, number> };
+  result.created = payload.counts.created ?? 0;
+  result.existing = payload.counts.existing ?? 0;
+  result.conflicts = payload.counts.conflict ?? 0;
+  result.duplicates = payload.counts.duplicate ?? 0;
+  result.invalid = payload.counts.invalid ?? 0;
+  result.failed = payload.counts.failed ?? 0;
+  for (const r of payload.results) {
+    if (["conflict", "duplicate", "invalid", "failed"].includes(r.status)) {
+      const d = drafts[r.index];
+      result.messages.push(`${d?.vin || d?.stockNumber || d?.lotNumber || "Vehicle"}: ${r.reason ?? r.status}`);
     }
   }
   return result;

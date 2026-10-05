@@ -84,7 +84,11 @@ export async function proxy(request: NextRequest) {
   if (user && !isPublicPath(pathname)) {
     let access = getCachedAccess(user.id);
     if (!access) {
-      const { data: rows } = await supabase.rpc("current_access");
+      const { data: rows, error: accessError } = await supabase.rpc("current_access");
+      // A failed lookup says nothing about the account. It must not sign anyone out; this request fails with a retryable status.
+      if (accessError) {
+        return finish(new NextResponse("Your access check is temporarily unavailable. Try again.", { status: 503, headers: { "Retry-After": "2" } }));
+      }
       const row = rows?.[0];
       access = row ? { accountStatus: row.account_status, roleKeys: row.role_keys } : null;
       if (access) setCachedAccess(user.id, access);
