@@ -162,17 +162,3 @@ export async function getCustomerHistory(id: string): Promise<CustomerHistory> {
   if (error) fail(error);
   return data as CustomerHistory;
 }
-
-/** Every customer, for the POS and quote pickers. Pages through the lightweight list. */
-export async function listEveryCustomer(): Promise<Customer[]> {
-  const all: Customer[] = [];
-  let cursor: { last: string; first: string; id: string } | null = null;
-  for (let guard = 0; guard < 200; guard++) {
-    const page = await listCustomerPage("", cursor, 100);
-    all.push(...page.rows.map(listRowToCustomer));
-    if (!page.hasMore || page.rows.length === 0) break;
-    const last = page.rows[page.rows.length - 1];
-    cursor = { last: last.last_name, first: last.first_name, id: last.id };
-  }
-  return all;
-}

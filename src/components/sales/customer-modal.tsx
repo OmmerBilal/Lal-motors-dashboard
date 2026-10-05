@@ -53,7 +53,6 @@ function CustomerModalForm({
   const saver = useSaveCustomer();
   const [requestId] = useState(() => crypto.randomUUID());
   const [form, setForm] = useState(() => customerToForm(editing, prefill));
-  const [docName, setDocName] = useState("");
   const [error, setError] = useState("");
   const [duplicates, setDuplicates] = useState<Customer[]>([]);
   const [saving, setSaving] = useState(false);
@@ -77,8 +76,7 @@ function CustomerModalForm({
         return;
       }
       setSaving(false);
-      if (docName) toast.info("Tax document upload is not connected yet. The customer was saved without it.");
-      else toast.success("Customer saved");
+      toast.success("Customer saved");
       onClose();
       onSaved(outcome.customerId);
     } catch (err) {
@@ -135,32 +133,8 @@ function CustomerModalForm({
       <div className="rounded-md border border-dashed border-border p-3">
         <p className="text-sm font-semibold">Tax ID / resale certificate document</p>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          Attach a PDF or photo to this customer. A scanner can save a PDF or image to your computer for upload.
+          Not Connected. Documents cannot be attached yet, so nothing is uploaded or saved for this customer. Record the tax ID in the field above.
         </p>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {["Upload form", "Scan from scanner / printer", "Take photo"].map((label) => (
-            <label key={label} className="cursor-pointer rounded-md border border-border bg-background px-3 py-1.5 text-xs font-semibold text-primary">
-              {label}
-              <input
-                type="file"
-                accept=".pdf,image/jpeg,image/png,image/heic,image/heif,image/webp"
-                className="hidden"
-                onChange={(e) => {
-                  if (e.target.files?.[0]) setDocName(e.target.files[0].name);
-                  e.target.value = "";
-                }}
-              />
-            </label>
-          ))}
-        </div>
-        {docName && (
-          <div className="mt-2 flex items-center gap-2 text-xs">
-            <span>Selected: {docName}</span>
-            <button type="button" className="font-semibold text-destructive" onClick={() => setDocName("")}>
-              Remove
-            </button>
-          </div>
-        )}
         {error && (
           <p role="alert" className="mt-2 text-sm font-medium text-destructive">
             {error}
@@ -199,7 +173,7 @@ function CustomerModalForm({
           Cancel
         </Button>
         <Button disabled={saving} onClick={() => save(false)}>
-          {saving ? "Saving…" : docName ? "Save Customer & Attach" : "Save Customer"}
+          {saving ? "Saving…" : "Save Customer"}
         </Button>
       </div>
     </>

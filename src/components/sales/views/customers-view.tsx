@@ -38,7 +38,7 @@ export function CustomersView({ onOpen, onNew }: { onOpen: (id: string) => void;
             <span className="min-w-0 flex-1">
               <b className="block truncate text-sm">{c.companyName || `${c.firstName} ${c.lastName}`}</b>
               <small className="text-xs text-muted-foreground">
-                {c.customerNumber} · {c.phone || "No phone"} · {c.email || "No email"}
+                {c.customerNumber ? c.customerNumber + " · " : ""}{c.phone || "No phone"} · {c.email || "No email"}
               </small>
             </span>
             <StatusBadge tone={c.taxStatus === "exempt" ? "brand" : "neutral"}>{c.taxStatus}</StatusBadge>
