@@ -10,9 +10,12 @@ import { EmployeeDetail } from "@/components/dismantling-processing/employee-det
 import { VehicleDismantlingDetail } from "@/components/dismantling-processing/vehicle-dismantling-detail";
 import { NeedsReviewQueue } from "@/components/dismantling-processing/needs-review-queue";
 import { CompletedTodayList } from "@/components/dismantling-processing/completed-today-list";
+import { VehicleWorkflow, VehicleRecordPanel } from "@/components/dismantling-processing/vehicle-workflow";
 
 type View =
   | { name: "home" }
+  | { name: "workflow" }
+  | { name: "record"; vehicleId: string }
   | { name: "employee"; employeeId: string; employeeName: string }
   | { name: "vehicle"; vehicleId: string; back: View }
   | { name: "review" }
@@ -74,6 +77,23 @@ export function DismantlingProcessingWorkspace({ user }: { user: User }) {
       <div className={isSplit ? "lg:grid lg:grid-cols-[1.35fr_1fr] lg:items-start lg:gap-6" : undefined}>
         <div className={view.name === "home" ? "space-y-5" : isSplit ? "hidden space-y-5 lg:block" : "hidden"}>
           <div className="grid gap-4 sm:grid-cols-2">
+            <button
+              onClick={() => setView({ name: "workflow" })}
+              className={cn(
+                "flex items-center gap-4 rounded-xl border border-primary/30 bg-primary/5 p-6 text-left transition-colors hover:bg-primary/10",
+                view.name === "workflow" && "ring-2 ring-primary/40"
+              )}
+            >
+              <span className="flex size-14 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+                <Wrench className="size-7" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold text-primary">Vehicle Workflow</span>
+                <span className="block text-base font-bold">Ready · Assign · Monitor</span>
+                <span className="block text-xs text-muted-foreground">Mark vehicles ready and assign one employee each</span>
+              </span>
+              <ChevronRight className="size-5 shrink-0 text-primary/60" />
+            </button>
             <button
               onClick={() => setView({ name: "review" })}
               className={cn(
@@ -156,7 +176,18 @@ export function DismantlingProcessingWorkspace({ user }: { user: User }) {
           </div>
         </div>
 
-        {view.name !== "home" && (
+        {view.name === "workflow" && (
+          <div className="space-y-5">
+            <button onClick={() => setView({ name: "home" })} className="text-sm font-semibold text-primary">← Back to dismantling overview</button>
+            <VehicleWorkflow user={user} onOpenRecord={(vehicleId) => setView({ name: "record", vehicleId })} />
+          </div>
+        )}
+
+        {view.name === "record" && (
+          <VehicleRecordPanel user={user} vehicleId={view.vehicleId} onBack={() => setView({ name: "workflow" })} />
+        )}
+
+        {view.name !== "home" && view.name !== "workflow" && view.name !== "record" && (
           <div className={isSplit ? "mt-5 lg:mt-0" : ""}>
             {view.name === "employee" && (
               <EmployeeDetail
