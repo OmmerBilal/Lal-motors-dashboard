@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { callStructured } from "@/lib/ai/openai";
 import { AiProviderError, type AiErrorCategory, AI_ERROR_MESSAGE } from "@/lib/ai/provider-errors";
 import { TOOL_BY_NAME, toolCatalog, allowedBy, ToolError, type ToolContext, type Tool } from "@/lib/ai/tools";
+import type { ProgressStage } from "@/lib/ai/progress";
 
 /**
  * Command orchestration. The model proposes ONE named tool and JSON arguments. Everything after that is
@@ -40,7 +41,10 @@ const INTENT_SCHEMA = {
 const intentParser = z.object({ tool: z.string().min(1).max(60), arguments_json: z.string().max(4000), reply: z.string().max(500) });
 
 /** Free text: the model chooses a named tool. Unknown or unauthorised tools are refused here. */
-export async function runCommandText(ctx: ToolContext, text: string): Promise<CommandResult> {
+type Emit = (stage: ProgressStage) => void;
+const noEmit: Emit = () => {};
+
+export async function runCommandText(ctx: ToolContext, text: string, emit: Emit = noEmit): Promise<CommandResult> {
   const trimmed = text.trim();
   if (trimmed.length < 3 || trimmed.length > 1000) return { kind: "error", category: "invalid", message: "Write a command of 3 to 1000 characters." };
   const catalog = toolCatalog(ctx.roles);
@@ -67,11 +71,11 @@ export async function runCommandText(ctx: ToolContext, text: string): Promise<Co
   } catch {
     return { kind: "error", category: "invalid", message: "The request did not produce valid arguments. Nothing was done." };
   }
-  return runTool(ctx, intent.tool, args);
+  return runTool(ctx, intent.tool, args, emit);
 }
 
 /** Explicit tool call from the UI (a person picked the tool). No model involved. */
-export async function runTool(ctx: ToolContext, name: string, rawArgs: unknown): Promise<CommandResult> {
+export async function runTool(ctx: ToolContext, name: string, rawArgs: unknown, emit: Emit = noEmit): Promise<CommandResult> {
   const tool = TOOL_BY_NAME.get(name);
   if (!tool) return { kind: "error", category: "unknown_tool", message: "That tool does not exist. Nothing was done." };
   if (!allowedBy(tool, ctx.roles)) return { kind: "error", category: "forbidden", message: "Your role cannot use this tool." };
@@ -80,15 +84,18 @@ export async function runTool(ctx: ToolContext, name: string, rawArgs: unknown):
   const args = parsed.data as Record<string, unknown>;
   try {
     if (tool.kind === "read") {
+      emit("reading_context");
       return { kind: "read", tool: tool.name, data: await tool.run!(ctx, args) };
     }
-    return await proposeWrite(ctx, tool, args);
+    return await proposeWrite(ctx, tool, args, emit);
   } catch (err) {
     return toolFailure(err);
   }
 }
 
-async function proposeWrite(ctx: ToolContext, tool: Tool, args: Record<string, unknown>): Promise<CommandResult> {
+async function proposeWrite(ctx: ToolContext, tool: Tool, args: Record<string, unknown>, emit: Emit): Promise<CommandResult> {
+  emit("reading_context");
+  emit("preparing_action");
   const preview = await tool.preview!(ctx, args);
   const { data, error } = await ctx.supabase.rpc("ai_propose_action", {
     p_tool: tool.name,
@@ -100,11 +107,12 @@ async function proposeWrite(ctx: ToolContext, tool: Tool, args: Record<string, u
   });
   if (error) throw new ToolError("forbidden", error.message);
   const row = data as { id: string };
+  emit("approval_required");
   return { kind: "proposal", requestId: row.id, tool: tool.name, preview: { summary: preview.summary, target: preview.target, fields: preview.fields } };
 }
 
 /** Approval: the person approved this exact proposal. The server revalidates, then calls the existing RPC. */
-export async function approveRequest(ctx: ToolContext, requestId: string): Promise<CommandResult> {
+export async function approveRequest(ctx: ToolContext, requestId: string, emit: Emit = noEmit): Promise<CommandResult> {
   const { data, error } = await ctx.supabase.rpc("ai_decide_action", { p_request: requestId, p_decision: "approve" });
   if (error) return { kind: "error", category: "rejected", message: error.message };
   const row = data as { id: string; tool: string; arguments: Record<string, unknown>; fingerprint: string; status: string };
@@ -117,12 +125,15 @@ export async function approveRequest(ctx: ToolContext, requestId: string): Promi
     return { kind: "error", category: "forbidden", message: "Your role cannot run this action. Nothing was changed." };
   }
   try {
+    emit("checking_state");
     const now = await tool.preview!(ctx, row.arguments);
     if (now.fingerprint !== row.fingerprint) {
       await recordResult(ctx, row.id, "stale", null, "stale");
       return { kind: "error", category: "stale", message: "The record changed after this was proposed. Nothing was changed. Propose the action again." };
     }
+    emit("executing");
     const result = await tool.execute!(ctx, row.arguments, row.id);
+    emit("saving");
     await recordResult(ctx, row.id, "executed", result, null);
     return { kind: "read", tool: tool.name, data: result };
   } catch (err) {

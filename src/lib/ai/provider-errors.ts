@@ -9,14 +9,14 @@ export type AiErrorCategory =
   | "model_unavailable" | "invalid_response" | "unknown";
 
 export const AI_ERROR_MESSAGE: Record<AiErrorCategory, string> = {
-  not_configured: "The AI service is not configured on the server. Set the OpenAI key in the server environment and restart the app.",
-  invalid_key: "AI service is currently unavailable. Check the OpenAI configuration and try again.",
-  forbidden: "AI service is currently unavailable. Check the OpenAI configuration and try again.",
-  rate_limited: "The AI service is busy. Wait a moment and try again.",
+  not_configured: "OpenAI configuration needs attention. The AI service is not set up on the server. Nothing was applied.",
+  invalid_key: "OpenAI configuration needs attention. The key was refused. Nothing was applied.",
+  forbidden: "OpenAI configuration needs attention. This key cannot use the model. Nothing was applied.",
+  rate_limited: "AI service unavailable: it is busy right now. Nothing was applied. Try again shortly.",
   quota: "The AI service has no remaining quota or billing is inactive. Check the OpenAI account and try again.",
-  timeout: "The AI service did not answer in time. Try again.",
-  network: "The AI service could not be reached. Try again when the connection is back.",
-  model_unavailable: "The AI model is unavailable right now. Try again later.",
+  timeout: "AI took too long to respond. Your action was not applied. Try again.",
+  network: "AI service unavailable: the connection failed. Nothing was applied. Try again.",
+  model_unavailable: "AI service unavailable: the model did not respond. Nothing was applied. Try again later.",
   invalid_response: "The AI service returned an unexpected answer, so nothing was done. Try again or rephrase.",
   unknown: "The AI service failed. Nothing was changed. Try again later.",
 };

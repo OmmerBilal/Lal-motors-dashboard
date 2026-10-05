@@ -8,10 +8,19 @@ import { AiProviderError, categoryForStatus, type AiErrorCategory } from "@/lib/
  * transport; business tool execution is never replaced.
  */
 const ENDPOINT = "https://api.openai.com/v1";
-const TIMEOUT_MS = 25_000;
+/** One budget for the whole provider call, retries included. The user-facing ceiling is about 30 s. */
+export const AI_DEADLINE_MS = 28_000;
+/** Per attempt, never more than this, and never more than the budget that is left. */
+const ATTEMPT_CAP_MS = 20_000;
+/** A retry needs at least this much budget left to be worth starting. */
+const MIN_RETRY_BUDGET_MS = 9_000;
 const MAX_ATTEMPTS = 2;
 
 type ChatContent = string | Array<{ type: "text"; text: string } | { type: "image_url"; image_url: { url: string; detail: "low" } }>;
+
+type Deadline = { at: number };
+const newDeadline = (): Deadline => ({ at: Date.now() + AI_DEADLINE_MS });
+const remaining = (d: Deadline) => d.at - Date.now();
 
 export async function callStructured<T>(args: {
   system: string;
@@ -30,12 +39,13 @@ export async function callStructured<T>(args: {
     ],
     response_format: { type: "json_schema", json_schema: { name: args.schemaName, strict: true, schema: args.schema } },
   };
-  const json = await withRetry(async () => {
+  const deadline = newDeadline();
+  const json = await withRetry(deadline, async (timeoutMs) => {
     const res = await fetchWithTimeout(`${ENDPOINT}/chat/completions`, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
       body: JSON.stringify(body),
-    });
+    }, timeoutMs);
     if (!res.ok) {
       const providerCode = await readProviderCode(res);
       throw new AiProviderError(categoryForStatus(res.status, providerCode));
@@ -63,12 +73,13 @@ export async function transcribeAudio(file: Blob, filename: string): Promise<str
   const form = new FormData();
   form.append("file", file, filename);
   form.append("model", aiConfigState().transcriptionModel);
-  const json = await withRetry(async () => {
+  const deadline = newDeadline();
+  const json = await withRetry(deadline, async (timeoutMs) => {
     const res = await fetchWithTimeout(`${ENDPOINT}/audio/transcriptions`, {
       method: "POST",
       headers: { authorization: `Bearer ${key}` },
       body: form,
-    });
+    }, timeoutMs);
     if (!res.ok) throw new AiProviderError(categoryForStatus(res.status, await readProviderCode(res)));
     return (await res.json()) as { text?: string };
   });
@@ -76,26 +87,31 @@ export async function transcribeAudio(file: Blob, filename: string): Promise<str
   return json.text;
 }
 
-async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
+/**
+ * Bounded retry inside one deadline. A timeout is never retried (the budget is already spent), and a
+ * retry starts only when enough budget is left. Key, account and quota problems fail at once.
+ */
+async function withRetry<T>(deadline: Deadline, fn: (timeoutMs: number) => Promise<T>): Promise<T> {
   let last: unknown;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const budget = remaining(deadline);
+    if (budget <= 1_000) throw new AiProviderError("timeout");
     try {
-      return await fn();
+      return await fn(Math.min(ATTEMPT_CAP_MS, budget));
     } catch (err) {
       last = err;
       const category: AiErrorCategory | null = err instanceof AiProviderError ? err.category : null;
-      // Only transient failures are retried. Key, account and quota problems fail at once.
-      const transient = category === "rate_limited" || category === "timeout" || category === "network" || category === "model_unavailable";
-      if (!transient || attempt === MAX_ATTEMPTS) break;
-      await new Promise((r) => setTimeout(r, 400 * attempt));
+      const transient = category === "rate_limited" || category === "network" || category === "model_unavailable";
+      if (!transient || attempt === MAX_ATTEMPTS || remaining(deadline) < MIN_RETRY_BUDGET_MS) break;
+      await new Promise((r) => setTimeout(r, 400));
     }
   }
   throw last instanceof AiProviderError ? last : new AiProviderError("unknown");
 }
 
-async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     return await fetch(url, { ...init, signal: controller.signal });
   } catch (err) {

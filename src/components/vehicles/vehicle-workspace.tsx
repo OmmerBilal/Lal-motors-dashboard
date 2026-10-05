@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { User } from "@/lib/types";
@@ -15,6 +15,7 @@ import { DetailView } from "@/components/vehicles/views/detail-view";
 import { CompletionReviewView } from "@/components/vehicles/views/completion-review-view";
 import { CompletionGroupView } from "@/components/vehicles/views/completion-group-view";
 import { OwnerDashboard } from "@/components/vehicles/owner-dashboard/owner-dashboard";
+import { INTAKE_HANDOFF_KEY } from "@/lib/ai/intake-handoff";
 
 export type VehicleView =
   | "home"
@@ -28,18 +29,46 @@ export type VehicleView =
 
 export type IntakeMethod = "bulk" | "single" | "scan" | "manual";
 
+/** Reads one AI handoff. Pure read: the key is cleared by an effect after the screen has its value. */
+function readIntakeHandoff(canIntake: boolean): { method: IntakeMethod; sourceText: string } | null {
+  if (!canIntake || typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(INTAKE_HANDOFF_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { method: IntakeMethod; sourceText: string };
+    return parsed.sourceText ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Roles that may run the screenshot analysis (the analyze route checks the same list). */
+const SCAN_ROLES = ["owner", "engineer_admin", "manager"];
+
 /** Roles the intake RPCs accept. The screen shows intake to the same roles; the server decides again on every write. */
 const INTAKE_ROLES = ["owner", "engineer_admin", "manager", "auction"];
 
 function WorkspaceBody({ user, initialVehicleId }: { user: User; initialVehicleId?: string | null }) {
   const canIntake = INTAKE_ROLES.includes(user.role);
 
-  const [view, setView] = useState<VehicleView>(initialVehicleId ? "detail" : "home");
+  // An AI candidate arrives as a handoff. It opens the same review as a paste: match preview, then a person confirms.
+  const [handoff] = useState<{ method: IntakeMethod; sourceText: string } | null>(() => readIntakeHandoff(canIntake));
+  const [view, setView] = useState<VehicleView>(initialVehicleId ? "detail" : handoff ? "review" : "home");
   const [filter, setFilter] = useState("active");
   const [eventTypeFilter, setEventTypeFilter] = useState("");
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(initialVehicleId ?? null);
   const [intakeMethod, setIntakeMethod] = useState<IntakeMethod>("bulk");
-  const [reviewDraftBatch, setReviewDraftBatch] = useState<{ method: IntakeMethod; sourceText: string } | null>(null);
+  const [reviewDraftBatch, setReviewDraftBatch] = useState<{ method: IntakeMethod; sourceText: string } | null>(handoff);
+  // Intake text survives Back from review and a round trip to another screen; it is cleared only on a successful commit.
+  const [intakeSource, setIntakeSource] = useState("");
+  useEffect(() => {
+    if (!handoff) return;
+    try {
+      window.sessionStorage.removeItem(INTAKE_HANDOFF_KEY);
+    } catch {
+      /* storage unavailable: the handoff was already read */
+    }
+  }, [handoff]);
   const [completionPeriod, setCompletionPeriod] = useState<"week" | "month">("week");
   const [completionEmployeeId, setCompletionEmployeeId] = useState<string | null>(null);
 
@@ -146,15 +175,24 @@ function WorkspaceBody({ user, initialVehicleId }: { user: User; initialVehicleI
         <IntakeView
           method={intakeMethod}
           onChangeMethod={setIntakeMethod}
-          onAnalyzed={(sourceText) => {
-            setReviewDraftBatch({ method: intakeMethod, sourceText });
+          canScan={SCAN_ROLES.includes(user.role)}
+          initialSource={intakeSource}
+          onSourceChange={setIntakeSource}
+          onAnalyzed={(sourceText, method) => {
+            const batchMethod = method ?? intakeMethod;
+            setReviewDraftBatch({ method: batchMethod, sourceText });
             setView("review");
           }}
         />
       )}
 
       {view === "review" && reviewDraftBatch && (
-        <ReviewView batch={reviewDraftBatch} onDone={() => setView("home")} onOpenVehicle={openVehicle} />
+        <>
+          <Button variant="outline" size="sm" className="mb-3 min-h-11" onClick={() => setView("intake")}>
+            <ArrowLeft /> Back to intake (text kept)
+          </Button>
+          <ReviewView batch={reviewDraftBatch} onDone={() => { setIntakeSource(""); setView("home"); }} onOpenVehicle={openVehicle} />
+        </>
       )}
 
       {view === "list" && <ListView initialFilter={filter} onOpenVehicle={openVehicle} />}
