@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { FilterPills } from "@/components/patterns/search-bar";
 import { StatusBadge } from "@/components/patterns/status-badge";
 import { EmptyState } from "@/components/patterns/empty-state";
-import { useDismantlingProcessingData, type PeriodId } from "@/components/dismantling-processing/use-dismantling-data";
+import { useEmployeeWork, type PeriodId } from "@/components/dismantling-processing/use-dismantling-data";
 import {
   categoryBucket,
   categoryBucketLabels,
@@ -61,21 +61,15 @@ export function EmployeeDetail({
   onBack: () => void;
   onOpenVehicle: (vehicleId: string) => void;
 }) {
-  const { completionsForEmployee, partsForEmployee } = useDismantlingProcessingData();
   const [period, setPeriod] = useState<PeriodId>("today");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
   const [tab, setTab] = useState<"vehicles" | "parts">("vehicles");
   const [galleryOpen, setGalleryOpen] = useState(false);
 
-  const vehicleCompletions = useMemo(
-    () => completionsForEmployee(employeeId, period, { from: customFrom, to: customTo }),
-    [completionsForEmployee, employeeId, period, customFrom, customTo]
-  );
-  const partsCaptured = useMemo(
-    () => partsForEmployee(employeeId, period, { from: customFrom, to: customTo }),
-    [partsForEmployee, employeeId, period, customFrom, customTo]
-  );
+  const work = useEmployeeWork(employeeId, period, { from: customFrom, to: customTo });
+  const vehicleCompletions = work.completions;
+  const partsCaptured = work.parts;
 
   const bucketCounts = useMemo(() => {
     const counts: Record<string, number> = { Headlights: 0, Converters: 0, Modules: 0, Bumpers: 0, Other: 0 };

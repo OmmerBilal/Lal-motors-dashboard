@@ -83,28 +83,6 @@ function fail(error: { message: string } | null): never {
 }
 
 /** Whole review queue, paged by keyset until complete. Bounded by a sane page cap. */
-export async function listAllReviewQueue(): Promise<QueueRow[]> {
-  const supabase = createClient();
-  const all: QueueRow[] = [];
-  let cursor: { createdAt: string; id: string } | null = null;
-  for (let guard = 0; guard < 200; guard++) {
-    const { data, error } = await supabase.rpc("list_dismantling_review_queue", {
-      p_from: null,
-      p_to: null,
-      p_limit: 100,
-      p_cursor_created_at: cursor?.createdAt ?? null,
-      p_cursor_id: cursor?.id ?? null,
-    });
-    if (error) fail(error);
-    const rows = (data ?? []) as (QueueRow & { has_more: boolean })[];
-    all.push(...rows.map((r) => ({ ...r, has_more: undefined }) as unknown as QueueRow));
-    if (!rows.length || !rows[0].has_more) break;
-    const last = rows[rows.length - 1];
-    cursor = { createdAt: last.created_at, id: last.id };
-  }
-  return all;
-}
-
 export async function getProcessingSummary(from: string, to: string): Promise<ProcessingSummary> {
   const supabase = createClient();
   const { data, error } = await supabase.rpc("dismantling_processing_summary", { p_from: from, p_to: to });
@@ -124,19 +102,6 @@ export async function listRoster(): Promise<{ employee_id: string; name: string 
   const { data, error } = await supabase.rpc("list_dismantling_roster");
   if (error) fail(error);
   return (data ?? []) as { employee_id: string; name: string }[];
-}
-
-export async function listWindowParts(from: string): Promise<WindowPart[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("parts")
-    .select("id, vehicle_id, captured_by, created_at, status, stage, part_name, source_vin, dismantling_session_id")
-    .not("dismantling_session_id", "is", null)
-    .gte("created_at", from)
-    .order("created_at", { ascending: false })
-    .limit(2000);
-  if (error) fail(error);
-  return (data ?? []) as WindowPart[];
 }
 
 export async function listVehiclesByIds(ids: string[]): Promise<VehicleRow[]> {
@@ -195,4 +160,68 @@ export async function keepPartForReview(partId: string) {
   const { data, error } = await supabase.rpc("keep_part_for_review", { p_part_id: partId });
   if (error) fail(error);
   return data as { part_id: string; status: string; idempotent_replay: boolean };
+}
+
+/** One bounded page of the review queue (keyset on created_at, id). The queue is never loaded whole. */
+export async function listReviewQueuePage(cursor: { createdAt: string; id: string } | null, limit = 25) {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("list_dismantling_review_queue", {
+    p_from: null,
+    p_to: null,
+    p_limit: limit,
+    p_cursor_created_at: cursor?.createdAt ?? null,
+    p_cursor_id: cursor?.id ?? null,
+  });
+  if (error) fail(error);
+  const rows = (data ?? []) as (QueueRow & { has_more: boolean })[];
+  const hasMore = rows.length > 0 && rows[0].has_more;
+  return { rows: rows.map((r) => ({ ...r, has_more: undefined }) as unknown as QueueRow), hasMore };
+}
+
+/** Per-employee counts for a period, computed in the database (migration 0054). */
+export type EmployeeCount = {
+  employee_id: string;
+  name: string;
+  vehicles_completed: number;
+  parts_captured: number;
+  parts_approved: number;
+  parts_pending_review: number;
+};
+
+export async function getEmployeeCounts(from: string, to: string): Promise<EmployeeCount[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("dismantling_employee_counts", { p_from: from, p_to: to });
+  if (error) fail(error);
+  return (data ?? []) as EmployeeCount[];
+}
+
+/** Approved parts for a set of donor vehicles, one bounded query for the page on screen. */
+export async function listApprovedPartsForVehicles(vehicleIds: string[]) {
+  if (!vehicleIds.length) return [];
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("parts")
+    .select("id, vehicle_id, captured_by, created_at, status, stage, part_name, source_vin, dismantling_session_id")
+    .in("vehicle_id", vehicleIds)
+    .eq("status", "approved")
+    .order("created_at", { ascending: false })
+    .limit(200);
+  if (error) fail(error);
+  return (data ?? []) as WindowPart[];
+}
+
+/** One employee's captured parts in a period, newest first, capped. Loaded only on the employee detail screen. */
+export async function listEmployeeParts(employeeId: string, from: string, to: string, limit = 200) {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("parts")
+    .select("id, vehicle_id, captured_by, created_at, status, stage, part_name, source_vin, dismantling_session_id")
+    .eq("captured_by", employeeId)
+    .not("dismantling_session_id", "is", null)
+    .gte("created_at", from)
+    .lt("created_at", to)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) fail(error);
+  return (data ?? []) as WindowPart[];
 }

@@ -24,7 +24,7 @@ export function NeedsReviewQueue({
   onBack: () => void;
   onOpenVehicle: (vehicleId: string) => void;
 }) {
-  const { reviewCandidates, approvedPartsForVehicle } = useDismantlingProcessingData();
+  const { reviewCandidates, approvedPartsForVehicle, reviewHasMore, loadMoreReview, reviewLoadingMore } = useDismantlingProcessingData();
   const approveMut = useApprovePart();
   const editMut = useEditApprovePart();
   const rejectMut = useRejectPart();
@@ -203,6 +203,11 @@ export function NeedsReviewQueue({
           </article>
         ))}
       </div>
+      {reviewHasMore && (
+        <Button variant="outline" className="min-h-11 w-full sm:w-auto" onClick={() => loadMoreReview()} disabled={reviewLoadingMore}>
+          {reviewLoadingMore ? "Loading…" : "Load more items to review"}
+        </Button>
+      )}
 
       <Dialog open={!!editTarget} onOpenChange={(o) => !o && setEditTarget(null)}>
         <DialogContent className="max-w-sm">
