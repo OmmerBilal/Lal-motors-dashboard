@@ -27,11 +27,11 @@ import type { User } from "@/lib/types";
 import { transportStatusLabels, type VehicleRecord } from "@/lib/mock/vehicles";
 import { useInboundVehicles } from "@/lib/query/dispatch";
 import { useArrivalPhotos } from "@/lib/query/media";
-import { ARRIVAL_EXTRA_ROLE, ARRIVAL_PHOTO_SLOTS } from "@/lib/media/arrival-photos";
-import { useReceiveVehicle } from "@/lib/query/receiving";
+import { ARRIVAL_EXTRA_ROLE, ARRIVAL_PHOTO_SLOTS, type ArrivalPhotoCompletion } from "@/lib/media/arrival-photos";
+import { useArrivedTodayCount, useReceiveVehicle } from "@/lib/query/receiving";
 import { lookupForReceiving, lookupVehicleById, type ReceivingLookup } from "@/lib/data/receiving";
 import { toVehicleRecord } from "@/lib/data/vehicle-record";
-import { MediaCapture } from "@/components/media/media-capture";
+import { MediaCapture, usePendingSlots } from "@/components/media/media-capture";
 
 const problemOptions = [
   "Visible Damage",
@@ -44,38 +44,77 @@ const problemOptions = [
   "Other",
 ];
 
-/** Progress and the missing-photo message, read from the same completion result that gates Confirm Arrival. */
+/** The required-photo block. Counts only server-saved photos; selected but unsaved photos are shown separately. */
 function ArrivalPhotoProgress({
   loaded,
   error,
-  completedCount,
-  missing,
+  completion,
+  pendingByRole,
 }: {
   loaded: boolean;
   error: boolean;
-  completedCount: number;
-  missing: { label: string }[];
+  completion: ArrivalPhotoCompletion;
+  pendingByRole: Record<string, boolean>;
 }) {
   if (!loaded) {
     return error ? (
-      <p role="alert" className="mt-3 text-sm text-destructive">Saved photos could not be loaded. Reload this page to check again.</p>
+      <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+        Saved photos could not be loaded. Reload this page to check again.
+      </p>
     ) : (
-      <p className="mt-3 text-sm text-muted-foreground">Checking saved photos…</p>
+      <p className="rounded-lg border border-border bg-muted/30 p-3 text-sm text-muted-foreground">Checking saved photos…</p>
     );
   }
   const total = ARRIVAL_PHOTO_SLOTS.length;
-  const remaining = missing.length;
+  const saved = completion.completedCount;
+  const selectedUnsaved = ARRIVAL_PHOTO_SLOTS.filter((slot) => pendingByRole[slot.role] && !completion.mediaIdBySlot[slot.id]).length;
+  const remaining = total - saved;
   return (
-    <div className="mt-3 space-y-1.5" aria-live="polite">
-      <p className="text-sm font-semibold">{completedCount}/{total} required photos saved</p>
-      <div className="h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden>
-        <div className="h-full rounded-full bg-success transition-all" style={{ width: `${(completedCount / total) * 100}%` }} />
+    <div className="rounded-lg border border-border bg-muted/30 p-3" aria-live="polite">
+      <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-1">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Required arrival photos</p>
+          <p className="text-2xl font-extrabold tabular-nums">
+            {saved} / {total} <span className="text-base font-semibold">saved</span>
+          </p>
+        </div>
+        {selectedUnsaved > 0 && (
+          <p className="rounded-md bg-warning px-2 py-1 text-xs font-bold text-warning-foreground">
+            {selectedUnsaved} selected · {saved} saved
+          </p>
+        )}
       </div>
-      {remaining > 0 && (
-        <p className="text-xs text-muted-foreground">
-          {remaining} required {remaining === 1 ? "photo" : "photos"} remaining: {missing.map((m) => m.label).join(", ")}
-        </p>
-      )}
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted" aria-hidden>
+        <div className="h-full rounded-full bg-success transition-all" style={{ width: `${(saved / total) * 100}%` }} />
+      </div>
+      <ul className="mt-2.5 grid grid-cols-1 gap-x-3 gap-y-1.5 text-sm sm:grid-cols-2">
+        {ARRIVAL_PHOTO_SLOTS.map((slot) => {
+          const isSaved = !!completion.mediaIdBySlot[slot.id];
+          const isSelected = !isSaved && !!pendingByRole[slot.role];
+          return (
+            <li key={slot.id} className="flex min-w-0 items-center justify-between gap-2">
+              <span className="min-w-0 font-medium break-words">{slot.label}</span>
+              {isSaved ? (
+                <span className="shrink-0 whitespace-nowrap text-xs font-bold text-success">✓ Saved</span>
+              ) : isSelected ? (
+                <span className="shrink-0 whitespace-nowrap text-xs font-bold text-warning-foreground">Selected, not saved</span>
+              ) : (
+                <span className="shrink-0 text-xs text-muted-foreground">Pending</span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      <p className="mt-2.5 text-sm font-semibold">
+        {remaining === 0 ? (
+          <span className="text-success">✓ All required arrival photos saved</span>
+        ) : (
+          <span className="text-muted-foreground">
+            {remaining} required {remaining === 1 ? "photo" : "photos"} remaining
+            {selectedUnsaved > 0 && ". Tap Save Photo on each selected photo to save it."}
+          </span>
+        )}
+      </p>
     </div>
   );
 }
@@ -83,8 +122,8 @@ function ArrivalPhotoProgress({
 function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <>
-      <span className="text-muted-foreground">{label}</span>
-      <span className="text-right font-medium">{value}</span>
+      <span className="min-w-0 text-muted-foreground">{label}</span>
+      <span className="min-w-0 text-right font-medium break-all">{value}</span>
     </>
   );
 }
@@ -95,12 +134,14 @@ function CardShell({
   title,
   subtitle,
   children,
+  className = "",
 }: {
   tone: "blue" | "green" | "red" | "neutral";
   badge: React.ReactNode;
   title: string;
   subtitle: string;
   children: React.ReactNode;
+  className?: string;
 }) {
   const toneBorder = {
     blue: "border-primary/25",
@@ -110,7 +151,7 @@ function CardShell({
   }[tone];
 
   return (
-    <div className={`flex h-full flex-col rounded-xl border ${toneBorder} bg-card p-4 shadow-xs`}>
+    <div className={`flex h-full min-w-0 flex-col rounded-xl border ${toneBorder} bg-card p-4 shadow-xs ${className}`}>
       <div className="mb-3 flex items-center gap-2.5">
         {badge}
         <div className="min-w-0">
@@ -167,8 +208,8 @@ export function VehicleReceiving({ user }: { user: User }) {
       ),
     [vehicles]
   );
-  const today = now.toISOString().slice(0, 10);
-  const arrivedToday = useMemo(() => vehicles.filter((v) => v.receivedAt?.slice(0, 10) === today).length, [vehicles, today]);
+  const arrivedTodayQuery = useArrivedTodayCount();
+  const arrivedToday = arrivedTodayQuery.data ?? 0;
 
   function resetAll() {
     setVinInput("");
@@ -234,6 +275,7 @@ export function VehicleReceiving({ user }: { user: User }) {
   // One helper decides progress, the missing-photo message and the Confirm gate. A background refetch keeps the last loaded result.
   const arrivalPhotos = useArrivalPhotos(matched?.id);
   const { completion } = arrivalPhotos;
+  const { pendingBySlot, setSlotPending } = usePendingSlots();
   const photosReady = !!matched && arrivalPhotos.hasLoaded && completion.complete;
 
   function confirmArrival() {
@@ -324,9 +366,9 @@ export function VehicleReceiving({ user }: { user: User }) {
       </div>
 
       {/* 3-column workflow grid — always 6 cards, state decides active vs placeholder */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
         {/* 1. Scan VIN — always active */}
-        <CardShell tone="blue" badge={<NumberBadge n={1} tone="blue" />} title="Scan VIN" subtitle="Scan the VIN barcode or take a photo">
+        <CardShell tone="blue" className="xl:col-span-3" badge={<NumberBadge n={1} tone="blue" />} title="Scan VIN" subtitle="Scan the VIN barcode or take a photo">
           <button
             onClick={simulateScan}
             className="flex w-full flex-col items-center gap-2 rounded-lg bg-muted py-7 text-muted-foreground transition-colors hover:bg-muted/70 hover:text-primary"
@@ -360,7 +402,7 @@ export function VehicleReceiving({ user }: { user: User }) {
 
         {/* 2. Match Found / Already Received / placeholder */}
         {matched ? (
-          <CardShell tone="green" badge={<NumberBadge n={2} tone="green" />} title="Match Found" subtitle="Vehicle found in Auction Inventory">
+          <CardShell tone="green" className="xl:col-span-3" badge={<NumberBadge n={2} tone="green" />} title="Match Found" subtitle="Vehicle found in Auction Inventory">
             <div className="rounded-lg border border-success/30 bg-success/10 p-3.5">
               <div className="mb-2.5 flex items-center gap-2 text-success">
                 <CircleCheckBig className="size-5" />
@@ -383,7 +425,7 @@ export function VehicleReceiving({ user }: { user: User }) {
             </Button>
           </CardShell>
         ) : alreadyReceived ? (
-          <CardShell tone="blue" badge={<TriangleAlert className="size-7 shrink-0 text-warning" />} title="Already Received" subtitle="This vehicle was already checked in">
+          <CardShell tone="blue" className="xl:col-span-3" badge={<TriangleAlert className="size-7 shrink-0 text-warning" />} title="Already Received" subtitle="This vehicle was already checked in">
             <div className="rounded-lg border border-warning/30 bg-warning/10 p-3.5 text-sm">
               <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
                 <InfoRow label="Vehicle" value={`${alreadyReceived.year} ${alreadyReceived.make} ${alreadyReceived.model}`} />
@@ -394,15 +436,21 @@ export function VehicleReceiving({ user }: { user: User }) {
             </div>
           </CardShell>
         ) : (
-          <CardShell tone="neutral" badge={<NumberBadge n={2} tone="blue" />} title="Match Found" subtitle="Vehicle found in Auction Inventory">
+          <CardShell tone="neutral" className="xl:col-span-3" badge={<NumberBadge n={2} tone="blue" />} title="Match Found" subtitle="Vehicle found in Auction Inventory">
             <Placeholder icon={CircleCheckBig} text="Scan a VIN to see vehicle match details here." />
           </CardShell>
         )}
 
         {/* 3. Take Arrival Photos / placeholder */}
         {matched ? (
-          <CardShell tone="blue" badge={<NumberBadge n={3} tone="blue" />} title="Take Arrival Photos" subtitle="Take clear photos of the vehicle (required)">
-            <div className="grid grid-cols-2 gap-3">
+          <CardShell tone="blue" className="xl:col-span-6" badge={<NumberBadge n={3} tone="blue" />} title="Take Arrival Photos" subtitle="Take clear photos of the vehicle (required)">
+            <ArrivalPhotoProgress
+              loaded={arrivalPhotos.hasLoaded}
+              error={arrivalPhotos.isError}
+              completion={completion}
+              pendingByRole={pendingBySlot}
+            />
+            <div className="mt-3 grid grid-cols-2 gap-3">
               {ARRIVAL_PHOTO_SLOTS.map((slot) => (
                 <MediaCapture
                   key={`${matched.id}-${slot.id}`}
@@ -412,28 +460,23 @@ export function VehicleReceiving({ user }: { user: User }) {
                   role={slot.role}
                   disabled={receiveMutation.isPending}
                   persistedMediaId={completion.mediaIdBySlot[slot.id]}
+                  onPendingChange={setSlotPending}
                 />
               ))}
             </div>
-            <ArrivalPhotoProgress
-              loaded={arrivalPhotos.hasLoaded}
-              error={arrivalPhotos.isError}
-              completedCount={completion.completedCount}
-              missing={completion.missing}
-            />
             <div className="mt-3">
               <MediaCapture key={`${matched.id}-extra`} label="Additional photo (optional)" ownerType="vehicle" ownerId={matched.id} role={ARRIVAL_EXTRA_ROLE} disabled={receiveMutation.isPending} />
             </div>
           </CardShell>
         ) : (
-          <CardShell tone="neutral" badge={<NumberBadge n={3} tone="blue" />} title="Take Arrival Photos" subtitle="Take clear photos of the vehicle (required)">
+          <CardShell tone="neutral" className="xl:col-span-6" badge={<NumberBadge n={3} tone="blue" />} title="Take Arrival Photos" subtitle="Take clear photos of the vehicle (required)">
             <Placeholder icon={Camera} text="Complete Step 1 to unlock photo capture." />
           </CardShell>
         )}
 
         {/* 4. Confirm Arrival / placeholder */}
         {matched ? (
-          <CardShell tone="blue" badge={<NumberBadge n={4} tone="blue" />} title="Confirm Arrival" subtitle="Verify the information and confirm this vehicle has arrived.">
+          <CardShell tone="blue" className="xl:col-span-6" badge={<NumberBadge n={4} tone="blue" />} title="Confirm Arrival" subtitle="Verify the information and confirm this vehicle has arrived.">
             <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 rounded-md border border-border bg-muted/30 p-3 text-sm">
               <InfoRow label="VIN" value={matched.vin} />
               <InfoRow label="Stock / Lot #" value={matched.stockNumber || matched.lotNumber || "—"} />
@@ -456,16 +499,21 @@ export function VehicleReceiving({ user }: { user: User }) {
             >
               <BadgeCheck className="size-4" /> {confirmed ? "Arrival Confirmed" : "Confirm Arrival"}
             </Button>
+            {!confirmed && !photosReady && (
+              <p className="mt-2 text-center text-xs text-muted-foreground">
+                {completion.completedCount === 0 ? "4 required photos remaining" : `${completion.missing.length} required photos remaining`} · Confirm Arrival unlocks at 4 / 4 saved.
+              </p>
+            )}
           </CardShell>
         ) : (
-          <CardShell tone="neutral" badge={<NumberBadge n={4} tone="blue" />} title="Confirm Arrival" subtitle="Verify the information and confirm this vehicle has arrived.">
+          <CardShell tone="neutral" className="xl:col-span-6" badge={<NumberBadge n={4} tone="blue" />} title="Confirm Arrival" subtitle="Verify the information and confirm this vehicle has arrived.">
             <Placeholder icon={BadgeCheck} text="Finish the required photos to confirm arrival." />
           </CardShell>
         )}
 
         {/* 5. No Match Found / placeholder */}
         {noMatch ? (
-          <CardShell tone="red" badge={<TriangleAlert className="size-7 shrink-0 text-destructive" />} title="No Match Found" subtitle="This VIN was not found in Auction Inventory.">
+          <CardShell tone="red" className="xl:col-span-3" badge={<TriangleAlert className="size-7 shrink-0 text-destructive" />} title="No Match Found" subtitle="This VIN was not found in Auction Inventory.">
             <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-center">
               <b className="block text-lg font-bold text-destructive">VIN NOT MATCHED</b>
               <p className="text-sm font-semibold text-destructive">DO NOT ACCEPT THIS VEHICLE</p>
@@ -498,14 +546,14 @@ export function VehicleReceiving({ user }: { user: User }) {
             </div>
           </CardShell>
         ) : (
-          <CardShell tone="neutral" badge={<TriangleAlert className="size-7 shrink-0 text-muted-foreground/40" />} title="No Match Found" subtitle="This VIN was not found in Auction Inventory.">
+          <CardShell tone="neutral" className="xl:col-span-3" badge={<TriangleAlert className="size-7 shrink-0 text-muted-foreground/40" />} title="No Match Found" subtitle="This VIN was not found in Auction Inventory.">
             <Placeholder icon={TriangleAlert} text="No VIN problems on this scan." />
           </CardShell>
         )}
 
         {/* 6. Arrival Confirmed / placeholder */}
         {confirmed ? (
-          <CardShell tone="green" badge={<CircleCheckBig className="size-7 shrink-0 text-success" />} title="Arrival Confirmed" subtitle="Vehicle successfully checked in">
+          <CardShell tone="green" className="xl:col-span-3" badge={<CircleCheckBig className="size-7 shrink-0 text-success" />} title="Arrival Confirmed" subtitle="Vehicle successfully checked in">
             <div className="rounded-lg border border-success/30 bg-success/10 p-4 text-center">
               <span className="mx-auto flex size-12 items-center justify-center rounded-full bg-success text-success-foreground">
                 <CircleCheckBig className="size-6" />
@@ -525,7 +573,7 @@ export function VehicleReceiving({ user }: { user: User }) {
             </Button>
           </CardShell>
         ) : (
-          <CardShell tone="neutral" badge={<CircleCheckBig className="size-7 shrink-0 text-muted-foreground/40" />} title="Arrival Confirmed" subtitle="Vehicle successfully checked in">
+          <CardShell tone="neutral" className="xl:col-span-3" badge={<CircleCheckBig className="size-7 shrink-0 text-muted-foreground/40" />} title="Arrival Confirmed" subtitle="Vehicle successfully checked in">
             <Placeholder icon={ScanLine} text="Confirm arrival to see the success summary here." />
           </CardShell>
         )}

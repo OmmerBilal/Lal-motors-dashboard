@@ -75,11 +75,11 @@ for (const width of WIDTHS) {
     const tapH = await take.evaluate((el) => el.getBoundingClientRect().height);
     check(`"Take photo" is a tappable size at ${width}px`, tapH >= 40, `height=${tapH}`);
 
-    // Real upload through the device picker, then "Use photo".
+    // Real upload through the device picker, then "Save Photo".
     await page.locator('input[aria-label="Front View: choose from device"]').setInputFiles(png);
-    await page.getByRole("button", { name: "Use photo" }).first().waitFor({ timeout: 15_000 });
+    await page.getByRole("button", { name: "Save Photo" }).first().waitFor({ timeout: 15_000 });
     await overflow(page, "photo preview", width);
-    await page.getByRole("button", { name: "Use photo" }).first().click();
+    await page.getByRole("button", { name: "Save Photo" }).first().click();
     await page.getByText("Saved", { exact: true }).first().waitFor({ timeout: 60_000 });
     check(`front photo upload saved through the media pipeline at ${width}px`, (await savedCount()) > beforeSaved);
   } else {

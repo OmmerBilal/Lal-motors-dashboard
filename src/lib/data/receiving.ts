@@ -67,3 +67,11 @@ export async function receiveVehicleNow(vehicleId: string) {
   if (error) throw new Error(error.message);
   return data as { vehicle_id: string; receiving_status: string; idempotent_replay: boolean };
 }
+
+/** Vehicles received today (UTC day), counted by the database. The inbound list cannot answer this: received vehicles leave it. */
+export async function getArrivedTodayCount(): Promise<number> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("vehicles_arrived_today_count");
+  if (error) throw new Error(error.message);
+  return Number(data ?? 0);
+}

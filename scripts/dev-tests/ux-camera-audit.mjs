@@ -65,8 +65,8 @@ const browser = await chromium.launch({ executablePath: "C:/Program Files/Google
   check("scrap load photo offers Take photo and Choose from device at 390px", (await take.isVisible()) && (await device.isVisible()));
   await overflow(page, "scrap new load", 390);
   await page.locator('input[aria-label="Load photo: choose from device"]').setInputFiles(png);
-  await page.getByRole("button", { name: "Use photo" }).first().waitFor({ timeout: 15_000 });
-  await page.getByRole("button", { name: "Use photo" }).first().click();
+  await page.getByRole("button", { name: "Save Photo" }).first().waitFor({ timeout: 15_000 });
+  await page.getByRole("button", { name: "Save Photo" }).first().click();
   await page.getByText("Load photo saved.").first().waitFor({ timeout: 60_000 }).catch(() => {});
   const after = Number((await db.query("select count(*)::int c from public.media_assets where owner_type='scrap_load' and role='load_photo' and status='ready'")).rows[0].c);
   check("scrap load photo reached the media pipeline (saved row created)", after > before, `before=${before} after=${after}`);

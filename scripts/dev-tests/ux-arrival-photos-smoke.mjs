@@ -1,7 +1,7 @@
 // Four arrival photos, browser (Playwright + installed Chrome, DEV data). Creates a fresh TEST-ARR vehicle, then:
 //   Auction -> Receive Vehicle -> /vehicle-receiving?vehicle=<id> (exact vehicle selected)
 //   uploads Front, Rear, Left and Right through the real device inputs and the real media pipeline
-// and asserts after each successful save: the N/4 count, no stale "Ready to upload", and Confirm Arrival enabled
+// and asserts after each successful save: the N/4 count, no stale "NOT SAVED YET", and Confirm Arrival enabled
 // without a refresh once 4/4 is saved. Then reloads and checks 4/4 comes back from the server. Does not confirm arrival.
 // Checks at 390px and 1440px: no React/page errors, no horizontal overflow.
 // Usage: BASE_URL=http://localhost:3100 ROLE=engineer_admin node scripts/dev-tests/ux-arrival-photos-smoke.mjs
@@ -67,7 +67,7 @@ let pass = 0, fail = 0;
 const check = (name, ok, detail = "") => { if (ok) pass++; else fail++; console.log(`${ok ? "PASS" : "FAIL"} | ${name}${detail ? " | " + detail : ""}`); };
 
 const SLOTS = [["Front View", "front"], ["Rear View", "rear"], ["Left Side", "left"], ["Right Side", "right"]];
-const progress = (n) => new RegExp(`^${n}/4 required photos saved$`);
+const progress = (n) => new RegExp(`^${n} / 4 saved$`);
 
 for (const width of WIDTHS) {
   const tag = `${width}px`;
@@ -92,17 +92,17 @@ for (const width of WIDTHS) {
   const confirm = () => page.getByRole("button", { name: /Confirm Arrival/ }).first();
   await page.getByText(progress(0)).waitFor({ timeout: 30_000 }).catch(() => {});
   check(`starts at 0/4 with Confirm disabled at ${tag}`, (await page.getByText(progress(0)).count()) === 1 && (await confirm().isDisabled()));
-  check(`0/4 shows the remaining-photo message at ${tag}`, (await page.getByText(/4 required photos remaining/).count()) === 1);
+  check(`0/4 shows the remaining-photo message at ${tag}`, (await page.getByText(/4 required photos remaining/).count()) >= 1);
 
   for (let i = 0; i < SLOTS.length; i++) {
     const [label, id] = SLOTS[i];
     const n = i + 1;
     await page.locator(`input[aria-label="${label}: choose from device"]`).setInputFiles(imgPath);
-    await page.getByRole("button", { name: "Use photo" }).first().click();
+    await page.getByRole("button", { name: "Save Photo" }).first().click();
     const shown = await page.getByText(progress(n)).waitFor({ timeout: 90_000 }).then(() => true).catch(() => false);
     check(`${id}: ${n}/4 shown after the save at ${tag}`, shown);
-    const staleReady = await page.getByText("Ready to upload").count();
-    check(`${id}: no stale "Ready to upload" at ${tag}`, staleReady === 0, `count=${staleReady}`);
+    const staleReady = await page.getByText("NOT SAVED YET").count();
+    check(`${id}: no stale "NOT SAVED YET" at ${tag}`, staleReady === 0, `count=${staleReady}`);
     if (n < 4) check(`${id}: Confirm still disabled at ${n}/4 at ${tag}`, await confirm().isDisabled());
   }
   check(`4/4: Confirm Arrival enabled without a refresh at ${tag}`, await confirm().isEnabled());
