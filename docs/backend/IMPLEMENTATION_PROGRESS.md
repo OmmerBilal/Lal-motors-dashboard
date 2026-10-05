@@ -485,3 +485,36 @@ Changed and new files scanned for key-shaped tokens, JWT-shaped tokens, service-
 6. OpenAI: the stored key is refused (invalid_key). The provider path is tested for controlled failure; live success is not verified.
 7. The attack matrix classifies refusals by SQLSTATE 42501 only. ALLOW checks prove the authorization check was passed (no 42501 or 28000), not that the business action succeeded.
 8. Container and parts photo slots use the shared capture and were verified for visibility only in the browser. A real upload was run on the scrap driver path and on the AI image input.
+
+## Manual QA fix round — 2026-10-05 (local commit 69aca7d; closure pass recorded below)
+
+Fixes made in this round. Statuses are unchanged: modules remain IMPLEMENTATION COMPLETE — MANUAL QA PENDING.
+
+1. **Global session revalidation no longer remounts the app on tab return.** Root cause: every auth event set the session to loading, and the root gate replaced the whole tree with "Loading session…". `src/lib/session.tsx` shows the loader only for the first bootstrap. Same-user events (TOKEN_REFRESHED, routine SIGNED_IN, focus, visibility) are background-only. The app redirects to `/login` only on SIGNED_OUT.
+2. **Proxy access check fails closed without signing out.** `src/proxy.ts` no longer treats a failed `current_access` RPC as a disabled account. A failed lookup returns a retryable 503 and keeps the session. Only an empty result (no profile) ends the session.
+3. **Receive Vehicle deep link.** Auction rows and the vehicle detail offer Receive Vehicle to owner, engineer_admin and receiving, for vehicles that are open, not dismantled and not received. The link opens `/vehicle-receiving?vehicle=<id>`. Receiving re-reads the vehicle by id (`vehicle_get`) and preselects it. No VIN is retyped, and no receiving logic is duplicated in Auction. Received vehicles show a Received state.
+4. **Migration 0059 receive guard.** `receive_vehicle` refuses dismantled vehicles (status `Dismantled`). The idempotent replay, closed refusal and four-photo rule are unchanged. Migration 0059 replaces the body of the 0006 function. No applied migration was edited.
+5. **Auction close control audited.** No hard delete exists in the Auction UI or in any migration. The control is "Close / Remove Vehicle" with a reason and note through `close_vehicle`, which keeps history.
+6. **Same-batch duplicate and conflict detection.** Migrations 0056, 0057 and 0058 add `intake_evaluate_batch` (read-only) and `intake_commit_batch`. Rows are checked against the same batch and the database, using normalised VIN, lot, stock and auction item.
+   - Identical content on a shared identifier is **duplicate**.
+   - Different content on a shared identifier is **conflict**, and every row in that group is excluded.
+   - An existing vehicle is **existing**.
+   - Missing required fields or a malformed VIN is **invalid**.
+7. **Server-side batch protection.** `intake_commit_batch` re-runs the evaluation on the server and creates only rows classified as new, through `match_or_create_vehicle`. A modified client cannot bypass the check. Review excludes duplicate and conflict rows from Confirm.
+8. **ReviewView render-phase update fixed.** `review-view.tsx` calls the parent `onDone` from the confirm handler, not inside a state updater. The React "Cannot update a component while rendering a different component" warning no longer appears in the Bulk Paste → Review → Confirm path.
+9. **Test credential handling.** `scripts/dev-tests/dev-credentials.mjs` reads the owner password from `DEV_TEST_OWNER_PASSWORD` (environment or the git-ignored `.env.local`). It is used by `route-gate.mjs` and `rpc-vehicles.mjs`. The password is never printed or committed, and runtime code does not import it.
+
+### Exact test counts (this round)
+- `rpc-intake-batch` 12/12 (same-batch duplicate, conflict, existing, commit bypass, role refusal, batch size).
+- `rpc-vehicle-authority` 36/36. `rpc-vehicle-merge` 15/15.
+- `ux-module03-flow` 8/8 (Receiving, 390 and 1440).
+- `rpc-receive-guard` 6/6 (new: dismantled, closed and no-photo refusals; each leaves the vehicle unchanged).
+- `ux-qa-round` 35/35 (390 and 1440: visibility cycles on intake, review, receiving and dismantling; Receive deep link with exact preselection; role and state rules; duplicate pair; completion; genuine sign-out). React console and render errors recorded: 0 in the final runs.
+- `route-gate` and `rpc-vehicles`: blocked until `DEV_TEST_OWNER_PASSWORD` is set locally. Counts will be recorded after they run.
+
+### Test side effects in DEV (recorded, not reverted)
+- The QA completion smoke created 3 vehicles with VINs starting `TZWN` (created 2026-10-05). The app has no hard delete, so these can be closed with Close / Remove Vehicle.
+- Vehicle receive was never executed in the tests. The guard test only confirms refusals.
+
+### Static checks
+`npx tsc --noEmit`: pass. `npm run lint`: pass. `npm run build`: pending. A running `next dev` process holds files in `.next`, so the build could not write its output; it must be rerun after that process stops.

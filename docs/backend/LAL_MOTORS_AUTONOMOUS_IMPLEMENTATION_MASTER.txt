@@ -1078,3 +1078,13 @@ At each new Claude Code session:
 
 END OF MASTER FILE
 ==================
+
+MANUAL QA FIX ROUND — 2026-10-05 (local commit 69aca7d)
+========================================================
+Fixed: tab return no longer remounts the app; the proxy fails closed on an access-check error; Receive Vehicle deep link
+into Receiving with the same vehicle preselected; migration 0059 refuses dismantled vehicles; same-batch duplicate and
+conflict detection with server-side commit protection (0056–0058); ReviewView render-phase warning.
+Tests: intake batch 12/12, vehicle authority 36/36, vehicle merge 15/15, Receiving 8/8, receive guard 6/6, QA round 35/35.
+Pending: route-gate and rpc-vehicles (owner password must be set in local .env.local as DEV_TEST_OWNER_PASSWORD); build
+(a running next dev process blocks output).
+Module statuses are unchanged from the table above.
