@@ -247,10 +247,17 @@ export async function completeUpload(mediaId: string): Promise<Result<CompletedM
     ids[v.variant] = row.data.id;
   }
 
-  await admin
+  // The original becomes "ready" only here. If this write fails, the photo is not saved, so the caller must not report it as saved.
+  const ready = await admin
     .from("media_assets")
     .update({ status: "ready", width: meta.width ?? null, height: meta.height ?? null })
-    .eq("id", original.id);
+    .eq("id", original.id)
+    .select("id")
+    .single();
+  if (ready.error || !ready.data) {
+    logEvent("error", { operation: "media.complete.mark_ready", entity: original.id });
+    return fail("failed", "The photo was not saved. Retry the upload.");
+  }
 
   logEvent("info", { operation: "media.complete", entity: original.id, variants: 2 });
   return {

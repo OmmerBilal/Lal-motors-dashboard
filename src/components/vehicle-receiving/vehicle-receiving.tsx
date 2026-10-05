@@ -26,18 +26,12 @@ import { StatusBadge } from "@/components/patterns/status-badge";
 import type { User } from "@/lib/types";
 import { transportStatusLabels, type VehicleRecord } from "@/lib/mock/vehicles";
 import { useInboundVehicles } from "@/lib/query/dispatch";
-import { useOwnerPhotos } from "@/lib/query/media";
+import { useArrivalPhotos } from "@/lib/query/media";
+import { ARRIVAL_EXTRA_ROLE, ARRIVAL_PHOTO_SLOTS } from "@/lib/media/arrival-photos";
 import { useReceiveVehicle } from "@/lib/query/receiving";
 import { lookupForReceiving, lookupVehicleById, type ReceivingLookup } from "@/lib/data/receiving";
 import { toVehicleRecord } from "@/lib/data/vehicle-record";
 import { MediaCapture } from "@/components/media/media-capture";
-
-const requiredPhotoSlots = [
-  { id: "front", label: "Front View" },
-  { id: "rear", label: "Rear View" },
-  { id: "left", label: "Left Side" },
-  { id: "right", label: "Right Side" },
-];
 
 const problemOptions = [
   "Visible Damage",
@@ -49,6 +43,42 @@ const problemOptions = [
   "Wrong Vehicle",
   "Other",
 ];
+
+/** Progress and the missing-photo message, read from the same completion result that gates Confirm Arrival. */
+function ArrivalPhotoProgress({
+  loaded,
+  error,
+  completedCount,
+  missing,
+}: {
+  loaded: boolean;
+  error: boolean;
+  completedCount: number;
+  missing: { label: string }[];
+}) {
+  if (!loaded) {
+    return error ? (
+      <p role="alert" className="mt-3 text-sm text-destructive">Saved photos could not be loaded. Reload this page to check again.</p>
+    ) : (
+      <p className="mt-3 text-sm text-muted-foreground">Checking saved photos…</p>
+    );
+  }
+  const total = ARRIVAL_PHOTO_SLOTS.length;
+  const remaining = missing.length;
+  return (
+    <div className="mt-3 space-y-1.5" aria-live="polite">
+      <p className="text-sm font-semibold">{completedCount}/{total} required photos saved</p>
+      <div className="h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden>
+        <div className="h-full rounded-full bg-success transition-all" style={{ width: `${(completedCount / total) * 100}%` }} />
+      </div>
+      {remaining > 0 && (
+        <p className="text-xs text-muted-foreground">
+          {remaining} required {remaining === 1 ? "photo" : "photos"} remaining: {missing.map((m) => m.label).join(", ")}
+        </p>
+      )}
+    </div>
+  );
+}
 
 function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -122,8 +152,6 @@ export function VehicleReceiving({ user }: { user: User }) {
   const [matched, setMatched] = useState<VehicleRecord | null>(null);
   const [alreadyReceived, setAlreadyReceived] = useState<VehicleRecord | null>(null);
   const [noMatch, setNoMatch] = useState(false);
-  const [photos, setPhotos] = useState<Record<string, boolean>>({});
-  const [, setExtraPhotoCount] = useState(0);
   const [vinProblems, setVinProblems] = useState(0);
   const [problemOpen, setProblemOpen] = useState(false);
   const [problemType, setProblemType] = useState(problemOptions[0]);
@@ -147,18 +175,11 @@ export function VehicleReceiving({ user }: { user: User }) {
     setMatched(null);
     setAlreadyReceived(null);
     setNoMatch(false);
-    setPhotos({});
-    setExtraPhotoCount(0);
     setConfirmed(null);
   }
 
   // Shared by the VIN search and the Auction deep link. It only calls state setters, so it is stable for the effect below.
-  const applyLookup = useCallback((result: ReceivingLookup, previousId: string | null) => {
-    // Photos already saved for this vehicle stay on screen; only a different vehicle starts with an empty set.
-    if (result.status !== "not_found" && result.vehicle.id !== previousId) {
-      setPhotos({});
-      setExtraPhotoCount(0);
-    }
+  const applyLookup = useCallback((result: ReceivingLookup) => {
     if (result.status === "not_found") {
       setMatched(null);
       setAlreadyReceived(null);
@@ -181,9 +202,8 @@ export function VehicleReceiving({ user }: { user: User }) {
     const clean = vin.trim();
     if (!clean) return;
     setConfirmed(null);
-    const previousId = matched?.id ?? null;
     try {
-      applyLookup(await lookupForReceiving(clean), previousId);
+      applyLookup(await lookupForReceiving(clean));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "The lookup failed. Try again.");
     }
@@ -199,7 +219,7 @@ export function VehicleReceiving({ user }: { user: User }) {
     lookupVehicleById(linkedVehicleId)
       .then((result) => {
         if (result.vehicle) setVinInput(result.vehicle.vin ?? "");
-        applyLookup(result, null);
+        applyLookup(result);
       })
       .catch((err: unknown) => toast.error(err instanceof Error ? err.message : "This vehicle could not be opened."));
   }, [linkedVehicleId, applyLookup]);
@@ -210,11 +230,11 @@ export function VehicleReceiving({ user }: { user: User }) {
     document.getElementById("vin-manual")?.focus();
   }
 
-  // The four slots come from the server's saved photos, so a reload or a return to this vehicle shows them again.
-  const savedPhotos = useOwnerPhotos("vehicle", matched?.id ?? null, "arrival_");
-  const savedPhotoFor = (slotId: string) =>
-    savedPhotos.data?.find((p) => p.role === "arrival_" + slotId)?.id ?? null;
-  const allRequiredCaptured = requiredPhotoSlots.every((s) => photos[s.id] || savedPhotoFor(s.id));
+  // Arrival photos come only from the server (ready originals for this vehicle). Local previews and uploads in flight never count.
+  // One helper decides progress, the missing-photo message and the Confirm gate. A background refetch keeps the last loaded result.
+  const arrivalPhotos = useArrivalPhotos(matched?.id);
+  const { completion } = arrivalPhotos;
+  const photosReady = !!matched && arrivalPhotos.hasLoaded && completion.complete;
 
   function confirmArrival() {
     if (!matched) return;
@@ -383,21 +403,26 @@ export function VehicleReceiving({ user }: { user: User }) {
         {matched ? (
           <CardShell tone="blue" badge={<NumberBadge n={3} tone="blue" />} title="Take Arrival Photos" subtitle="Take clear photos of the vehicle (required)">
             <div className="grid grid-cols-2 gap-3">
-              {requiredPhotoSlots.map((slot) => (
+              {ARRIVAL_PHOTO_SLOTS.map((slot) => (
                 <MediaCapture
-                  key={slot.id}
+                  key={`${matched.id}-${slot.id}`}
                   label={slot.label}
                   ownerType="vehicle"
                   ownerId={matched.id}
-                  role={"arrival_" + slot.id}
+                  role={slot.role}
                   disabled={receiveMutation.isPending}
-                  persistedMediaId={savedPhotoFor(slot.id)}
-                  onUploaded={() => setPhotos((prev) => ({ ...prev, [slot.id]: true }))}
+                  persistedMediaId={completion.mediaIdBySlot[slot.id]}
                 />
               ))}
             </div>
+            <ArrivalPhotoProgress
+              loaded={arrivalPhotos.hasLoaded}
+              error={arrivalPhotos.isError}
+              completedCount={completion.completedCount}
+              missing={completion.missing}
+            />
             <div className="mt-3">
-              <MediaCapture label="Additional photo (optional)" ownerType="vehicle" ownerId={matched.id} role="arrival_extra" disabled={receiveMutation.isPending} onUploaded={() => setExtraPhotoCount((n) => n + 1)} />
+              <MediaCapture key={`${matched.id}-extra`} label="Additional photo (optional)" ownerType="vehicle" ownerId={matched.id} role={ARRIVAL_EXTRA_ROLE} disabled={receiveMutation.isPending} />
             </div>
           </CardShell>
         ) : (
@@ -426,7 +451,7 @@ export function VehicleReceiving({ user }: { user: User }) {
             <Button
               className="mt-3 w-full bg-success text-success-foreground hover:bg-success/90"
               size="lg"
-              disabled={!allRequiredCaptured || !!confirmed}
+              disabled={!photosReady || !!confirmed || receiveMutation.isPending}
               onClick={confirmArrival}
             >
               <BadgeCheck className="size-4" /> {confirmed ? "Arrival Confirmed" : "Confirm Arrival"}

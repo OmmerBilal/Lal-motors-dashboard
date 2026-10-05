@@ -95,9 +95,10 @@ export function MediaCapture({
         onProgress: setProgress,
       });
       setProgress(100);
+      // Reload this owner's saved photos before showing Saved, so the label and any gate built on the saved list change together.
+      await queryClient.invalidateQueries({ queryKey: ["media", "owner", ownerType, ownerId] });
       setPhase("done");
       setReplacing(false);
-      queryClient.invalidateQueries({ queryKey: ["media", "owner", ownerType, ownerId] });
       onUploaded?.(mediaId);
     } catch (err) {
       setError(err instanceof Error ? err.message : "The photo could not be uploaded. Retry.");
