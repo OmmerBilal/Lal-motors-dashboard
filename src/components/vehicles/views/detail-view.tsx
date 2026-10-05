@@ -1,19 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { StatusBadge } from "@/components/patterns/status-badge";
 import type { User } from "@/lib/types";
 import {
@@ -21,15 +12,42 @@ import {
   cash,
   transportStatusLabels,
   vehicleFieldLabels,
-  vehicleFieldOrder,
-  vehicleStatusOptions,
   vehicleTitle,
   type VehicleRecord,
 } from "@/lib/mock/vehicles";
-import { useVehicleData } from "@/components/vehicles/vehicle-data-context";
-import type { VehicleEventAction } from "@/lib/mock/vehicles";
+import { useAddVehicleNote, useEditVehicle, useVehicleEvents } from "@/lib/query/vehicle-workspace";
 
-const fullActions: VehicleEventAction[] = ["STATUS", "ASSIGN", "START", "PART_REMOVED", "PHOTO", "COMPLETION_SUBMITTED", "DISPOSITION"];
+/**
+ * One vehicle's record. Edits go to the same row through vehicle_edit_fields, and only changed fields are sent.
+ * Notes and issue flags are the only actions recorded here. Parts, photos, status and completion come from the
+ * flows that own them (dismantling, receiving, processing), so this screen never writes those facts itself.
+ */
+
+/** Camel-case record keys the detail form may change, mapped to the snake-case columns the RPC accepts. */
+const EDITABLE: [keyof VehicleRecord, string][] = [
+  ["year", "year"],
+  ["make", "make"],
+  ["model", "model"],
+  ["trim", "trim"],
+  ["engine", "engine"],
+  ["mileage", "mileage"],
+  ["mileageStatus", "mileage_status"],
+  ["titleStatus", "title_status"],
+  ["location", "location"],
+  ["auctionItemNumber", "auction_item_number"],
+  ["purchasePrice", "purchase_price"],
+  ["invoiceAmount", "invoice_amount"],
+  ["balanceDue", "balance_due"],
+  ["auctionFees", "auction_fees"],
+  ["transportationCost", "transportation_cost"],
+  ["pickupStatus", "pickup_status"],
+  ["pickupPin", "pickup_pin"],
+  ["pickupDeadline", "pickup_deadline"],
+  ["pickupAddress", "pickup_address"],
+  ["pickupLocationName", "pickup_location_name"],
+  ["damageInfo", "damage_info"],
+  ["transportInfo", "transport_info"],
+];
 
 const infoRows: [string, keyof VehicleRecord | ((v: VehicleRecord) => string)][] = [
   ["VIN", "vin"],
@@ -50,63 +68,79 @@ const infoRows: [string, keyof VehicleRecord | ((v: VehicleRecord) => string)][]
   ["Damage", "damageInfo"],
 ];
 
+function errorText(err: unknown) {
+  return err instanceof Error ? err.message : "The change was not saved. Nothing was changed.";
+}
+
 export function DetailView({ user, vehicle }: { user: User; vehicle: VehicleRecord }) {
-  const { updateVehicle, recordEvent, vehicleEvents, staff } = useVehicleData();
-  const events = vehicleEvents(vehicle.id);
+  const eventsQuery = useVehicleEvents(vehicle.id);
+  const editMutation = useEditVehicle(vehicle.id);
+  const noteMutation = useAddVehicleNote(vehicle.id);
+  const events = eventsQuery.data ?? [];
+  const canEdit = ["owner", "engineer_admin", "manager", "auction"].includes(user.role);
 
   const [editing, setEditing] = useState(false);
-  const [edit, setEdit] = useState<Record<string, string>>(() =>
-    Object.fromEntries(vehicleFieldOrder.map((k) => [k, vehicle[k] as string]))
-  );
-
-  const [action, setAction] = useState<VehicleEventAction>("START");
-  const [status, setStatus] = useState("Awaiting Transport");
-  const [assignee, setAssignee] = useState("");
-  const [partType, setPartType] = useState("");
-  const [highValue, setHighValue] = useState(false);
-  const [disposition, setDisposition] = useState("IN INVENTORY");
-  const [dispositionTarget, setDispositionTarget] = useState("");
-  const [dispositionLocation, setDispositionLocation] = useState("");
+  const [edit, setEdit] = useState<Record<string, string>>({});
+  const [issue, setIssue] = useState(false);
   const [note, setNote] = useState("");
-  const [photoName, setPhotoName] = useState("");
-  const [sourcePhotoName, setSourcePhotoName] = useState("");
   const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
 
-  const actionOptions = fullActions;
-  const highValueRemovals = events.filter((e) => e.action === "PART_REMOVED" && e.highValue);
+  function startEditing() {
+    setEdit(Object.fromEntries(EDITABLE.map(([k]) => [k, String(vehicle[k] ?? "")])));
+    setEditing((v) => !v);
+    setError("");
+  }
 
   function saveVehicle() {
-    updateVehicle(vehicle.id, edit as Partial<VehicleRecord>);
-    setEditing(false);
-    setMessage("Vehicle changes saved to the same record");
+    const changed: Record<string, string> = {};
+    for (const [key, column] of EDITABLE) {
+      const next = edit[key] ?? "";
+      if (next !== String(vehicle[key] ?? "")) changed[column] = next;
+    }
+    if (Object.keys(changed).length === 0) {
+      setMessage("No changes to save");
+      return;
+    }
+    setError("");
+    editMutation.mutate(changed, {
+      onSuccess: () => {
+        setEditing(false);
+        setMessage("Vehicle changes saved to the same record");
+      },
+      onError: (err) => setError(errorText(err)),
+    });
   }
 
-  function submitEvent() {
-    recordEvent({
-      vehicleId: vehicle.id,
-      action,
-      actorId: user.id,
-      note: note || undefined,
-      status: action === "STATUS" ? status : undefined,
-      assigneeId: action === "ASSIGN" ? assignee : undefined,
-      partType: action === "PART_REMOVED" ? partType : undefined,
-      highValue: action === "PART_REMOVED" ? highValue : undefined,
-      disposition: action === "DISPOSITION" ? disposition : undefined,
-      location: action === "DISPOSITION" ? dispositionLocation : undefined,
-      hasPhoto: Boolean(photoName) || undefined,
-      partId: action === "DISPOSITION" ? dispositionTarget : undefined,
-    });
-    setMessage(action === "COMPLETION_SUBMITTED" ? "Vehicle submitted for completion review" : "Vehicle action saved");
-    setNote("");
-    setPhotoName("");
-    setSourcePhotoName("");
+  function submitNote() {
+    setError("");
+    noteMutation.mutate(
+      { action: issue ? "ISSUE_FLAGGED" : "NOTE", note },
+      {
+        onSuccess: () => {
+          setNote("");
+          setIssue(false);
+          setMessage(issue ? "Issue flagged on this vehicle" : "Note added to this vehicle");
+        },
+        onError: (err) => setError(errorText(err)),
+      },
+    );
   }
+
+  const isClosed = Boolean(vehicle.closedReason);
+  const partEvents = events.filter((e) => e.action === "PART_REMOVED");
+  const completionEvents = events.filter((e) => e.action.startsWith("COMPLETION_"));
 
   return (
     <div className="space-y-5">
       {message && (
         <p role="status" className="rounded-md bg-success/10 px-3 py-2 text-sm font-medium text-success">
           {message}
+        </p>
+      )}
+      {error && (
+        <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm font-medium text-destructive">
+          {error}
         </p>
       )}
 
@@ -122,275 +156,143 @@ export function DetailView({ user, vehicle }: { user: User; vehicle: VehicleReco
           {vehicle.auctionSource || "Auction unknown"} · {vehicle.location || "Location not set"} · Assigned{" "}
           {vehicle.assignedName || "Unassigned"}
         </p>
+        {isClosed && (
+          <p className="mt-2 text-sm font-medium text-muted-foreground">
+            Closed ({vehicle.closedReason}). Reopen it from the list before changing the record.
+          </p>
+        )}
 
-        <>
-            <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-              {infoRows.map(([label, accessor]) => (
-                <div key={label}>
-                  <small className="block text-xs text-muted-foreground">{label}</small>
-                  <b className="text-sm">
-                    {typeof accessor === "function" ? accessor(vehicle) : (vehicle[accessor] as string) || "—"}
-                  </b>
-                </div>
-              ))}
+        <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+          {infoRows.map(([label, accessor]) => (
+            <div key={label}>
+              <small className="block text-xs text-muted-foreground">{label}</small>
+              <b className="text-sm">
+                {typeof accessor === "function" ? accessor(vehicle) : (vehicle[accessor] as string) || "—"}
+              </b>
             </div>
-            {vehicle.unverifiedFields.length > 0 && (
-              <p className="mt-3 text-xs text-warning-foreground">
-                Unverified: {vehicle.unverifiedFields.map((k) => vehicleFieldLabels[k] || k).join(", ")}
-              </p>
+          ))}
+        </div>
+        {vehicle.unverifiedFields.length > 0 && (
+          <p className="mt-3 text-xs text-warning-foreground">
+            Unverified: {vehicle.unverifiedFields.map((k) => vehicleFieldLabels[k] || k).join(", ")}
+          </p>
+        )}
+
+        <div className="mt-4 rounded-md border border-border bg-muted/30 p-3">
+          <p className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Transportation &amp; Arrival</p>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs sm:grid-cols-4">
+            <span className="text-muted-foreground">Pickup location</span>
+            <span className="col-span-1 font-medium sm:col-span-3">{vehicle.pickupLocationName || "—"}</span>
+            <span className="text-muted-foreground">Transport status</span>
+            <span className="font-medium">
+              <StatusBadge tone={auctionStageInfo(vehicle).tone}>{transportStatusLabels[vehicle.transportStatus]}</StatusBadge>
+            </span>
+            <span className="text-muted-foreground">Carrier</span>
+            <span className="font-medium">{vehicle.carrierName || (vehicle.carrierId ? "Assigned" : "Not Assigned")}</span>
+            <span className="text-muted-foreground">Transport price</span>
+            <span className="font-medium">{vehicle.transportPrice ? cash(vehicle.transportPrice) : "—"}</span>
+            <span className="text-muted-foreground">Received by</span>
+            <span className="font-medium">{vehicle.receivedBy || "—"}</span>
+            {vehicle.transportProblem && (
+              <>
+                <span className="text-destructive">Problem</span>
+                <span className="col-span-1 font-medium text-destructive sm:col-span-3">{vehicle.transportProblem}</span>
+              </>
             )}
-            <div className="mt-4 rounded-md border border-border bg-muted/30 p-3">
-              <p className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                Transportation &amp; Arrival
-              </p>
-              <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs sm:grid-cols-4">
-                <span className="text-muted-foreground">Pickup location</span>
-                <span className="col-span-1 font-medium sm:col-span-3">{vehicle.pickupLocationName || "—"}</span>
-                <span className="text-muted-foreground">Transport status</span>
-                <span className="font-medium">
-                  <StatusBadge tone={auctionStageInfo(vehicle).tone}>{transportStatusLabels[vehicle.transportStatus]}</StatusBadge>
-                </span>
-                <span className="text-muted-foreground">Carrier</span>
-                <span className="font-medium">{vehicle.carrierName || "Not Assigned"}</span>
-                <span className="text-muted-foreground">Transport price</span>
-                <span className="font-medium">{vehicle.transportPrice ? cash(vehicle.transportPrice) : "—"}</span>
-                <span className="text-muted-foreground">Received by</span>
-                <span className="font-medium">{vehicle.receivedBy || "—"}</span>
-                {vehicle.transportProblem && (
-                  <>
-                    <span className="text-destructive">Problem</span>
-                    <span className="col-span-1 font-medium text-destructive sm:col-span-3">{vehicle.transportProblem}</span>
-                  </>
-                )}
-              </div>
-              <p className="mt-3 mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                Documents &amp; Photos
-              </p>
-              {vehicle.arrivalPhotos.length ? (
-                <div className="grid grid-cols-4 gap-2">
-                  {vehicle.arrivalPhotos.map((p) => (
-                    <div key={p.id} className="flex aspect-square flex-col items-center justify-center gap-1 rounded-md border border-border bg-background text-muted-foreground">
-                      <Camera className="size-4" />
-                      <span className="text-[9px]">{p.label}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-muted-foreground">No arrival photos linked yet.</p>
-              )}
-            </div>
+          </div>
+          <p className="mt-3 mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Documents &amp; Photos</p>
+          <p className="text-xs text-muted-foreground">Arrival photos appear here once the receiving photo upload is connected.</p>
+        </div>
 
-            <Button variant="outline" size="sm" className="mt-4" onClick={() => setEditing(!editing)}>
+        {canEdit && !isClosed && (
+          <>
+            <Button variant="outline" size="sm" className="mt-4" onClick={startEditing}>
               {editing ? "Close editing" : "Edit vehicle information"}
             </Button>
             {editing && (
               <>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {vehicleFieldOrder.map((key) => (
+                  {EDITABLE.map(([key]) => (
                     <div key={key} className="space-y-1.5">
-                      <Label>{vehicleFieldLabels[key]}</Label>
-                      <Input value={edit[key] ?? ""} onChange={(e) => setEdit({ ...edit, [key]: e.target.value })} />
+                      <Label htmlFor={`edit-${key}`}>{vehicleFieldLabels[key] ?? key}</Label>
+                      <Input
+                        id={`edit-${key}`}
+                        value={edit[key] ?? ""}
+                        onChange={(e) => setEdit({ ...edit, [key]: e.target.value })}
+                      />
                     </div>
                   ))}
                 </div>
-                <Button className="mt-3" onClick={saveVehicle}>
-                  Save vehicle changes
+                <Button className="mt-3" onClick={saveVehicle} disabled={editMutation.isPending}>
+                  {editMutation.isPending ? "Saving…" : "Save vehicle changes"}
                 </Button>
               </>
             )}
           </>
+        )}
       </section>
 
-      <section className="rounded-lg border border-border bg-card p-4">
-        <h3 className="mb-3 text-sm font-semibold">Record an action</h3>
-        <div className="mb-3 flex flex-wrap gap-2">
-          {actionOptions.map((a) => (
-            <Button key={a} size="sm" variant={action === a ? "default" : "outline"} onClick={() => setAction(a)}>
-              {a.replaceAll("_", " ")}
-            </Button>
-          ))}
-        </div>
-
-        <div className="max-w-md space-y-3">
-          {action === "STATUS" && (
-            <div className="space-y-1.5">
-              <Label>Vehicle status</Label>
-              <Select value={status} onValueChange={(v) => setStatus(v ?? "")}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {vehicleStatusOptions.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {s}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {action === "ASSIGN" && (
-            <div className="space-y-1.5">
-              <Label>Assign employee</Label>
-              <Select value={assignee} onValueChange={(v) => setAssignee(v ?? "")}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select employee" />
-                </SelectTrigger>
-                <SelectContent>
-                  {staff.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {action === "PART_REMOVED" && (
-            <>
-              <div className="space-y-1.5">
-                <Label>Part type</Label>
-                <Input
-                  placeholder="e.g. catalytic converter"
-                  value={partType}
-                  onChange={(e) => setPartType(e.target.value)}
-                />
-              </div>
-              <label className="flex items-center gap-2 text-sm">
-                <Checkbox checked={highValue} onCheckedChange={(v) => setHighValue(Boolean(v))} /> High-value part
-              </label>
-            </>
-          )}
-
-          {action === "DISPOSITION" && (
-            <>
-              <div className="space-y-1.5">
-                <Label>Select high-value part</Label>
-                <Select value={dispositionTarget} onValueChange={(v) => setDispositionTarget(v ?? "")}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select removal" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {highValueRemovals.map((e) => (
-                      <SelectItem key={e.id} value={e.id}>
-                        {e.partType} · {e.disposition || "UNRECONCILED"}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Disposition</Label>
-                <Select value={disposition} onValueChange={(v) => setDisposition(v ?? "")}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {["IN INVENTORY", "SOLD", "SHIPPED", "OTHER DISPOSITION"].map((d) => (
-                      <SelectItem key={d} value={d}>
-                        {d}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Disposition location</Label>
-                <Input
-                  placeholder="Inventory location / reference"
-                  value={dispositionLocation}
-                  onChange={(e) => setDispositionLocation(e.target.value)}
-                />
-              </div>
-            </>
-          )}
-
-          {["PART_REMOVED", "PHOTO", "COMPLETION_SUBMITTED"].includes(action) && (
-            <label className="flex w-fit cursor-pointer items-center gap-2 rounded-md border border-dashed border-border px-3 py-2 text-sm font-medium text-primary">
-              <Camera className="size-4" /> Take photo
-              <input type="file" accept="image/*" className="hidden" onChange={(e) => setPhotoName(e.target.files?.[0]?.name || "")} />
-              {photoName && <span className="text-muted-foreground">{photoName}</span>}
+      {!isClosed && (
+        <section className="rounded-lg border border-border bg-card p-4">
+          <h3 className="mb-3 text-sm font-semibold">Add a note</h3>
+          <div className="max-w-md space-y-3">
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={issue} onChange={(e) => setIssue(e.target.checked)} /> Flag as an issue
             </label>
-          )}
-          {action === "PART_REMOVED" && (
-            <label className="flex w-fit cursor-pointer items-center gap-2 rounded-md border border-dashed border-border px-3 py-2 text-sm font-medium text-primary">
-              <Camera className="size-4" /> Take VIN or Lot evidence photo
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => setSourcePhotoName(e.target.files?.[0]?.name || "")}
+            <div className="space-y-1.5">
+              <Label htmlFor="vehicle-note">Note</Label>
+              <Textarea
+                id="vehicle-note"
+                placeholder="What should the team know? (1 to 500 characters)"
+                value={note}
+                maxLength={500}
+                onChange={(e) => setNote(e.target.value)}
               />
-              {sourcePhotoName && <span className="text-muted-foreground">{sourcePhotoName}</span>}
-            </label>
-          )}
-
-          <div className="space-y-1.5">
-            <Label>Note</Label>
-            <Textarea placeholder="Optional short note" value={note} onChange={(e) => setNote(e.target.value)} />
+            </div>
+            <Button onClick={submitNote} disabled={noteMutation.isPending || note.trim().length < 1}>
+              {noteMutation.isPending ? "Saving…" : issue ? "Flag issue" : "Save note"}
+            </Button>
           </div>
+        </section>
+      )}
 
-          <Button onClick={submitEvent}>
-            {action === "COMPLETION_SUBMITTED" ? "Submit vehicle finished for review" : "Save action"}
-          </Button>
-        </div>
+      <section className="rounded-lg border border-border bg-card p-4">
+        <h3 className="mb-3 text-sm font-semibold">Parts removed &amp; custody</h3>
+        {partEvents.map((e) => (
+          <div key={e.id} className="border-b border-border py-2.5 text-sm last:border-0">
+            <b>{e.note || "Part removed"}</b>
+            <small className="block text-xs text-muted-foreground">
+              {e.actor_name ?? "Unknown"} · {new Date(e.created_at).toLocaleString()}
+            </small>
+          </div>
+        ))}
+        {partEvents.length === 0 && <p className="text-sm text-muted-foreground">No parts removed from this vehicle yet.</p>}
       </section>
 
       <section className="rounded-lg border border-border bg-card p-4">
-        <h3 className="mb-3 text-sm font-semibold">Parts removed & custody</h3>
-        {events
-          .filter((e) => e.action === "PART_REMOVED")
-          .map((e) => (
-            <div key={e.id} className="flex items-start gap-3 border-b border-border py-3 last:border-0">
-              <div className="flex size-12 shrink-0 items-center justify-center rounded-md bg-muted">
-                {e.hasPhoto && <Camera className="size-4 text-muted-foreground" />}
-              </div>
-              <span className="min-w-0">
-                <b className="block text-sm">{e.partType}</b>
-                <small className="text-xs text-muted-foreground">
-                  {e.actorName} · {new Date(e.createdAt).toLocaleString()}
-                </small>
-                {e.partId && <small className="block text-xs text-muted-foreground">Pending part record {e.partId}</small>}
-                {e.highValue && (
-                  <strong className="mt-0.5 block text-xs font-semibold text-warning-foreground">
-                    {e.disposition || "UNRECONCILED · needs manager review"}
-                  </strong>
-                )}
-              </span>
-            </div>
-          ))}
-        {!events.some((e) => e.action === "PART_REMOVED") && (
-          <p className="text-sm text-muted-foreground">No parts removed from this vehicle yet.</p>
-        )}
-      </section>
-
-      <section className="rounded-lg border border-border bg-card p-4">
-        <h3 className="mb-3 text-sm font-semibold">Completion submissions & verification</h3>
-        {events
-          .filter((e) => ["COMPLETION_SUBMITTED", "COMPLETION_NEEDS_CORRECTION", "COMPLETION_APPROVED", "COMPLETION_CREDIT"].includes(e.action))
-          .map((e) => (
-            <div key={e.id} className="border-b border-border py-2.5 text-sm last:border-0">
-              {e.action.replaceAll("_", " ")} · {e.actorName} · {new Date(e.createdAt).toLocaleString()}
-              {e.note ? ` · ${e.note}` : ""}
-            </div>
-          ))}
-        {!events.some((e) => e.action.startsWith("COMPLETION")) && (
-          <p className="text-sm text-muted-foreground">No completion activity recorded yet.</p>
-        )}
+        <h3 className="mb-3 text-sm font-semibold">Completion &amp; verification</h3>
+        {completionEvents.map((e) => (
+          <div key={e.id} className="border-b border-border py-2.5 text-sm last:border-0">
+            {e.action.replaceAll("_", " ")} · {e.actor_name ?? "Unknown"} · {new Date(e.created_at).toLocaleString()}
+            {e.note ? ` · ${e.note}` : ""}
+          </div>
+        ))}
+        {completionEvents.length === 0 && <p className="text-sm text-muted-foreground">No completion activity recorded yet.</p>}
       </section>
 
       <section className="rounded-lg border border-border bg-card p-4">
         <h3 className="mb-3 text-sm font-semibold">Full record history</h3>
+        {eventsQuery.isPending && <p className="text-sm text-muted-foreground">Loading history…</p>}
+        {eventsQuery.isError && <p role="alert" className="text-sm text-destructive">The history could not be loaded.</p>}
         <div className="space-y-2">
           {events.map((e) => (
             <p key={e.id} className="text-sm text-muted-foreground">
-              <span className="font-medium text-foreground">{e.action.replaceAll("_", " ")}</span> · {e.actorName} ·{" "}
-              {new Date(e.createdAt).toLocaleString()}
+              <span className="font-medium text-foreground">{e.action.replaceAll("_", " ")}</span> · {e.actor_name ?? "Unknown"} ·{" "}
+              {new Date(e.created_at).toLocaleString()}
+              {e.note ? ` · ${e.note}` : ""}
             </p>
           ))}
-          {!events.length && <p className="text-sm text-muted-foreground">No recorded actions yet.</p>}
+          {eventsQuery.isSuccess && events.length === 0 && <p className="text-sm text-muted-foreground">No recorded actions yet.</p>}
         </div>
       </section>
     </div>

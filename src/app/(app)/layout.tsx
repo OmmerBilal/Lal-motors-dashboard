@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/shell/app-shell";
-import { VehicleDataProvider } from "@/components/vehicles/vehicle-data-context";
 import { PartsDataProvider } from "@/components/parts/parts-data-context";
 import { createClient } from "@/lib/supabase/server";
 
@@ -22,10 +21,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <VehicleDataProvider>
-      <PartsDataProvider>
-          <AppShell>{children}</AppShell>
-      </PartsDataProvider>
-    </VehicleDataProvider>
+    <PartsDataProvider>
+      <AppShell>{children}</AppShell>
+    </PartsDataProvider>
   );
 }

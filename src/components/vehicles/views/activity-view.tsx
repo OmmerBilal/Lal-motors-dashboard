@@ -1,18 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { vehicleTitle } from "@/lib/mock/vehicles";
-import { useVehicleData } from "@/components/vehicles/vehicle-data-context";
+import { useRecentVehicleEvents } from "@/lib/query/vehicle-workspace";
 
-const eventTypeMatch: Record<string, (action: string, partType?: string, highValue?: boolean) => boolean> = {
-  parts: (action) => action === "PART_REMOVED",
-  converters: (action, partType) => action === "PART_REMOVED" && !!partType?.toLowerCase().includes("converter"),
-  highValue: (action, _p, highValue) => action === "PART_REMOVED" && !!highValue,
-  exceptions: () => false,
-};
-
-const PAGE_SIZE = 10;
+/** Filters map to real event actions. The filter runs on the server, so paging stays correct. */
+const categories: { id: string; label: string; actions?: string[] }[] = [
+  { id: "", label: "All actions" },
+  { id: "parts", label: "Parts removed", actions: ["PART_REMOVED"] },
+  { id: "exceptions", label: "Issues", actions: ["ISSUE_FLAGGED"] },
+  { id: "completion", label: "Completion", actions: ["COMPLETION_SUBMITTED", "COMPLETION_NEEDS_CORRECTION", "COMPLETION_APPROVED", "COMPLETION_CREDIT"] },
+];
 
 export function ActivityView({
   onOpenVehicle,
@@ -21,59 +19,52 @@ export function ActivityView({
   onOpenVehicle: (id: string) => void;
   initialEventType: string;
 }) {
-  const { events, staff, getVehicle } = useVehicleData();
-  const [assignee, setAssignee] = useState("");
-  const [visible, setVisible] = useState(PAGE_SIZE);
-
-  const filtered = useMemo(() => {
-    let list = events;
-    if (initialEventType && eventTypeMatch[initialEventType]) {
-      list = list.filter((e) => eventTypeMatch[initialEventType](e.action, e.partType, e.highValue));
-    }
-    if (assignee) list = list.filter((e) => e.actorId === assignee);
-    return list;
-  }, [events, assignee, initialEventType]);
-
-  const production = staff.filter((s) => events.some((e) => e.actorId === s.id));
+  const initial = categories.some((c) => c.id === initialEventType) ? initialEventType : "";
+  const [category, setCategory] = useState(initial);
+  const selected = categories.find((c) => c.id === category) ?? categories[0];
+  const feed = useRecentVehicleEvents({ actions: selected.actions });
+  const rows = feed.data?.pages.flat() ?? [];
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" variant={!assignee ? "default" : "outline"} onClick={() => setAssignee("")}>
-          All employees
-        </Button>
-        {production.map((p) => (
-          <Button key={p.id} size="sm" variant={assignee === p.id ? "default" : "outline"} onClick={() => setAssignee(p.id)}>
-            {p.name}
+        {categories.map((c) => (
+          <Button key={c.id || "all"} size="sm" variant={category === c.id ? "default" : "outline"} onClick={() => setCategory(c.id)}>
+            {c.label}
           </Button>
         ))}
       </div>
+
+      {feed.isPending && <p className="text-sm text-muted-foreground" aria-live="polite">Loading activity…</p>}
+      {feed.isError && (
+        <p role="alert" className="text-sm text-destructive">
+          {feed.error instanceof Error ? feed.error.message : "Activity could not be loaded."}
+        </p>
+      )}
+
       <div className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-card">
-        {filtered.slice(0, visible).map((e) => {
-          const vehicle = getVehicle(e.vehicleId);
-          return (
-            <button
-              key={e.id}
-              onClick={() => onOpenVehicle(e.vehicleId)}
-              className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-accent/30"
-            >
-              <span className="min-w-0">
-                <b className="text-sm">{e.action.replaceAll("_", " ")}</b>{" "}
-                <span className="text-sm">{vehicle ? vehicleTitle(vehicle) : ""}</span>
-                <br />
-                <small className="text-xs text-muted-foreground">
-                  VIN {vehicle?.vin || "—"} · Lot {vehicle?.lotNumber || "—"} · {e.actorName} ·{" "}
-                  {new Date(e.createdAt).toLocaleString()}
-                </small>
-              </span>
-            </button>
-          );
-        })}
-        {!filtered.length && <p className="px-4 py-6 text-sm text-muted-foreground">No matching activity yet.</p>}
+        {rows.map((e) => (
+          <button
+            key={e.id}
+            onClick={() => onOpenVehicle(e.vehicle_id)}
+            className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-accent/30"
+          >
+            <span className="min-w-0">
+              <b className="text-sm">{e.action.replaceAll("_", " ")}</b>
+              {e.note && <span className="text-sm"> · {e.note}</span>}
+              <br />
+              <small className="text-xs text-muted-foreground">
+                {e.actor_name ?? "Unknown"} · {new Date(e.created_at).toLocaleString()}
+              </small>
+            </span>
+          </button>
+        ))}
+        {feed.isSuccess && rows.length === 0 && <p className="px-4 py-6 text-sm text-muted-foreground">No matching activity yet.</p>}
       </div>
-      {visible < filtered.length && (
-        <Button variant="outline" onClick={() => setVisible((v) => v + PAGE_SIZE)}>
-          Load more actions ({filtered.length - visible} remaining)
+
+      {feed.hasNextPage && (
+        <Button variant="outline" onClick={() => feed.fetchNextPage()} disabled={feed.isFetchingNextPage}>
+          {feed.isFetchingNextPage ? "Loading…" : "Load more actions"}
         </Button>
       )}
     </div>

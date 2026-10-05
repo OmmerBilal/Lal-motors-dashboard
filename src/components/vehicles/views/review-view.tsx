@@ -15,9 +15,11 @@ import type { IntakeMethod } from "@/components/vehicles/vehicle-workspace";
 export function ReviewView({
   batch,
   onDone,
+  onOpenVehicle,
 }: {
   batch: { method: IntakeMethod; sourceText: string };
   onDone: () => void;
+  onOpenVehicle: (id: string) => void;
 }) {
   const commit = useIntakeVehicles();
   // Parsing is deterministic and local. Duplicate status is decided by the database, not by a list in memory.
@@ -25,7 +27,6 @@ export function ReviewView({
   const [checking, setChecking] = useState(true);
   const [selected, setSelected] = useState<string[]>([]);
   const [expanded, setExpanded] = useState("");
-  const [updateExisting, setUpdateExisting] = useState<string[]>([]);
 
   useEffect(() => {
     let alive = true;
@@ -70,8 +71,10 @@ export function ReviewView({
     setItems((xs) => xs.map((x) => (x.id === id ? { ...x, draft: { ...draft, uncertainFields: [] }, errors: [] } : x)));
   }
 
+  /** Only vehicles the database reported as new are ever sent. Existing and conflicting records are resolved in their own record. */
   function confirm(ids: string[]) {
-    const chosen = items.filter((i) => ids.includes(i.id));
+    const chosen = items.filter((i) => ids.includes(i.id) && i.match.status === "new" && !i.errors.length);
+    if (chosen.length === 0) return;
     commit.mutate(
       chosen.map((i) => i.draft),
       {
@@ -107,6 +110,7 @@ export function ReviewView({
               <Checkbox
                 aria-label={`Select ${vehicleTitle(item.draft)}`}
                 checked={selected.includes(item.id)}
+                disabled={item.match.status !== "new" || item.errors.length > 0}
                 onCheckedChange={(v) =>
                   setSelected((xs) => (v ? [...xs, item.id] : xs.filter((x) => x !== item.id)))
                 }
@@ -133,10 +137,7 @@ export function ReviewView({
                 item={item}
                 onSave={(d) => saveEdit(item.id, d)}
                 onConfirm={() => confirm([item.id])}
-                updateExisting={updateExisting.includes(item.id)}
-                onUpdateExisting={(v) =>
-                  setUpdateExisting((xs) => (v ? [...xs, item.id] : xs.filter((x) => x !== item.id)))
-                }
+                onOpenExisting={(id) => onOpenVehicle(id)}
               />
             )}
           </div>
@@ -154,14 +155,12 @@ function ReviewEditor({
   item,
   onSave,
   onConfirm,
-  updateExisting,
-  onUpdateExisting,
+  onOpenExisting,
 }: {
   item: IntakeItem;
   onSave: (d: IntakeItem["draft"]) => void;
   onConfirm: () => void;
-  updateExisting: boolean;
-  onUpdateExisting: (v: boolean) => void;
+  onOpenExisting: (id: string) => void;
 }) {
   const [draft, setDraft] = useState(item.draft);
   const uncertain = useMemo(() => new Set(item.draft.uncertainFields || []), [item.draft.uncertainFields]);
@@ -186,23 +185,26 @@ function ReviewEditor({
         ))}
       </div>
       {item.errors.length > 0 && <p className="mt-3 text-sm font-medium text-destructive">{item.errors.join(" · ")}</p>}
-      {["existing", "conflict"].includes(item.match.status) && (
-        <label className="mt-3 flex items-center gap-2 text-sm">
-          <Checkbox checked={updateExisting} onCheckedChange={(v) => onUpdateExisting(Boolean(v))} />
-          {item.match.status === "conflict"
-            ? "I compared the source image and verified this is the same vehicle; replace conflicting identifiers on"
-            : "Update"}{" "}
-          existing vehicle ({item.match.vehicle?.id})
-        </label>
+      {item.match.status === "existing" && (
+        <p className="mt-3 text-sm text-muted-foreground">
+          This vehicle is already in inventory, so it is not added again. Open the existing record to change it.
+        </p>
+      )}
+      {item.match.status === "conflict" && (
+        <p className="mt-3 text-sm text-warning-foreground">
+          The identifiers match a different vehicle record. Nothing is added or overwritten here. Open the existing record to resolve it.
+        </p>
+      )}
+      {["existing", "conflict"].includes(item.match.status) && item.match.vehicle?.id && (
+        <Button variant="outline" size="sm" className="mt-3" onClick={() => onOpenExisting(item.match.vehicle!.id)}>
+          Open existing record
+        </Button>
       )}
       <div className="mt-4 flex flex-wrap gap-2">
         <Button variant="outline" onClick={() => onSave(draft)}>
-          Save corrections & mark reviewed
+          Save corrections &amp; mark reviewed
         </Button>
-        <Button
-          disabled={item.errors.length > 0 || (item.match.status === "conflict" && !updateExisting)}
-          onClick={onConfirm}
-        >
+        <Button disabled={item.errors.length > 0 || item.match.status !== "new"} onClick={onConfirm}>
           Confirm this vehicle
         </Button>
       </div>

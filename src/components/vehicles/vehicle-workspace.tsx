@@ -5,7 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { User } from "@/lib/types";
 import { vehicleTitle } from "@/lib/mock/vehicles";
-import { useVehicleData } from "@/components/vehicles/vehicle-data-context";
+import { useVehicleRecord } from "@/lib/query/vehicle-workspace";
 import { HomeView } from "@/components/vehicles/views/home-view";
 import { IntakeView } from "@/components/vehicles/views/intake-view";
 import { ReviewView } from "@/components/vehicles/views/review-view";
@@ -28,9 +28,11 @@ export type VehicleView =
 
 export type IntakeMethod = "bulk" | "single" | "scan" | "manual";
 
+/** Roles the intake RPCs accept. The screen shows intake to the same roles; the server decides again on every write. */
+const INTAKE_ROLES = ["owner", "engineer_admin", "manager", "auction"];
+
 function WorkspaceBody({ user, initialVehicleId }: { user: User; initialVehicleId?: string | null }) {
-  const canIntake = true;
-  const { getVehicle } = useVehicleData();
+  const canIntake = INTAKE_ROLES.includes(user.role);
 
   const [view, setView] = useState<VehicleView>(initialVehicleId ? "detail" : "home");
   const [filter, setFilter] = useState("active");
@@ -41,7 +43,8 @@ function WorkspaceBody({ user, initialVehicleId }: { user: User; initialVehicleI
   const [completionPeriod, setCompletionPeriod] = useState<"week" | "month">("week");
   const [completionEmployeeId, setCompletionEmployeeId] = useState<string | null>(null);
 
-  const selectedVehicle = selectedVehicleId ? getVehicle(selectedVehicleId) : undefined;
+  const recordQuery = useVehicleRecord(view === "detail" ? selectedVehicleId : null);
+  const selectedVehicle = recordQuery.data?.record;
   const isOwnerHome = user.role === "owner" && view === "home";
 
   function openVehicle(id: string) {
@@ -55,7 +58,7 @@ function WorkspaceBody({ user, initialVehicleId }: { user: User; initialVehicleI
 
   const heading =
     view === "detail"
-      ? vehicleTitle(selectedVehicle || {})
+      ? vehicleTitle(selectedVehicle ?? {})
       : view === "review"
         ? "AI Vehicle Review"
         : view === "intake"
@@ -151,7 +154,7 @@ function WorkspaceBody({ user, initialVehicleId }: { user: User; initialVehicleI
       )}
 
       {view === "review" && reviewDraftBatch && (
-        <ReviewView batch={reviewDraftBatch} onDone={() => setView("home")} />
+        <ReviewView batch={reviewDraftBatch} onDone={() => setView("home")} onOpenVehicle={openVehicle} />
       )}
 
       {view === "list" && <ListView initialFilter={filter} onOpenVehicle={openVehicle} />}
@@ -160,6 +163,14 @@ function WorkspaceBody({ user, initialVehicleId }: { user: User; initialVehicleI
         <ActivityView onOpenVehicle={openVehicle} initialEventType={eventTypeFilter} />
       )}
 
+      {view === "detail" && recordQuery.isPending && selectedVehicleId && (
+        <p className="text-sm text-muted-foreground" aria-live="polite">Loading vehicle…</p>
+      )}
+      {view === "detail" && recordQuery.isError && (
+        <p role="alert" className="text-sm text-destructive">
+          {recordQuery.error instanceof Error ? recordQuery.error.message : "This vehicle could not be opened."}
+        </p>
+      )}
       {view === "detail" && selectedVehicle && (
         <DetailView user={user} vehicle={selectedVehicle} />
       )}
