@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
+import { loadDevCredentials } from "./dev-credentials.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const req = createRequire(ROOT + "/package.json");
@@ -18,7 +19,7 @@ const envLocal = parse(ROOT + "/.env.local");
 const envPub = parse(ROOT + "/.env");
 const URL_ = envPub.NEXT_PUBLIC_SUPABASE_URL || envLocal.NEXT_PUBLIC_SUPABASE_URL;
 const PUB = envPub.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-const creds = JSON.parse(fs.readFileSync(ROOT + "/dev-test-credentials.json", "utf8"));
+const creds = loadDevCredentials();
 const admin = new pg.Client({ connectionString: envLocal.connection_string, ssl: { rejectUnauthorized: false } });
 await admin.connect();
 
@@ -68,7 +69,7 @@ const matrix = {
   employee:          { allow: ["parts", "part_operations"], deny: ["sales", "customers", "payments", "consignees", "export_invoices", "scrap_load_financials", "audit_logs"] },
   auction:           { allow: ["vehicles"], deny: ["sales", "customers", "parts", "consignees", "export_invoices", "payments", "scrap_loads"] },
   receiving:         { allow: ["vehicles"], deny: ["sales", "customers", "parts", "consignees", "export_invoices", "scrap_load_financials", "payments"] },
-  dismantling:       { allow: ["dismantling_sessions", "parts", "vehicles"], deny: ["sales", "customers", "payments", "consignees", "export_invoices", "scrap_load_financials", "audit_logs"] },
+  dismantling:       { allow: ["dismantling_sessions", "parts"], deny: ["vehicles", "sales", "customers", "payments", "consignees", "export_invoices", "scrap_load_financials", "audit_logs"] },
   scrap_driver:      { allow: ["scrap_loads"], deny: ["sales", "customers", "payments", "consignees", "export_invoices", "scrap_load_financials", "vehicles", "parts", "container_jobs", "user_roles", "audit_logs"] },
   container_loading: { allow: ["container_jobs"], deny: ["consignees", "export_invoices", "export_payments", "container_shipping_info", "payments", "sales", "customers", "audit_logs"] },
   export_manager:    { allow: ["consignees", "export_invoices", "container_jobs", "container_shipping_info"], deny: ["sales", "customers", "payments", "parts", "vehicles", "audit_logs", "user_roles"] },

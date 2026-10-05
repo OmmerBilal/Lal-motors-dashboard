@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import crypto from "node:crypto";
 import { createRequire } from "node:module";
+import { loadDevCredentials } from "./dev-credentials.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const req = createRequire(ROOT + "/package.json");
@@ -15,7 +16,7 @@ const envLocal = parse(ROOT + "/.env.local");
 const envPub = parse(ROOT + "/.env");
 const SUPA = envPub.NEXT_PUBLIC_SUPABASE_URL || envLocal.NEXT_PUBLIC_SUPABASE_URL;
 const PUB = envPub.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-const creds = JSON.parse(fs.readFileSync(ROOT + "/dev-test-credentials.json", "utf8"));
+const creds = loadDevCredentials();
 const byRole = Object.fromEntries(creds.map((u) => [u.role, u]));
 const db = new pg.Client({ connectionString: envLocal.connection_string, ssl: { rejectUnauthorized: false } });
 await db.connect();
@@ -40,6 +41,22 @@ const SRC = "PROCTEST-" + run;
 const vin = ("1PR" + run + "00000001").slice(0, 17);
 const v = await rpc(S.auction, "match_or_create_vehicle", { p_vin: vin, p_lot_number: null, p_stock_number: "PR" + run, p_auction_source: SRC, p_fields: { year: 2016, make: "Kia", model: "Optima", purchase_price: 400 } });
 const vehicleId = v.data.vehicle_id;
+
+// v2: employee work starts only from an assignment. Manager actions (ready, assign) run as the owner, which is allowed those.
+async function prepAssigned(vehicleId) {
+  const DISM_ID = (await q("select id from public.profiles where email=$1", [creds.find((u) => u.role === "dismantling").email]))[0].id;
+  // Fixture only: arrival photo rows, then the owner receives the vehicle (receive_vehicle needs the four photos).
+  for (const role of ["arrival_front", "arrival_rear", "arrival_left", "arrival_right"]) {
+    await q(`insert into public.media_assets (owner_type, owner_id, role, variant, bucket, storage_path, mime_type, size_bytes, status)
+      values ('vehicle', $1, $2, 'original', 'operational-media', $3, 'image/jpeg', 1, 'ready')`, [vehicleId, role, `vehicle/${vehicleId}/prep-${role}-${crypto.randomUUID()}.jpg`]);
+  }
+  const rcv = await rpc(S.owner, "receive_vehicle", { p_vehicle_id: vehicleId });
+  if (rcv.error) throw new Error("prep receive: " + (rcv.msg || ""));
+  const rd = await rpc(S.owner, "mark_vehicle_ready", { p_vehicle_id: vehicleId });
+  const as = await rpc(S.owner, "assign_dismantling_vehicle", { p_vehicle_id: vehicleId, p_employee_id: DISM_ID });
+  if (rd.error || as.error) throw new Error("prep assign: " + (rd.msg || as.msg || ""));
+}
+await prepAssigned(vehicleId);
 const start = await rpc(S.dismantling, "start_dismantling_session", { p_vehicle_id: vehicleId });
 const sessionId = start.data.session_id;
 const mediaIds = [];
@@ -49,7 +66,7 @@ async function readyPhoto(partId) {
   mediaIds.push(m.id);
 }
 async function newPart(withPhoto) {
-  const r = await rpc(S.dismantling, "begin_dismantled_part", { p_session_id: sessionId, p_client_request_id: crypto.randomUUID() });
+  const r = await rpc(S.dismantling, "begin_dismantled_part", { p_session_id: sessionId, p_client_request_id: crypto.randomUUID(), p_capture_name: "TEST part", p_capture_details: "TEST capture details" });
   if (withPhoto) await readyPhoto(r.data.part_id);
   return r.data.part_id;
 }
@@ -220,6 +237,8 @@ let approvedRow;
   await db.query("delete from public.parts where dismantling_session_id = $1", [sessionId]);
   await db.query("delete from public.vehicle_events where vehicle_id = $1", [vehicleId]);
   await db.query("delete from public.dismantling_sessions where id = $1", [sessionId]);
+  await db.query("delete from public.dismantling_assignment_history where vehicle_id = $1", [vehicleId]);
+  await db.query("delete from public.dismantling_assignments where vehicle_id = $1", [vehicleId]);
   await db.query("delete from public.vehicles where id = $1", [vehicleId]);
   const left = (await q("select count(*)::int c from public.vehicles where auction_source = $1", [SRC]))[0].c;
   check("cleanup removed processing fixtures", left === 0, `left=${left}`);
