@@ -154,10 +154,14 @@ export function VehicleReceiving({ user }: { user: User }) {
     const clean = vin.trim();
     if (!clean) return;
     setConfirmed(null);
-    setPhotos({});
-    setExtraPhotoCount(0);
+    const previousId = matched?.id ?? null;
     try {
       const result = await lookupForReceiving(clean);
+      // Photos already saved for this vehicle stay on screen; only a different vehicle starts with an empty set.
+      if (result.status !== "not_found" && result.vehicle.id !== previousId) {
+        setPhotos({});
+        setExtraPhotoCount(0);
+      }
       if (result.status === "not_found") {
         setMatched(null);
         setAlreadyReceived(null);
@@ -288,9 +292,10 @@ export function VehicleReceiving({ user }: { user: User }) {
           <div className="my-3 flex items-center gap-2 text-xs text-muted-foreground">
             <span className="h-px flex-1 bg-border" /> OR <span className="h-px flex-1 bg-border" />
           </div>
-          <Button className="w-full bg-brand text-brand-foreground hover:bg-brand/90" onClick={simulateScan}>
-            <Camera className="size-4" /> Take Photo of VIN
+          <Button className="w-full" variant="outline" disabled>
+            <Camera className="size-4" /> VIN photo scan is not connected
           </Button>
+          <p className="mt-1.5 text-xs text-muted-foreground">Type the VIN below. Scanning is not available yet.</p>
           <div className="mt-4 space-y-1.5">
             <Label htmlFor="vin-manual">Enter VIN Manually (if needed)</Label>
             <div className="flex gap-1.5">
@@ -500,10 +505,7 @@ export function VehicleReceiving({ user }: { user: User }) {
               <Label>Note</Label>
               <Textarea value={problemNote} onChange={(e) => setProblemNote(e.target.value)} rows={3} placeholder="Optional details" />
             </div>
-            <label className="flex w-fit cursor-pointer items-center gap-1.5 rounded-md border border-dashed border-border px-2.5 py-1.5 text-xs font-medium text-primary">
-              <Camera className="size-3.5" /> Add evidence photo (optional)
-              <input type="file" accept="image/*" className="hidden" />
-            </label>
+            <p className="text-xs text-muted-foreground">Evidence photos are added in the arrival photo section, so they are saved with the vehicle.</p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setProblemOpen(false)}>

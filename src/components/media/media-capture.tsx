@@ -38,6 +38,7 @@ export function MediaCapture({
   const [error, setError] = useState<string | null>(null);
   const requestIdRef = useRef<string>(crypto.randomUUID());
   const inputRef = useRef<HTMLInputElement>(null);
+  const deviceRef = useRef<HTMLInputElement>(null);
 
   // Object URLs must be released, or long shifts leak memory on phones.
   useEffect(() => {
@@ -98,33 +99,51 @@ export function MediaCapture({
     setProgress(0);
   }
 
+  // Two real inputs: the camera (capture) and the device gallery/files. Both feed the same selection and upload path.
   const capture = (
-    <input
-      ref={inputRef}
-      type="file"
-      accept="image/*"
-      capture="environment"
-      className="sr-only"
-      disabled={disabled}
-      onChange={(e) => {
-        choose(e.target.files?.[0]);
-        e.target.value = "";
-      }}
-    />
+    <>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="sr-only"
+        tabIndex={-1}
+        aria-label={`${label}: take photo`}
+        disabled={disabled}
+        onChange={(e) => {
+          choose(e.target.files?.[0]);
+          e.target.value = "";
+        }}
+      />
+      <input
+        ref={deviceRef}
+        type="file"
+        accept="image/*"
+        className="sr-only"
+        tabIndex={-1}
+        aria-label={`${label}: choose from device`}
+        disabled={disabled}
+        onChange={(e) => {
+          choose(e.target.files?.[0]);
+          e.target.value = "";
+        }}
+      />
+    </>
   );
 
   if (phase === "empty") {
     return (
-      <label
-        className={`flex min-h-32 w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-muted/30 px-3 py-4 text-center text-muted-foreground active:bg-muted ${
-          disabled ? "pointer-events-none opacity-50" : "hover:border-primary/40"
-        }`}
-      >
+      <div className="flex w-full flex-col gap-2 rounded-xl border-2 border-dashed border-border bg-muted/30 p-3">
         {capture}
-        <Camera className="size-8" aria-hidden />
-        <span className="text-sm font-semibold text-foreground">{label}</span>
-        <span className="text-xs">Tap to take a photo</span>
-      </label>
+        <p className="text-center text-sm font-semibold text-foreground">{label}</p>
+        <Button className="h-12 w-full text-base" onClick={() => inputRef.current?.click()} disabled={disabled}>
+          <Camera className="size-5" /> Take photo
+        </Button>
+        <Button variant="outline" className="h-12 w-full text-base" onClick={() => deviceRef.current?.click()} disabled={disabled}>
+          <Upload className="size-5" /> Choose from device
+        </Button>
+      </div>
     );
   }
 
@@ -172,7 +191,7 @@ export function MediaCapture({
       <div className="grid grid-cols-2 gap-2">
         {phase === "selected" && (
           <Button className="col-span-2 h-12 text-base" onClick={upload} disabled={disabled}>
-            <Upload className="size-5" /> Upload photo
+            <Upload className="size-5" /> Use photo
           </Button>
         )}
         {phase === "error" && (
