@@ -404,3 +404,44 @@ Contract changes to note (deliberate):
 Known, not changed: the session bootstrap in src/lib/session.tsx waits on two client-side Supabase REST reads; one run observed the profiles read pending for 25 seconds with no error. Recorded as an intermittent environmental observation.
 Known, not changed: owner dashboard still imports the pure helpers in src/lib/mock/owner-dashboard.ts (stage type and the mock rules, unused for numbers now). The mock containers and scrap files remain for other non-dashboard references.
 Policy decisions to confirm: export access stays owner, engineer admin, export manager (manager excluded, unchanged). Closing a container requires a zero balance; there is no override in this version.
+
+---
+
+## Closure status — 2026-10-05
+
+Local commits this phase (none pushed):
+
+| Commit | Scope |
+|---|---|
+| 11a71ee | AI retrofit: NDJSON stages, 28 s provider budget, screenshot scan into intake |
+| 797d9e9 | Shared camera/device capture; receiving fixes |
+| 9b423f1 | Module 01 closure: safe existing-vehicle merge (migrations 0050, 0051) |
+| f85b25a | Module 02: Central Dispatch on server read models (0052); no fake posting or sharing |
+| 3e8fe20 | Module 03: receiving photos from the server (0053) |
+| 58e0a4e | Module 04: quick capture from saved parts; honest scan controls |
+| c482577 | Module 05 groundwork: employee counts function (0054) |
+| 2e3b84a | Module 05: processing reads from aggregates; bounded review queue |
+| 8c91bbb | Module 06: paged parts list; provider only on parts routes |
+| 1d702ea | Module 07: customer tests; dead tax picker and fetch-all loader removed |
+| 6c11216 | Final cleanup: seed mocks removed; lint 0 warnings; security attack matrix |
+
+### Final regression — sequential, exact counts (2026-10-05)
+
+HTTP and browser: route-gate 34/34; media-flow 24/24; rpc-ai-tools 33/33; ai-stream-smoke 12/12; ux-responsive-smoke 10/10; ux-module01-flow 36/36; ux-module02-flow 18/18; ux-module03-flow 8/8; ux-module04-smoke 21/21; ux-module05-smoke 4/4; ux-module06-flow 8/8; ux-module07-smoke 4/4.
+
+Database: rls-matrix 114; rpc-vehicles 59; rpc-vehicle-authority 36; rpc-vehicle-merge 15; dispatch 24 (baseline held); rpc-dispatch-read 14; rpc-dismantling 45; rpc-processing 57 (baseline held); rpc-processing-read 7; rpc-parts 57 (baseline held); rpc-parts-sellability 14; rpc-money-stock 63 (baseline held); rpc-customers 36 (baseline held); rpc-customers-m07 14; rpc-quotes-sales 68; rpc-payments 70; rpc-scrap 182; rpc-containers 173; rpc-owner-dashboard 32; rpc-team-activity 51; rpc-team-management 44; rpc-attack-matrix 103.
+
+Static: `npx tsc --noEmit` pass; `npm run lint` 0 errors, 0 warnings; `npm run build` pass.
+
+Not run in this closure: the team and manager dashboard browser flows; the full Quick Part Capture and dismantling session in a browser; the remaining scrap and container photo paths in a browser.
+
+### Open items (recorded, not blockers for manual QA)
+
+1. Module 04: start-to-finish dismantling session in a browser.
+2. Module 05: "Analyze Part" (manager, Module 16 explicit path) is not connected in the processing screen. Review actions verified by RPC only.
+3. Module 06: part photo upload and detail sections not browser-tested.
+4. Module 07: customer create/edit/detail flows not browser-tested. Customer number format is a business decision.
+5. Scrap office rule includes the auction role (asserted by rpc-scrap). The business must confirm whether auction should approve loads and record scrap payments. Not changed, so the baseline is not reduced.
+6. Receiving: the server requires four arrival photos; this is enforced in receive_vehicle, not only in the screen.
+7. OpenAI: the stored key is refused (invalid_key). Live provider success is not verified. The safe failure path is tested.
+8. The attack matrix classifies refusals by message text. A refusal with an unrelated message would count as a refusal.

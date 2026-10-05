@@ -153,7 +153,7 @@ Implemented:
 Previous vehicle RPC suites passed.
 
 MODULE 01 — AUCTION VEHICLE INVENTORY
-STATUS: [PARTIAL]
+STATUS: IMPLEMENTATION COMPLETE — MANUAL QA PENDING
 =====================================
 
 Already real:
@@ -209,7 +209,7 @@ Before [DONE]:
 - no mock authority.
 
 MODULE 02 — CENTRAL DISPATCH
-STATUS: [PARTIAL]
+STATUS: IMPLEMENTATION COMPLETE — MANUAL QA PENDING
 =============================
 
 Already real:
@@ -248,7 +248,7 @@ Before [DONE]:
 - no mock authority.
 
 MODULE 03 — VEHICLE RECEIVING & ARRIVAL
-STATUS: [PARTIAL]
+STATUS: IMPLEMENTATION COMPLETE — MANUAL QA PENDING
 ========================================
 
 Already real:
@@ -298,7 +298,7 @@ Before [DONE]:
 - network confirms zero AI calls.
 
 MODULE 04 — DISMANTLING EMPLOYEE APP
-STATUS: [PARTIAL]
+STATUS: PARTIAL — open: a full start-to-finish dismantling session was not run in a browser (backend 45/45 and find-screen smoke 21/21 only); Quick Part Capture upload not browser-tested
 Backend (done): migrations 0016-0018; tests rpc-dismantling.mjs 45/45 (role matrix, guard hints, one-active race, retry replay, photo gates, actor check, rollback, protected-field attacks).
 UI (connected, QA pending): dismantling-workspace.tsx reads and writes through the RPCs (lookup guard states, start, resume after reload, evidence and part capture via shared MediaCapture, finish, flag issue). Fabricated scan, fake AI classification, simulated processing and simulated upload-failed card removed.
 Still open before [DONE]: browser QA of the full employee flow, 390/430/768/1366/1440 viewport QA, and the Quick Part Capture flow in a real browser.
@@ -363,7 +363,7 @@ Before [DONE]:
 - network shows no AI calls.
 
 MODULE 05 — VEHICLE DISMANTLING PROCESSING
-STATUS: [PARTIAL]
+STATUS: PARTIAL — open: "Analyze Part" (Module 16 path) is not connected in this screen; review actions verified by rpc-processing 57/57 only, not in a browser
 Backend (done): 0019 review RPCs, 0020-0021 queue fixes, 0022 read models (completions, roster), 0023 part_number in review. Tests rpc-processing.mjs 57/57.
 UI (connected, QA pending): needs-review queue actions call the RPCs (approve, edit-approve, reject, duplicate, keep for later); dashboard, completed list, employee detail and vehicle history read the database through use-dismantling-data.ts. Removed: fabricated OEM suggestion, mock event authority for processing, and the notes field that looked saved (now disabled, labelled not stored).
 Known limits: completions and activity cover the last 366 days; custom ranges beyond that are not shown. Captured parts have no category until review, so the employee grouping shows Other. Duplicate target is the most recent approved part on the same vehicle, and the toast says so.
@@ -411,7 +411,7 @@ all review actions, idempotency, wrong role, duplicate integrity, rejected not s
 date filters/counts, responsive QA, no duplicate part records.
 
 MODULE 06 — PARTS INVENTORY / OPERATIONS
-STATUS: [PARTIAL]
+STATUS: PARTIAL — open: part photo upload and part detail sections not browser-tested; list is keyset-paged; Out of Stock browser check is informational only; zero-stock sellability verified by rpc-parts-sellability 14/14
 Backend (done): migration 0026 (sellability fix in _available_quantity, list_parts keyset with zero-quantity rows, get_part_detail with donor/session/photo ids/history, update_part_fields by role, set_part_stage with transitions and readiness checks, mark_part_not_sellable refused while reserved, reopen_part_processing, set_part_operational_status), 0027 (wider list read model and remaining draft fields). Each mutation writes part_operations history and one audit row. Tests rpc-parts.mjs 57/57; regression rpc-money-stock.mjs 63/63.
 UI (connected): parts-data-context.tsx reads the database, every change is an RPC and failures are shown. Detail view loads donor, session, photo ids and history on demand. Removed: the fabricated AI draft generator (AI shows not connected), the false saved message on warehouse capture, and the mock authority for Parts.
 Not connected (explicit): warehouse part capture (no donor), photo capture on an existing part from the Parts views (use the dismantling capture flow), barcode scanning and label printing (SKU is stored; scanner and printer are not connected). Quantity is never edited here (sales and stock moves own it).
@@ -453,7 +453,7 @@ capture→review→processing→ready; not-sellable; rejected/duplicate protecti
 permissions; zero-stock visibility; search/pagination/media; responsive; no N+1.
 
 MODULE 07 — CUSTOMERS
-STATUS: [PARTIAL]
+STATUS: PARTIAL — open: customer create/edit/detail flows not browser-tested (backend 14/14 and baseline 36/36); customer number format needs a business decision (not a blocker)
 Backend (done): 0024 (normalize, create/update with possible-duplicate results and no silent merge, lightweight keyset list, history on demand), 0025 (email cast), 0028 (list returns name columns for the keyset cursor). Tests rpc-customers.mjs 36/36.
 UI (connected): customers list uses server search and keyset load-more; the modal saves through create/update and shows possible duplicates with the explicit Create anyway override; the detail view reads the record and the sales and payments history from the database. The sales context reads customers from the database (POS and quote pickers still use mock sales until Module 08). Removed: mock customer writers and mock customer authority in the context.
 Not connected: tax and resale documents (the customer documents list stays empty and upload says not connected).
@@ -728,7 +728,7 @@ empty/seeded states, date filters, role access, cache, responsive,
 network query count, no mock authority.
 
 MODULE 15 — MANAGEMENT DASHBOARDS
-STATUS: [NOT STARTED]
+STATUS: IMPLEMENTATION COMPLETE — MANUAL QA PENDING
 =================================
 
 Connect real data for Dismantling Processing, Parts, Scrap, Containers,
@@ -743,7 +743,7 @@ Before [DONE]:
 counts, filters, permissions, responsive, cache/network behavior.
 
 MODULE 16 — ADMIN / MANAGER AI
-STATUS: [NOT STARTED]
+STATUS: IMPLEMENTATION COMPLETE — MANUAL QA PENDING; OPENAI LIVE CONNECTION NEEDS KEY/ACCOUNT CHECK (stored key refused as invalid_key)
 ===============================
 
 ONLY after deterministic core workflows work.
