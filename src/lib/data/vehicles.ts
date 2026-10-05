@@ -254,19 +254,6 @@ export type DispatchCounts = {
  * Grouping needs the full set, so this is the one place a screen loads everything. The loop
  * stops when the database says there is no next page.
  */
-export async function listAllVehicles(): Promise<VehicleListRow[]> {
-  const all: VehicleListRow[] = [];
-  let cursor: VehicleListCursor = null;
-  for (let guard = 0; guard < 500; guard++) {
-    const page = await listVehicles({ stage: null, auctionSource: null, carrierId: null, search: "", limit: 100 }, cursor);
-    all.push(...page.rows);
-    if (!page.hasMore || page.rows.length === 0) break;
-    const last = page.rows[page.rows.length - 1];
-    cursor = { createdAt: last.created_at, id: last.id };
-  }
-  return all;
-}
-
 export async function listCarriers(): Promise<CarrierRecord[]> {
   const supabase = createClient();
   const { data, error } = await supabase
@@ -345,22 +332,3 @@ export async function updateTransportStatus(input: { vehicleId: string; to: stri
   return data as { vehicle_id: string; transport_status: string; idempotent_replay: boolean };
 }
 
-/**
- * "Post to Central Dispatch" is LOCAL INTENT ONLY. The database moves READY_TO_POST -> POSTED_TO_CD.
- * No external Central Dispatch API is called, and nothing here reports external success.
- * Vehicles without a transport price are refused by the database and reported back.
- */
-export async function postToCentralDispatchLocal(vehicleIds: string[]) {
-  const failed: { id: string; message: string }[] = [];
-  let posted = 0;
-  for (const id of vehicleIds) {
-    try {
-      await updateTransportStatus({ vehicleId: id, to: "READY_TO_POST" }).catch(() => undefined);
-      await updateTransportStatus({ vehicleId: id, to: "POSTED_TO_CD" });
-      posted++;
-    } catch (err) {
-      failed.push({ id, message: err instanceof Error ? err.message : "Could not post this vehicle." });
-    }
-  }
-  return { posted, failed };
-}

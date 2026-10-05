@@ -24,7 +24,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { StatusBadge } from "@/components/patterns/status-badge";
 import type { User } from "@/lib/types";
 import { transportStatusLabels, type VehicleRecord } from "@/lib/mock/vehicles";
-import { useDispatchVehicles } from "@/lib/query/dispatch";
+import { useInboundVehicles } from "@/lib/query/dispatch";
 import { useReceiveVehicle } from "@/lib/query/receiving";
 import { lookupForReceiving } from "@/lib/data/receiving";
 import { toVehicleRecord } from "@/lib/data/vehicle-record";
@@ -113,8 +113,8 @@ function Placeholder({ icon: Icon, text }: { icon: typeof CarFront; text: string
 }
 
 export function VehicleReceiving({ user }: { user: User }) {
-  const dispatchQuery = useDispatchVehicles();
-  const vehicles = useMemo(() => (dispatchQuery.data ?? []).map(toVehicleRecord), [dispatchQuery.data]);
+  const inboundQuery = useInboundVehicles();
+  const vehicles = useMemo(() => (inboundQuery.data ?? []).map((row) => toVehicleRecord(row)), [inboundQuery.data]);
   const receiveMutation = useReceiveVehicle();
   const [vinInput, setVinInput] = useState("");
   const [matched, setMatched] = useState<VehicleRecord | null>(null);

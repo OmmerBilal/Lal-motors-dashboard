@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
-import { Globe2, Link2, Mail, MessageSquare, Send, Truck } from "lucide-react";
+import { Copy, Send, Truck, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,72 +10,69 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cash, lotOrStockDisplay, transportProblemReasons, type Carrier, type VehicleRecord } from "@/lib/mock/vehicles";
-import { useDispatchVehicles, usePostToCentralDispatch, useAssignCarrierItems, useUpdateTransportStatus } from "@/lib/query/dispatch";
-import { toVehicleRecord } from "@/lib/data/vehicle-record";
+import { useAssignCarrierItems, useUpdateTransportStatus } from "@/lib/query/dispatch";
 
-function SelectedVehiclesList({ vehicles }: { vehicles: VehicleRecord[] }) {
-  return (
-    <div className="max-h-48 space-y-1.5 overflow-y-auto rounded-md border border-border p-2">
-      {vehicles.map((v) => (
-        <div key={v.id} className="flex items-center justify-between rounded-md bg-muted/40 px-2.5 py-1.5 text-xs">
-          <span>
-            <b>
-              {v.year} {v.make} {v.model}
-            </b>{" "}
-            · {lotOrStockDisplay(v)} · {v.pickupLocationName || "—"}
-          </span>
-          <span className="text-muted-foreground">{v.transportPrice ? cash(v.transportPrice) : "No price yet"}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
+/**
+ * Central Dispatch posting. The external API is not connected in this environment, so this shows the payload that
+ * would be sent and writes nothing: no vehicle is marked as posted, and no external call is made.
+ */
 export function PrepareTransportationModal({
   open,
-  vehicleIds,
+  vehicles,
   onOpenChange,
-  onDone,
 }: {
   open: boolean;
-  vehicleIds: string[];
+  vehicles: VehicleRecord[];
   onOpenChange: (open: boolean) => void;
-  onDone: () => void;
 }) {
-  const dispatchQuery = useDispatchVehicles();
-  const vehicles = useMemo(() => (dispatchQuery.data ?? []).map(toVehicleRecord), [dispatchQuery.data]);
-  const postMutation = usePostToCentralDispatch();
-  const chosen = useMemo(() => vehicles.filter((v) => vehicleIds.includes(v.id)), [vehicles, vehicleIds]);
+  const payload = vehicles.map((v) => ({
+    vin: v.vin || null,
+    lot: v.lotNumber || null,
+    stock: v.stockNumber || null,
+    vehicle: [v.year, v.make, v.model].filter(Boolean).join(" ") || null,
+    pickup_location: v.pickupLocationName || null,
+    pickup_address: v.pickupAddress || null,
+    pickup_pin: v.pickupPin || null,
+  }));
 
-  function confirm() {
-    postMutation.mutate(vehicleIds, {
-      onSuccess: ({ posted, failed }) => {
-        // Local intent only. No external Central Dispatch call is made, so the message says so.
-        if (posted) toast.success(`${posted} vehicle(s) marked as posted in LAL Motors (Central Dispatch API not connected)`);
-        if (failed.length) toast.error(`${failed.length} could not be posted: ${failed[0].message}`);
-      },
-      onError: (err) => toast.error(err instanceof Error ? err.message : "Could not post these vehicles."),
-    });
-    onDone();
+  async function copyPayload() {
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+      toast.success("Payload copied. Nothing was posted.");
+    } catch {
+      toast.error("Copy is not available in this browser. Select the text instead.");
+    }
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Prepare Transportation</DialogTitle>
+          <DialogTitle>Post to Central Dispatch</DialogTitle>
         </DialogHeader>
-        <p className="text-sm text-muted-foreground">
-          Existing vehicle, VIN and pickup information is pulled automatically from the master record — nothing to
-          re-enter.
+        <p className="flex items-start gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
+          <WifiOff className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+          <span>
+            <b>Not Connected · UI Preview.</b> The Central Dispatch API is not connected, so nothing is posted and no vehicle&apos;s status changes.
+          </span>
         </p>
-        <SelectedVehiclesList vehicles={chosen} />
+        <p className="text-sm text-muted-foreground">
+          This is the information taken from each vehicle&apos;s master record, shown so you can check it before the API is connected.
+        </p>
+        <div className="max-h-56 space-y-1.5 overflow-y-auto rounded-md border border-border p-2 text-xs">
+          {vehicles.length === 0 && <p className="text-muted-foreground">No vehicles selected.</p>}
+          {vehicles.map((v) => (
+            <div key={v.id} className="rounded-md bg-muted/40 px-2.5 py-1.5">
+              <b>{[v.year, v.make, v.model].filter(Boolean).join(" ") || "Vehicle"}</b> · VIN {v.vin || "—"} · Lot {v.lotNumber || "—"} · Pickup {v.pickupLocationName || "—"}
+            </div>
+          ))}
+        </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
+            Close
           </Button>
-          <Button onClick={confirm}>
-            <Globe2 className="size-4" /> Post to Central Dispatch
+          <Button variant="outline" disabled={vehicles.length === 0} onClick={copyPayload}>
+            <Copy className="size-4" /> Copy payload
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -85,31 +82,29 @@ export function PrepareTransportationModal({
 
 export function DispatchToCarrierModal({
   open,
-  vehicleIds,
+  vehicles,
   carriers,
   onOpenChange,
   onAddCarrier,
   onDone,
 }: {
   open: boolean;
-  vehicleIds: string[];
+  vehicles: VehicleRecord[];
   carriers: Carrier[];
   onOpenChange: (open: boolean) => void;
   onAddCarrier: () => void;
   onDone: () => void;
 }) {
-  const dispatchQuery = useDispatchVehicles();
-  const vehicles = useMemo(() => (dispatchQuery.data ?? []).map(toVehicleRecord), [dispatchQuery.data]);
   const assignMutation = useAssignCarrierItems();
   const [carrierId, setCarrierId] = useState("");
-  const [destination, setDestination] = useState("LAL Motors Yard");
   const [prices, setPrices] = useState<Record<string, string>>({});
 
-  const chosen = useMemo(() => vehicles.filter((v) => vehicleIds.includes(v.id)), [vehicles, vehicleIds]);
-  const pickupLocations = useMemo(() => [...new Set(chosen.map((v) => v.pickupLocationName).filter(Boolean))], [chosen]);
+  const chosen = vehicles;
+  const pickupLocations = [...new Set(chosen.map((v) => v.pickupLocationName).filter(Boolean))];
   const total = chosen.reduce((s, v) => s + (Number(prices[v.id] ?? v.transportPrice) || 0), 0);
   const carrier = carriers.find((c) => c.id === carrierId);
 
+  /** The dialog closes only after the server accepts the assignment. A refusal keeps the selection and the prices. */
   function confirm() {
     if (!carrierId) return;
     const items = chosen.map((v) => ({ vehicleId: v.id, transportPrice: Number(prices[v.id] ?? v.transportPrice) }));
@@ -123,12 +118,12 @@ export function DispatchToCarrierModal({
         onSuccess: (r) => {
           toast.success(`${r.assigned} vehicle(s) dispatched to ${carrier?.company}`);
           setPrices({});
+          setCarrierId("");
+          onDone();
         },
         onError: (err) => toast.error(err instanceof Error ? err.message : "Nothing was assigned. Try again."),
       }
     );
-    setCarrierId("");
-    onDone();
   }
 
   return (
@@ -138,7 +133,7 @@ export function DispatchToCarrierModal({
           <DialogTitle>Dispatch to Carrier</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
             <div className="space-y-1.5">
               <Label>Carrier</Label>
               <Select value={carrierId} onValueChange={(v) => setCarrierId(v ?? "")}>
@@ -157,14 +152,10 @@ export function DispatchToCarrierModal({
                 + Add New Carrier
               </Button>
             </div>
-            <div className="space-y-1.5">
-              <Label>Delivery location</Label>
-              <Input value={destination} onChange={(e) => setDestination(e.target.value)} />
-            </div>
           </div>
 
           <p className="text-xs text-muted-foreground">
-            {chosen.length} vehicle(s) · Pickup: {pickupLocations.join(", ") || "—"} · Delivery: {destination}
+            {chosen.length} vehicle(s) · Pickup: {pickupLocations.join(", ") || "—"}
           </p>
 
           <div className="max-h-52 space-y-1.5 overflow-y-auto rounded-md border border-border p-2">
@@ -205,38 +196,47 @@ export function DispatchToCarrierModal({
   );
 }
 
+/** Local copy only. Email, text and share links are not connected, so they are not offered. */
 export function SendShareModal({
   open,
-  vehicleIds,
+  vehicles,
   onOpenChange,
 }: {
   open: boolean;
-  vehicleIds: string[];
+  vehicles: VehicleRecord[];
   onOpenChange: (open: boolean) => void;
 }) {
-  function mock(label: string) {
-    toast.info(`${label} (mock — no real delivery in this UI phase)`);
-    onOpenChange(false);
+  const text = vehicles
+    .map((v) => `${[v.year, v.make, v.model].filter(Boolean).join(" ") || "Vehicle"} · VIN ${v.vin || "—"} · Lot ${v.lotNumber || "—"} · Pickup ${v.pickupLocationName || "—"}`)
+    .join("\n");
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("List copied to the clipboard");
+      onOpenChange(false);
+    } catch {
+      toast.error("Copy is not available in this browser. Select the list instead.");
+    }
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>Send / Share Vehicle List</DialogTitle>
+          <DialogTitle>Copy vehicle list</DialogTitle>
         </DialogHeader>
-        <p className="text-sm text-muted-foreground">Share {vehicleIds.length} selected vehicle(s) as a list.</p>
-        <div className="space-y-2">
-          <Button variant="outline" className="w-full justify-start" onClick={() => mock("Emailed vehicle list")}>
-            <Mail className="size-4" /> Email vehicle list
+        <p className="text-sm text-muted-foreground">
+          Copies {vehicles.length} selected vehicle(s) as text. Email, text messages and share links are not connected yet.
+        </p>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
           </Button>
-          <Button variant="outline" className="w-full justify-start" onClick={() => mock("Texted vehicle list")}>
-            <MessageSquare className="size-4" /> Text vehicle list
+          <Button disabled={vehicles.length === 0} onClick={copy}>
+            <Copy className="size-4" /> Copy list
           </Button>
-          <Button variant="outline" className="w-full justify-start" onClick={() => mock("Copied share link")}>
-            <Link2 className="size-4" /> Copy share link
-          </Button>
-        </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
@@ -253,17 +253,20 @@ export function ReportProblemModal({
   const [reason, setReason] = useState(transportProblemReasons[0]);
   const [note, setNote] = useState("");
 
+  /** Closes only after the database accepts the problem. A refusal keeps the note on screen. */
   function submit() {
     if (!vehicle) return;
     transportMutation.mutate(
       { vehicleId: vehicle.id, to: "PROBLEM", note: note ? `${reason}: ${note}` : reason },
       {
-        onSuccess: () => toast.success("Transportation problem recorded"),
-        onError: (err) => toast.error(err instanceof Error ? err.message : "Could not record the problem."),
+        onSuccess: () => {
+          toast.success("Transportation problem recorded");
+          setNote("");
+          onOpenChange(false);
+        },
+        onError: (err) => toast.error(err instanceof Error ? err.message : "Could not record the problem. Your note is still here."),
       }
-    );
-    setNote("");
-    onOpenChange(false);
+    )
   }
 
   return (
