@@ -81,6 +81,7 @@ export type SellablePart = {
   id: string;
   part_name: string;
   stock_sku: string;
+  part_number: string | null;
   price: string;
   quantity: number;
   available: number;

@@ -109,46 +109,65 @@ export function CurrentSaleStep({
 
       <div className="max-h-56 flex-1 space-y-2 overflow-y-auto">
         {items.map((item) => (
-          <div key={item.id} data-testid="pos-cart-line" data-part-id={item.partId ?? undefined} data-sku={item.stockSku} className={`flex items-center gap-2 rounded-lg border p-2.5 ${item.manual ? "border-accent-rose/25 bg-accent-rose/5" : "border-border"}`}>
-            <div className={`flex size-9 shrink-0 items-center justify-center rounded-md ${item.manual ? "bg-accent-rose/20 text-accent-rose-foreground" : "bg-primary/10 text-primary"}`}>
-              {item.manual ? <Box className="size-4" /> : <Package className="size-4" />}
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                <b className="truncate text-xs">{item.description}</b>
-                {item.manual && <span className="shrink-0 rounded bg-accent-rose/20 px-1.5 py-0.5 text-[10px] font-semibold text-accent-rose-foreground">MANUAL</span>}
+          <div key={item.id} data-testid="pos-cart-line" data-part-id={item.partId ?? undefined} data-sku={item.stockSku} data-qty={item.quantity} className={`rounded-lg border p-2.5 ${item.manual ? "border-accent-rose/25 bg-accent-rose/5" : "border-border"}`}>
+            <div className="flex items-start gap-2">
+              <div className={`flex size-8 shrink-0 items-center justify-center rounded-md ${item.manual ? "bg-accent-rose/20 text-accent-rose-foreground" : "bg-primary/10 text-primary"}`}>
+                {item.manual ? <Box className="size-4" /> : <Package className="size-4" />}
               </div>
-              <small className="text-[11px] text-muted-foreground">{item.stockSku}</small>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <b className="text-sm leading-snug break-words">{item.description}</b>
+                  {item.manual && <span className="shrink-0 rounded bg-accent-rose/20 px-1.5 py-0.5 text-[10px] font-semibold text-accent-rose-foreground">MANUAL</span>}
+                </div>
+                <small className="block text-xs break-all text-muted-foreground">SKU {item.stockSku || "—"}</small>
+              </div>
+              <button
+                onClick={() => onRemove(item.id)}
+                aria-label="Remove item"
+                className="flex shrink-0 items-center justify-center rounded-md p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+              >
+                <X className="size-4" />
+              </button>
             </div>
-            <Input
-              aria-label="Quantity"
-              type="number"
-              min={1}
-              max={item.manual ? undefined : item.availableQuantity}
-              value={item.quantity}
-              onChange={(e) => onUpdateQuantity(item.id, Number(e.target.value))}
-              className="h-7 w-14 text-xs"
-            />
-            {overridePrice ? (
-              <Input
-                aria-label="Unit price"
-                type="number"
-                min={0}
-                step="0.01"
-                value={item.unitPrice}
-                onChange={(e) => onUpdatePrice?.(item.id, Number(e.target.value))}
-                className="h-7 w-20 text-xs"
-              />
-            ) : (
-              <b className="w-16 shrink-0 text-right text-xs">{usd(item.quantity * item.unitPrice)}</b>
-            )}
-            <button
-              onClick={() => onRemove(item.id)}
-              aria-label="Remove item"
-              className="flex shrink-0 items-center justify-center rounded-md p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-            >
-              <X className="size-4" />
-            </button>
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-2 pl-10">
+              {overridePrice ? (
+                <Input
+                  aria-label="Unit price"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={item.unitPrice}
+                  onChange={(e) => onUpdatePrice?.(item.id, Number(e.target.value))}
+                  className="h-8 w-24 text-xs"
+                />
+              ) : (
+                <span className="text-xs text-muted-foreground tabular-nums">{usd(item.unitPrice)} each</span>
+              )}
+              <div className="flex items-center gap-2">
+                <div className="flex items-center rounded-md border border-border" role="group" aria-label="Quantity">
+                  <button
+                    type="button"
+                    aria-label="Decrease quantity"
+                    disabled={item.quantity <= 1}
+                    onClick={() => onUpdateQuantity(item.id, item.quantity - 1)}
+                    className="flex size-8 items-center justify-center text-base font-semibold transition-colors hover:bg-muted disabled:opacity-40"
+                  >
+                    −
+                  </button>
+                  <span aria-label="Quantity value" className="min-w-8 text-center text-sm font-semibold tabular-nums">{item.quantity}</span>
+                  <button
+                    type="button"
+                    aria-label="Increase quantity"
+                    disabled={!item.manual && item.availableQuantity !== undefined && item.quantity >= item.availableQuantity}
+                    onClick={() => onUpdateQuantity(item.id, item.quantity + 1)}
+                    className="flex size-8 items-center justify-center text-base font-semibold transition-colors hover:bg-muted disabled:opacity-40"
+                  >
+                    +
+                  </button>
+                </div>
+                <b className="min-w-16 text-right text-sm tabular-nums">{usd(item.quantity * item.unitPrice)}</b>
+              </div>
+            </div>
           </div>
         ))}
         {!items.length && <p className="py-6 text-center text-xs text-muted-foreground">No items yet — add from Find Parts or Manual Item.</p>}

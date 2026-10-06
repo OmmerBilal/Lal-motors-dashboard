@@ -28,9 +28,9 @@ export function PartResultCard({
       data-testid="pos-part-card"
       data-part-id={part.id}
       data-sku={part.stock_sku ?? ""}
-      className={`flex items-center gap-3 rounded-lg border p-3 transition-colors ${selected ? "border-primary/50 bg-primary/5 shadow-sm" : "border-border hover:border-primary/25"}`}
+      className={`flex items-start gap-3 rounded-lg border p-3 transition-colors ${selected ? "border-primary/50 bg-primary/5 shadow-sm" : "border-border hover:border-primary/25"}`}
     >
-      <button onClick={onSelect} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+      <button onClick={onSelect} className="flex min-w-0 flex-1 items-start gap-3 text-left">
         <div className={`flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-md border ${selected ? "border-primary/30" : "border-border"} ${iconTone}`}>
           {thumbnailUrl ? (
             // eslint-disable-next-line @next/next/no-img-element -- signed private URL, thumbnail variant only
@@ -39,13 +39,14 @@ export function PartResultCard({
             <Package className="size-6" aria-label="No photo" />
           )}
         </div>
-        <span className="min-w-0 flex-1">
-          <b className="block truncate text-sm">{part.part_name}</b>
-          <small className="block truncate text-xs text-muted-foreground">{part.stock_sku || "No SKU"}</small>
-        </span>
-        <span className="hidden shrink-0 text-right sm:block">
-          <StatusBadge tone={tone}>{label}</StatusBadge>
-          <b className="mt-1 block text-base tabular-nums text-primary">{usd(part.price)}</b>
+        <span className="min-w-0 flex-1 space-y-0.5">
+          <b className="block text-sm leading-snug break-words">{part.part_name}</b>
+          <small className="block text-xs break-all text-muted-foreground">SKU {part.stock_sku || "—"}</small>
+          {part.part_number && <small className="block text-xs break-all text-muted-foreground">OEM {part.part_number}</small>}
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1 pt-1">
+            <StatusBadge tone={tone}>{label}</StatusBadge>
+            <b className="text-sm tabular-nums text-primary">{usd(part.price)}</b>
+          </span>
         </span>
       </button>
       <button
