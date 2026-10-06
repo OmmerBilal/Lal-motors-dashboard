@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatusBadge } from "@/components/patterns/status-badge";
@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/patterns/empty-state";
 import { useExportCounts, useExportList } from "@/lib/query/containers";
 import { CONTAINER_STATUS_LABEL, type ExportBucket, type ExportContainerRow } from "@/lib/data/containers";
 import { ExportContainerDetail } from "@/components/containers/export/export-container-detail";
+import { NewContainerDialog } from "@/components/containers/export/new-container-dialog";
 import { dateLabel } from "@/components/scrap/scrap-shared";
 
 const TABS: { id: ExportBucket; label: string; count: (c: Record<string, number>) => number }[] = [
@@ -23,6 +24,7 @@ const TABS: { id: ExportBucket; label: string; count: (c: Record<string, number>
 export function ExportManagementApp() {
   const [bucket, setBucket] = useState<ExportBucket>("all");
   const [openId, setOpenId] = useState<string | null>(null);
+  const [newOpen, setNewOpen] = useState(false);
   const counts = useExportCounts();
   const list = useExportList(bucket);
   const rows: ExportContainerRow[] = list.data?.pages.flatMap((p) => p.rows) ?? [];
@@ -40,10 +42,16 @@ export function ExportManagementApp() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h2 className="text-xl font-semibold">Container Export</h2>
-        <p className="text-sm text-muted-foreground">Consignees, invoices, payments, shipping and close for loaded containers</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-semibold">Container Export</h2>
+          <p className="text-sm text-muted-foreground">Consignees, invoices, payments, shipping and close for loaded containers</p>
+        </div>
+        <Button className="h-9" onClick={() => setNewOpen(true)}>
+          <Plus className="size-4" /> New Container
+        </Button>
       </div>
+      <NewContainerDialog open={newOpen} onOpenChange={setNewOpen} onCreated={(id) => setOpenId(id)} />
 
       {counts.isError && <p className="text-sm text-destructive">{counts.error.message}</p>}
       <div className="flex flex-wrap gap-2">

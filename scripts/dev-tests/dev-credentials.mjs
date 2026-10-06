@@ -24,10 +24,12 @@ export function loadDevCredentials() {
   const ownerPassword = process.env.DEV_TEST_OWNER_PASSWORD || local.DEV_TEST_OWNER_PASSWORD;
   const employeePassword = process.env.DEV_TEST_DISMANTLER_PASSWORD || local.DEV_TEST_DISMANTLER_PASSWORD;
   const scrapDriverPassword = process.env.DEV_TEST_SCRAP_DRIVER_PASSWORD || local.DEV_TEST_SCRAP_DRIVER_PASSWORD;
+  const containerLoaderPassword = process.env.DEV_TEST_CONTAINER_LOADER_PASSWORD || local.DEV_TEST_CONTAINER_LOADER_PASSWORD;
   return creds.map((u) => {
     if (u.role === "owner" && ownerPassword) return { ...u, password: ownerPassword };
     if (u.role === "dismantling" && employeePassword) return { ...u, password: employeePassword };
     if (u.role === "scrap_driver" && scrapDriverPassword) return { ...u, password: scrapDriverPassword };
+    if (u.role === "container_loading" && containerLoaderPassword) return { ...u, password: containerLoaderPassword };
     return u;
   });
 }

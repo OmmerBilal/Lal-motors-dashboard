@@ -28,7 +28,37 @@ export type LoaderContainer = {
   number_photos: number;
   loading_photos: number;
   final_list_photos: number;
+  assigned_loader_id: string | null;
+  assigned_at: string | null;
+  planned_items: number;
 };
+
+/** A planned inventory line. The loader gets no stock or location fields (only management does). */
+export type PlannedItem = {
+  id: string;
+  part_id: string;
+  part_name: string;
+  stock_sku: string | null;
+  planned_qty: number;
+  loaded_qty: number;
+  released_qty: number | null;
+  status: "planned" | "finalized";
+  added_at: string;
+  finalized_at: string | null;
+  part_number?: string | null;
+  location?: string | null;
+  available?: number;
+  inventory_source?: string | null;
+  added_by_name?: string;
+};
+export type PlannedSummary = {
+  container: { id: string; status: ContainerStatus; parts_planning: boolean; assigned_loader_id: string | null; assigned_loader_name: string | null; assigned_at: string | null; finished_at: string | null };
+  items: PlannedItem[];
+  planned_total: number;
+  loaded_total: number;
+};
+export type SearchPart = { id: string; part_name: string; stock_sku: string | null; part_number: string | null; location: string | null; available: number; exact: boolean };
+export type LoaderOption = { id: string; name: string };
 
 export type Page<T> = { rows: T[]; has_more: boolean };
 
@@ -41,7 +71,7 @@ export type LoaderDetail = {
 };
 
 // ------------------------------------------------------------------ export management types
-export type ExportInvoiceLine = { description: string; quantity: number; unit_price: number; category: string | null; condition: string | null; line_total: number };
+export type ExportInvoiceLine = { description: string; quantity: number; unit_price: number; category: string | null; condition: string | null; line_total: number; source_item_id?: string | null };
 export type ConsigneeSnapshot = { id: string; company: string; contact: string; address: string; city: string; state_province: string; country: string; phone: string; email: string };
 export type ExportInvoice = {
   id: string;
@@ -113,12 +143,28 @@ async function rpc<T>(fn: string, args: Record<string, unknown>): Promise<T> {
 }
 
 // ------------------------------------------------------------------ loader (Module 12)
-export const loaderOpen = (requestId: string) => rpc<LoaderContainer>("container_loader_open", { p_client_request_id: requestId });
+// Loaders never open a container: management creates it and assigns the loader (see exportCreateContainer).
 export const loaderList = (status: "open" | "ready" | "all", cursor: { createdAt: string; id: string } | null, limit = 25) =>
   rpc<Page<LoaderContainer>>("container_loader_list", { p_status: status, p_limit: limit, p_before_created: cursor?.createdAt ?? null, p_before_id: cursor?.id ?? null });
 export const loaderGet = (id: string) => rpc<LoaderDetail>("container_loader_get", { p_container_id: id });
 export const loaderConfirmNumber = (id: string, number: string) => rpc<LoaderContainer>("container_loader_confirm_number", { p_container_id: id, p_number: number });
 export const loaderFinish = (id: string, requestId: string) => rpc<LoaderContainer>("container_loader_finish", { p_container_id: id, p_client_request_id: requestId });
+export const loaderSetLoaded = (itemId: string, loadedQty: number) => rpc<PlannedSummary>("container_loader_set_loaded", { p_item_id: itemId, p_loaded_qty: loadedQty });
+
+// ------------------------------------------------------------------ planned parts (shared: management and the assigned loader)
+export const plannedItems = (containerId: string) => rpc<PlannedSummary>("container_planned_items", { p_container_id: containerId });
+export const loaderOptions = () => rpc<LoaderOption[]>("export_list_loaders", {});
+export const searchInventoryForContainer = (containerId: string, search: string) =>
+  rpc<SearchPart[]>("export_container_search_parts", { p_container_id: containerId, p_search: search });
+export const planAdd = (containerId: string, partId: string, quantity: number) =>
+  rpc<PlannedSummary>("export_container_add_planned", { p_container_id: containerId, p_part_id: partId, p_quantity: quantity });
+export const planRemove = (itemId: string) => rpc<PlannedSummary>("export_container_remove_planned", { p_item_id: itemId });
+export const createContainer = (p: { loaderId: string; consigneeId: string | null; destinationCountry: string; destinationPort: string; truckingCompany: string; shippingNote: string; requestId: string }) =>
+  rpc<ExportDetail>("export_create_container", {
+    p_loader_id: p.loaderId, p_consignee_id: p.consigneeId, p_destination_country: p.destinationCountry, p_destination_port: p.destinationPort,
+    p_trucking_company: p.truckingCompany, p_shipping_note: p.shippingNote, p_client_request_id: p.requestId,
+  });
+export const assignLoader = (containerId: string, loaderId: string) => rpc<ExportDetail>("export_assign_loader", { p_container_id: containerId, p_loader_id: loaderId });
 
 // ------------------------------------------------------------------ export management (Module 13)
 export const exportCounts = () => rpc<ExportCounts>("export_container_counts", {});
@@ -137,7 +183,7 @@ export const shippingSave = (p: { containerId: string; consigneeId: string | nul
     p_trucking_company: p.truckingCompany, p_ship_date: p.shipDate, p_eta: p.eta, p_shipping_note: p.note,
   });
 export const invoiceCreate = (containerId: string, requestId: string) => rpc<ExportInvoice>("export_create_invoice", { p_container_id: containerId, p_client_request_id: requestId });
-export const invoiceSaveDraft = (p: { invoiceId: string; consigneeId: string; notes: string; lines: { description: string; quantity: number; unit_price: number; category?: string; condition?: string }[] }) =>
+export const invoiceSaveDraft = (p: { invoiceId: string; consigneeId: string; notes: string; lines: { description: string; quantity: number; unit_price: number; category?: string; condition?: string; source_item_id?: string }[] }) =>
   rpc<ExportInvoice>("export_save_invoice_draft", { p_invoice_id: p.invoiceId, p_consignee_id: p.consigneeId, p_notes: p.notes, p_lines: p.lines });
 export const invoiceReview = (invoiceId: string) => rpc<ExportInvoice>("export_mark_invoice_review", { p_invoice_id: invoiceId });
 export const invoiceFinalize = (invoiceId: string, requestId: string) => rpc<ExportInvoice>("export_finalize_invoice", { p_invoice_id: invoiceId, p_client_request_id: requestId });

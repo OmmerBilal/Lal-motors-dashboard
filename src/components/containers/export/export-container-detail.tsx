@@ -13,24 +13,28 @@ import { StatusBadge } from "@/components/patterns/status-badge";
 import { EmptyState } from "@/components/patterns/empty-state";
 import { fetchScrapThumbnailUrls } from "@/lib/data/scrap";
 import { PAYMENT_METHODS, PAYMENT_TYPES, CONTAINER_STATUS_LABEL, type ExportInvoice, type ExportInvoiceLine } from "@/lib/data/containers";
-import { useConsignees, useExportDetail, useExportMutations, invalidateContainers } from "@/lib/query/containers";
+import { useConsignees, useExportDetail, useExportMutations, invalidateContainers, usePlannedItems } from "@/lib/query/containers";
 import { InvoiceDocument } from "@/components/containers/export/invoice-document";
-import { PhotoTile, usd } from "@/components/scrap/scrap-shared";
+import { PlannedPartsSection } from "@/components/containers/export/planned-parts-section";
+import { PhotoTile, usd, timeLabel } from "@/components/scrap/scrap-shared";
 
-type LineDraft = { description: string; quantity: string; unit_price: string; category: string; condition: string };
+type LineDraft = { description: string; quantity: string; unit_price: string; category: string; condition: string; source_item_id?: string };
 const blankLine = (): LineDraft => ({ description: "", quantity: "1", unit_price: "", category: "", condition: "" });
 const toDraft = (items: ExportInvoiceLine[]): LineDraft[] =>
-  items.length ? items.map((i) => ({ description: i.description, quantity: String(i.quantity), unit_price: String(i.unit_price), category: i.category ?? "", condition: i.condition ?? "" })) : [blankLine()];
+  items.length
+    ? items.map((i) => ({ description: i.description, quantity: String(i.quantity), unit_price: String(i.unit_price), category: i.category ?? "", condition: i.condition ?? "", source_item_id: i.source_item_id ?? undefined }))
+    : [blankLine()];
 const toPayload = (lines: LineDraft[]) =>
   lines.filter((l) => l.description.trim() || l.unit_price).map((l) => ({
     description: l.description.trim(), quantity: Number(l.quantity), unit_price: Number(l.unit_price || 0),
-    category: l.category.trim() || undefined, condition: l.condition.trim() || undefined,
+    category: l.category.trim() || undefined, condition: l.condition.trim() || undefined, source_item_id: l.source_item_id || undefined,
   }));
 
 /** One container, as export management sees it. Everything shown comes from the export RPC. */
 export function ExportContainerDetail({ id }: { id: string }) {
   const qc = useQueryClient();
   const detail = useExportDetail(id);
+  const planned = usePlannedItems(id);
   const d = detail.data;
   const photoIds = (d?.photos ?? []).map((p) => p.id);
   const thumbs = useQuery({ queryKey: ["containers", "export-thumbs", id, photoIds.join(",")], queryFn: () => fetchScrapThumbnailUrls(photoIds), enabled: photoIds.length > 0, staleTime: 60_000 });
@@ -48,7 +52,9 @@ export function ExportContainerDetail({ id }: { id: string }) {
         </div>
         <StatusBadge tone={c.status === "closed" ? "neutral" : "success"}>{CONTAINER_STATUS_LABEL[c.status].toUpperCase()}</StatusBadge>
         <div className="w-full text-xs text-muted-foreground">
-          Loading finished: {c.finished_at ? new Date(c.finished_at).toLocaleString() : "—"} · Closed: {c.closed_at ? new Date(c.closed_at).toLocaleString() : "—"}
+          Loader: {planned.data?.container.assigned_loader_name ?? "not assigned"}
+          {planned.data?.container.assigned_at ? ` · assigned ${timeLabel(planned.data.container.assigned_at)}` : ""}
+          {" · "}Loading finished: {c.finished_at ? new Date(c.finished_at).toLocaleString() : "—"} · Closed: {c.closed_at ? new Date(c.closed_at).toLocaleString() : "—"}
         </div>
       </section>
 
@@ -67,6 +73,8 @@ export function ExportContainerDetail({ id }: { id: string }) {
           </div>
         )}
       </section>
+
+      <PlannedPartsSection containerId={id} status={c.status} partsPlanning={planned.data?.container.parts_planning ?? false} />
 
       <ShippingSection id={id} detail={d} onSaved={() => invalidateContainers(qc)} />
       <InvoiceSection containerId={id} detail={d} />
@@ -191,7 +199,20 @@ function DraftInvoice({ inv }: { inv: ExportInvoice }) {
   const [finalRequest] = useState(() => crypto.randomUUID());
   // Finalizing is irreversible: a person confirms it on a second step, and can go back without any server call.
   const [confirmingFinalize, setConfirmingFinalize] = useState(false);
+  const loadedParts = usePlannedItems(inv.container_id);
+  const loaded = (loadedParts.data?.items ?? []).filter((i) => i.status === "finalized" && i.loaded_qty > 0);
   const busy = saveDraft.isPending || review.isPending || finalize.isPending;
+
+  // Starts the draft from what was actually loaded. Quantity is the loaded quantity; the unit price is set by management.
+  function addLoadedParts() {
+    const linked = new Set(lines.map((l) => l.source_item_id).filter(Boolean));
+    const fresh: LineDraft[] = loaded
+      .filter((i) => !linked.has(i.id))
+      .map((i) => ({ description: i.part_name, quantity: String(i.loaded_qty), unit_price: "", category: "", condition: "", source_item_id: i.id }));
+    if (!fresh.length) return;
+    const onlyBlank = lines.length === 1 && !lines[0].description.trim() && !lines[0].unit_price;
+    setLines((prev) => (onlyBlank ? fresh : [...prev, ...fresh]));
+  }
   const payload = toPayload(lines);
   const draftTotal = payload.reduce((n, l) => n + Math.round(l.quantity * l.unit_price * 100), 0) / 100;
 
@@ -215,6 +236,12 @@ function DraftInvoice({ inv }: { inv: ExportInvoice }) {
           </SelectContent>
         </Select>
       </div>
+      {loaded.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-primary/25 bg-primary/5 p-2.5 text-sm">
+          <span className="text-xs text-muted-foreground">{loaded.length} loaded part(s) in this container. Lines start from the loaded quantities; set the prices.</span>
+          <Button variant="outline" size="sm" onClick={addLoadedParts} disabled={busy}>Add loaded parts as lines</Button>
+        </div>
+      )}
       <LineEditor lines={lines} setLines={setLines} />
       <div className="space-y-1">
         <Label className="text-xs">Notes</Label>

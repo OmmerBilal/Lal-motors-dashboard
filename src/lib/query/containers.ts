@@ -1,11 +1,14 @@
 "use client";
 
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { fetchPosThumbnailUrls } from "@/lib/data/sales";
 import {
+  assignLoader,
   containerClose,
   containerOnTheWay,
   consigneeList,
   consigneeSave,
+  createContainer,
   exportCounts,
   exportGet,
   exportList,
@@ -18,9 +21,14 @@ import {
   loaderFinish,
   loaderGet,
   loaderList,
-  loaderOpen,
+  loaderOptions,
+  loaderSetLoaded,
   paymentRecord,
   paymentReverse,
+  planAdd,
+  planRemove,
+  plannedItems,
+  searchInventoryForContainer,
   shippingSave,
   type ExportBucket,
 } from "@/lib/data/containers";
@@ -59,11 +67,40 @@ export function useLoaderDetail(id: string | null) {
   return useQuery({ queryKey: containerKeys.loader(id ?? ""), queryFn: () => loaderGet(id ?? ""), enabled: !!id });
 }
 
+export function usePlannedItems(id: string | null) {
+  return useQuery({ queryKey: ["containers", "planned", id ?? ""], queryFn: () => plannedItems(id ?? ""), enabled: !!id });
+}
+
+/** Signed thumbnails for planned parts (the same private part-thumbnail route the Sales desk uses). */
+export function usePartThumbnails(partIds: string[]) {
+  const key = [...new Set(partIds)].sort().join(",");
+  return useQuery({
+    queryKey: ["containers", "part-thumbs", key],
+    queryFn: () => fetchPosThumbnailUrls(key.split(",").filter(Boolean)),
+    enabled: key.length > 0,
+    staleTime: 60_000,
+  });
+}
+
+export function useLoaderOptions(enabled: boolean) {
+  return useQuery({ queryKey: ["containers", "loader-options"], queryFn: loaderOptions, enabled, staleTime: 60_000 });
+}
+
+/** Inventory search for planned parts. The caller decides when to ask (two characters or more). */
+export function useInventorySearch(containerId: string, term: string) {
+  return useQuery({
+    queryKey: ["containers", "inventory-search", containerId, term],
+    queryFn: () => searchInventoryForContainer(containerId, term),
+    enabled: term.length >= 2,
+    placeholderData: (prev) => prev,
+  });
+}
+
 export function useLoaderMutations() {
   const qc = useQueryClient();
   const done = () => invalidateContainers(qc);
   return {
-    open: useMutation({ mutationFn: (requestId: string) => loaderOpen(requestId), onSuccess: done }),
+    setLoaded: useMutation({ mutationFn: (p: { itemId: string; loadedQty: number }) => loaderSetLoaded(p.itemId, p.loadedQty), onSuccess: done }),
     confirmNumber: useMutation({ mutationFn: (p: { id: string; number: string }) => loaderConfirmNumber(p.id, p.number), onSuccess: done }),
     finish: useMutation({ mutationFn: (p: { id: string; requestId: string }) => loaderFinish(p.id, p.requestId), onSuccess: done }),
   };
@@ -99,6 +136,10 @@ export function useExportMutations() {
   const qc = useQueryClient();
   const done = () => invalidateContainers(qc);
   return {
+    createContainer: useMutation({ mutationFn: createContainer, onSuccess: done }),
+    assignLoader: useMutation({ mutationFn: (p: { containerId: string; loaderId: string }) => assignLoader(p.containerId, p.loaderId), onSuccess: done }),
+    planAdd: useMutation({ mutationFn: (p: { containerId: string; partId: string; quantity: number }) => planAdd(p.containerId, p.partId, p.quantity), onSuccess: done }),
+    planRemove: useMutation({ mutationFn: (itemId: string) => planRemove(itemId), onSuccess: done }),
     saveConsignee: useMutation({ mutationFn: consigneeSave, onSuccess: done }),
     saveShipping: useMutation({ mutationFn: shippingSave, onSuccess: done }),
     createInvoice: useMutation({ mutationFn: (p: { containerId: string; requestId: string }) => invoiceCreate(p.containerId, p.requestId), onSuccess: done }),

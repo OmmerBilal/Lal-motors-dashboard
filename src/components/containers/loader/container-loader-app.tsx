@@ -1,10 +1,10 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchScrapThumbnailUrls } from "@/lib/data/scrap";
 import { toast } from "sonner";
-import { ArrowLeft, Camera, CheckCircle2, Container, Plus } from "lucide-react";
+import { ArrowLeft, Camera, CheckCircle2, Container } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,15 +12,23 @@ import { MediaCapture } from "@/components/media/media-capture";
 import { EmptyState } from "@/components/patterns/empty-state";
 import { StatusBadge } from "@/components/patterns/status-badge";
 import { useLoaderDetail, useLoaderList, useLoaderMutations, invalidateContainers } from "@/lib/query/containers";
-import { useQuery } from "@tanstack/react-query";
 import type { LoaderContainer } from "@/lib/data/containers";
-import { PhotoTile } from "@/components/scrap/scrap-shared";
+import { PhotoTile, timeLabel } from "@/components/scrap/scrap-shared";
+import { LoaderFinalSummary, LoaderPlannedParts } from "@/components/containers/loader/loader-planned-parts";
 
-type LoaderView = { name: "home" } | { name: "open" } | { name: "container"; id: string } | { name: "ready"; id: string };
+type LoaderView = { name: "home" } | { name: "container"; id: string } | { name: "ready"; id: string };
+
+/** The loader's status for an assigned container. Derived from server facts only. */
+function loaderState(c: LoaderContainer): "loading" | "ready_to_finish" | "completed" {
+  if (c.status !== "loading") return "completed";
+  return c.number_confirmed && c.loading_photos > 0 && c.final_list_photos > 0 ? "ready_to_finish" : "loading";
+}
+const STATE_LABEL = { loading: "Loading", ready_to_finish: "Ready to Finish", completed: "Completed" } as const;
+const STATE_TONE = { loading: "info", ready_to_finish: "warning", completed: "success" } as const;
 
 /**
- * Container Loading Employee. Loading evidence and loading completion only: no consignee, invoice,
- * price, payment or balance exists in anything this screen receives.
+ * Container Loading Employee. My Assigned Containers only: the server returns nothing else, and opening another loader's
+ * container is refused. No consignee, invoice, price, payment or balance exists in anything this screen receives.
  */
 export function ContainerLoaderApp() {
   const [view, setView] = useState<LoaderView>({ name: "home" });
@@ -34,39 +42,26 @@ export function ContainerLoaderApp() {
 }
 
 function LoaderHome({ onOpen }: { onOpen: (id: string) => void }) {
-  const { open } = useLoaderMutations();
   const list = useLoaderList("all");
   const rows: LoaderContainer[] = list.data?.pages.flatMap((p) => p.rows) ?? [];
-  const active = rows.find((r) => r.status === "loading") ?? null;
-  const ready = rows.filter((r) => r.status !== "loading").length;
-  const [requestId, setRequestId] = useState(() => crypto.randomUUID());
-
-  function startContainer() {
-    open.mutate(requestId, {
-      onSuccess: (c) => {
-        setRequestId(crypto.randomUUID());
-        toast.success(`Container ${c.t_ref} is open for loading.`);
-        onOpen(c.id);
-      },
-      onError: (e) => toast.error(e.message),
-    });
-  }
+  const active = rows.find((r) => loaderState(r) !== "completed") ?? null;
+  const completed = rows.filter((r) => loaderState(r) === "completed").length;
 
   return (
     <div className="mx-auto w-full max-w-md space-y-5 pb-6">
       <header className="rounded-xl bg-brand p-5 text-brand-foreground">
-        <p className="text-lg font-semibold">Container Loading</p>
-        <p className="text-sm text-brand-foreground/70">Loading evidence and completion</p>
+        <p className="text-lg font-semibold">My Assigned Containers</p>
+        <p className="text-sm text-brand-foreground/70">Confirm the number, the loaded parts and the photos</p>
       </header>
 
       <div className="grid grid-cols-2 gap-2">
-        <Stat label="Open to load" value={rows.filter((r) => r.status === "loading").length} />
-        <Stat label="Loading finished" value={ready} />
+        <Stat label="Still loading" value={rows.filter((r) => loaderState(r) !== "completed").length} />
+        <Stat label="Completed" value={completed} />
       </div>
 
       {active && (
         <div className="rounded-xl border border-primary/30 bg-primary/5 p-4">
-          <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Continue active container</p>
+          <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Continue</p>
           <p className="mt-1 text-base font-semibold">{active.t_ref}</p>
           <p className="text-xs text-muted-foreground">{active.container_number ?? "Number not confirmed yet"}</p>
           <Button className="mt-3 w-full" onClick={() => onOpen(active.id)}>
@@ -75,24 +70,29 @@ function LoaderHome({ onOpen }: { onOpen: (id: string) => void }) {
         </div>
       )}
 
-      <Button className="w-full" variant={active ? "outline" : "default"} disabled={open.isPending} onClick={startContainer}>
-        <Plus className="size-4" /> {open.isPending ? "Opening…" : "Start / Open Container"}
-      </Button>
-
       <div className="space-y-2">
-        <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">My containers</p>
+        <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Assigned to me</p>
         {list.isPending && <p className="text-sm text-muted-foreground">Loading…</p>}
         {list.isError && <p className="text-sm text-destructive">{list.error.message}</p>}
-        {!list.isPending && rows.length === 0 && <EmptyState icon={Container} title="No containers yet" description="Start a container to begin loading." />}
-        {rows.map((r) => (
-          <button key={r.id} onClick={() => onOpen(r.id)} className="flex w-full items-center justify-between rounded-lg border border-border bg-card px-3 py-2.5 text-left hover:bg-accent/30">
-            <span className="min-w-0">
-              <span className="block text-sm font-semibold">{r.t_ref}</span>
-              <span className="block truncate text-xs text-muted-foreground">{r.container_number ?? "Number not confirmed"}</span>
-            </span>
-            {r.status === "loading" ? <StatusBadge tone="info">Loading</StatusBadge> : <StatusBadge tone="success">Finished</StatusBadge>}
-          </button>
-        ))}
+        {!list.isPending && rows.length === 0 && (
+          <EmptyState icon={Container} title="No containers assigned to you" description="Export management assigns containers to you. They appear here." />
+        )}
+        {rows.map((r) => {
+          const state = loaderState(r);
+          return (
+            <button key={r.id} onClick={() => onOpen(r.id)} className="flex w-full items-center justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2.5 text-left hover:bg-accent/30">
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold">{r.t_ref}</span>
+                <span className="block truncate text-xs text-muted-foreground">
+                  {r.container_number ?? "Number not confirmed"}
+                  {r.assigned_at ? ` · assigned ${timeLabel(r.assigned_at)}` : ""}
+                  {` · ${r.planned_items} planned`}
+                </span>
+              </span>
+              <StatusBadge tone={STATE_TONE[state]}>{STATE_LABEL[state]}</StatusBadge>
+            </button>
+          );
+        })}
       </div>
       {list.hasNextPage && (
         <Button variant="outline" className="w-full" disabled={list.isFetchingNextPage} onClick={() => list.fetchNextPage()}>
@@ -139,7 +139,7 @@ function LoaderContainerView({ id, onBack, onReady }: { id: string; onBack: () =
           <h2 className="text-lg font-semibold">{c.t_ref}</h2>
           <p className="text-xs text-muted-foreground">{c.container_number ?? "Official number not confirmed"}</p>
         </div>
-        {finished ? <StatusBadge tone="success">Finished</StatusBadge> : <StatusBadge tone="info">Loading</StatusBadge>}
+        {finished ? <StatusBadge tone="success">Completed</StatusBadge> : <StatusBadge tone="info">Loading</StatusBadge>}
       </div>
 
       <section className="space-y-2 rounded-lg border border-border bg-card p-3">
@@ -180,7 +180,12 @@ function LoaderContainerView({ id, onBack, onReady }: { id: string; onBack: () =
       </section>
 
       <section className="space-y-2 rounded-lg border border-border bg-card p-3">
-        <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">2 · Loading photos ({loadingPhotos.length})</p>
+        <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">2 · Planned parts: confirm loaded quantities</p>
+        <LoaderPlannedParts containerId={id} finished={finished} />
+      </section>
+
+      <section className="space-y-2 rounded-lg border border-border bg-card p-3">
+        <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">3 · Loading photos ({loadingPhotos.length})</p>
         {slots.map((s) => (
           <MediaCapture
             key={s}
@@ -200,7 +205,7 @@ function LoaderContainerView({ id, onBack, onReady }: { id: string; onBack: () =
       </section>
 
       <section className="space-y-2 rounded-lg border border-border bg-card p-3">
-        <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">3 · Final loading list</p>
+        <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">4 · Final loading list</p>
         {finalPhotos.length > 0 ? (
           <p className="text-sm">Final list saved ({finalPhotos.length}).</p>
         ) : finished ? (
@@ -209,6 +214,10 @@ function LoaderContainerView({ id, onBack, onReady }: { id: string; onBack: () =
           <MediaCapture label="Final loading list photo" ownerType="container" ownerId={id} role="final_list" onUploaded={() => invalidateContainers(qc)} />
         )}
       </section>
+
+      {!finished && (
+        <LoaderFinalSummary containerId={id} evidence={{ number: c.number_confirmed, loadingPhotos: loadingPhotos.length, finalList: finalPhotos.length > 0 }} />
+      )}
 
       {!finished && (
         <Button
@@ -236,8 +245,9 @@ function ReadyView({ id, onNext }: { id: string; onNext: () => void }) {
   return (
     <div className="mx-auto w-full max-w-md space-y-5 pb-6 text-center">
       <CheckCircle2 className="mx-auto size-14 text-success" />
-      <h2 className="text-xl font-semibold">Ready for invoice</h2>
+      <h2 className="text-xl font-semibold">Loading finished</h2>
       <p className="text-sm text-muted-foreground">{c ? `${c.t_ref} · ${c.container_number ?? ""}` : "Loading finished."}</p>
+      <p className="text-xs text-muted-foreground">Export management now reviews the loaded parts and prepares the invoice.</p>
       <Button className="w-full" onClick={onNext}>Next container</Button>
     </div>
   );
