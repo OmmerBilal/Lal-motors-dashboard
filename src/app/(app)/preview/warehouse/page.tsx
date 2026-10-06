@@ -1,25 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { PreviewSubNav } from "@/components/shell/app-shell";
-import { PartsWorkspace } from "@/components/parts/parts-workspace";
-import { ContainersWorkspace } from "@/components/containers/containers-workspace";
-import { useEffectiveUser } from "@/lib/effective-user";
+import { WarehouseApp } from "@/components/warehouse/warehouse-app";
 
-const tabs = [
-  { id: "parts", label: "Quick Part Capture" },
-  { id: "containers", label: "My Loading Jobs" },
-];
-
+/** Owner review of the Warehouse Employee App. The same screen the employee sees: no capture and no loading jobs. */
 export default function PreviewWarehousePage() {
-  const { user } = useEffectiveUser();
-  const [tab, setTab] = useState("parts");
-
-  return (
-    <div>
-      <PreviewSubNav items={tabs} active={tab} onChange={setTab} />
-      {tab === "parts" && <PartsWorkspace user={user} />}
-      {tab === "containers" && <ContainersWorkspace user={user} />}
-    </div>
-  );
+  return <WarehouseApp preview />;
 }

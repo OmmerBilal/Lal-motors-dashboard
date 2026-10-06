@@ -1,7 +1,6 @@
 import {
   Boxes,
   CarFront,
-  Camera,
   ClipboardCheck,
   ClipboardList,
   History,
@@ -10,6 +9,7 @@ import {
   Sparkles,
   Truck,
   Users,
+  Warehouse,
   Wrench,
   type LucideIcon,
 } from "lucide-react";
@@ -38,7 +38,7 @@ export function getPrimaryNav(role: Role): NavItem[] {
           icon: ClipboardCheck,
         },
         { id: "preview-front", label: "Front Desk Manager Portal", href: "/preview/front-desk", icon: ClipboardList },
-        { id: "preview-warehouse", label: "Warehouse Employee App", href: "/preview/warehouse", icon: Camera },
+        { id: "preview-warehouse", label: "Warehouse Employee App", href: "/preview/warehouse", icon: Warehouse },
         { id: "ai-command-center", label: "AI Command Center", href: "/ai-command-center", icon: Sparkles },
         { id: "parts", label: "Parts Inventory", href: "/parts", icon: ClipboardList },
         { id: "operations", label: "Parts Operations", href: "/operations", icon: Boxes },
@@ -102,7 +102,7 @@ export function getPrimaryNav(role: Role): NavItem[] {
       return [{ id: "scrap", label: "My Scrap Loads", href: "/scrap", icon: Truck }];
     case "employee":
     default:
-      return [{ id: "parts", label: "Quick Part Capture", href: "/parts", icon: Camera }];
+      return [{ id: "parts", label: "Warehouse Inventory", href: "/parts", icon: Warehouse }];
   }
 }
 
