@@ -48,9 +48,21 @@ async function sellablePart(n, { price = 50, qty = 1, ready = true } = {}) {
   const v = await rpc(S.auction, "match_or_create_vehicle", { p_vin: vin, p_lot_number: null, p_stock_number: "MS" + run + n, p_auction_source: SRC, p_fields: { year: 2014, make: "Subaru", model: "Forester", purchase_price: 200 } });
   if (v.error) throw new Error("vehicle: " + v.msg);
   vehicles.push(v.data.vehicle_id);
+  // v2: work starts only from an assignment. Fixture: arrival photos, receive, ready and assign as the owner.
+  for (const role of ["arrival_front", "arrival_rear", "arrival_left", "arrival_right"]) {
+    await q(`insert into public.media_assets (owner_type, owner_id, role, variant, bucket, storage_path, mime_type, size_bytes, status) values ('vehicle', $1, $2, 'original', 'operational-media', $3, 'image/jpeg', 1, 'ready')`, [v.data.vehicle_id, role, `vehicle/${v.data.vehicle_id}/prep-${role}-${crypto.randomUUID()}.jpg`]);
+  }
+  const prepRecv = await rpc(S.owner, "receive_vehicle", { p_vehicle_id: v.data.vehicle_id });
+  if (prepRecv.error) throw new Error("prep receive: " + prepRecv.msg);
+  const prepReady = await rpc(S.owner, "mark_vehicle_ready", { p_vehicle_id: v.data.vehicle_id });
+  if (prepReady.error) throw new Error("prep ready: " + prepReady.msg);
+  const dismEmail = creds.find((u) => u.role === "dismantling").email;
+  const dismId = (await q("select id from public.profiles where email = $1", [dismEmail]))[0].id;
+  const prepAssign = await rpc(S.owner, "assign_dismantling_vehicle", { p_vehicle_id: v.data.vehicle_id, p_employee_id: dismId });
+  if (prepAssign.error) throw new Error("prep assign: " + prepAssign.msg);
   const s = await rpc(S.dismantling, "start_dismantling_session", { p_vehicle_id: v.data.vehicle_id });
   sessions.push(s.data.session_id);
-  const b = await rpc(S.dismantling, "begin_dismantled_part", { p_session_id: s.data.session_id, p_client_request_id: crypto.randomUUID() });
+  const b = await rpc(S.dismantling, "begin_dismantled_part", { p_session_id: s.data.session_id, p_client_request_id: crypto.randomUUID(), p_capture_name: "TEST part", p_capture_details: "TEST capture details" });
   const pid = b.data.part_id;
   parts.push(pid);
   const [m] = await q(`insert into public.media_assets (owner_type, owner_id, role, variant, bucket, storage_path, mime_type, status) values ('part', $1, 'capture', 'original', 'operational-media', $2, 'image/jpeg', 'ready') returning id`, [pid, `test/${run}/${n}.jpg`]);
@@ -373,6 +385,8 @@ let convertedSale;
   await db.query("delete from public.parts where id = any($1::uuid[])", [parts]);
   await db.query("delete from public.vehicle_events where vehicle_id = any($1::uuid[])", [vehicles]);
   await db.query("delete from public.dismantling_sessions where id = any($1::uuid[])", [sessions]);
+  await db.query("delete from public.dismantling_assignment_history where vehicle_id = any($1::uuid[])", [vehicles]);
+  await db.query("delete from public.dismantling_assignments where vehicle_id = any($1::uuid[])", [vehicles]);
   await db.query("delete from public.vehicles where id = any($1::uuid[])", [vehicles]);
   await db.query("delete from public.customers where id = any($1::uuid[])", [customers]);
   const left = (await q("select count(*)::int c from public.vehicles where auction_source=$1", [SRC]))[0].c;
