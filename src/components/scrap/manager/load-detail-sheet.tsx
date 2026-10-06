@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { StatusBadge } from "@/components/patterns/status-badge";
 import { EmptyState } from "@/components/patterns/empty-state";
-import { useManagerLoad, useManagerMutations } from "@/lib/query/scrap";
+import { useManagerLoad, useManagerMutations, useOfficeLoadMutations, useScrapDrivers } from "@/lib/query/scrap";
 import type { DiscrepancyKind, LoadDetail } from "@/lib/data/scrap";
 import { PhotoTile, managerStateLabel, paymentStatusLabelText, timeLabel, usd, lbs, usePhotoUrl } from "@/components/scrap/scrap-shared";
 
@@ -23,6 +23,51 @@ const MANUAL_KINDS: { id: Exclude<DiscrepancyKind, "payment_mismatch">; label: s
   { id: "unresolved_amount", label: "Unresolved amount" },
   { id: "other", label: "Other" },
 ];
+
+/**
+ * Change the assigned driver. Offered only while the driver has not started the load (the server enforces the same rule).
+ * The new driver must be an active Scrap Driver; the server checks that too.
+ */
+function AssignDriverForm({ loadId, currentDriverId, currentName }: { loadId: string; currentDriverId: string; currentName: string }) {
+  const drivers = useScrapDrivers(true);
+  const { assignDriver } = useOfficeLoadMutations();
+  const [driverId, setDriverId] = useState<string | null>(null);
+  const list = (drivers.data ?? []).filter((d) => d.id !== currentDriverId);
+  const label = (v: string) => list.find((d) => d.id === v)?.name ?? "Choose a driver";
+
+  async function save() {
+    if (!driverId) return;
+    try {
+      await assignDriver.mutateAsync({ loadId, driverId });
+      toast.success("Driver changed");
+      setDriverId(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "The driver was not changed. Nothing was saved.");
+    }
+  }
+
+  return (
+    <section className="space-y-2 rounded-lg border border-border p-3 text-sm">
+      <p className="font-medium">Assigned driver · {currentName}</p>
+      <p className="text-xs text-muted-foreground">The driver can be changed until the assigned driver starts this load.</p>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Select value={driverId ?? ""} onValueChange={(v) => v && setDriverId(v)} disabled={assignDriver.isPending || list.length === 0}>
+          <SelectTrigger className="h-10 w-full" aria-label="Reassign to driver">
+            <SelectValue placeholder={list.length === 0 ? "No other active driver" : "Reassign to…"}>{label}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {list.map((d) => (
+              <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button className="h-10 sm:w-auto" variant="outline" disabled={!driverId || assignDriver.isPending} onClick={save}>
+          {assignDriver.isPending ? "Saving…" : "Change Driver"}
+        </Button>
+      </div>
+    </section>
+  );
+}
 
 export function LoadDetailSheet({ loadId, open, onOpenChange }: { loadId: string | null; open: boolean; onOpenChange: (open: boolean) => void }) {
   return (
@@ -63,7 +108,9 @@ function LoadDetailContent({ data }: { data: LoadDetail }) {
           <dt className="text-muted-foreground">Load date</dt>
           <dd>{load.load_date}</dd>
           <dt className="text-muted-foreground">Created</dt>
-          <dd>{timeLabel(load.created_at)}</dd>
+          <dd>{timeLabel(load.created_at)}{load.created_by_name ? ` by ${load.created_by_name}` : ""}</dd>
+          <dt className="text-muted-foreground">Driver assigned</dt>
+          <dd>{load.assigned_at ? `${load.driver_name} · ${timeLabel(load.assigned_at)}` : load.driver_name}</dd>
           <dt className="text-muted-foreground">Delivered</dt>
           <dd>{timeLabel(load.delivered_at)}</dd>
           <dt className="text-muted-foreground">Completed</dt>
@@ -90,6 +137,10 @@ function LoadDetailContent({ data }: { data: LoadDetail }) {
           <PhotoTile url={ticketPhoto.data} size="h-40 w-full" label="Ticket photo" />
         </div>
       </section>
+
+      {load.status === "new" && !load.delivered_at && !load.load_photo_asset_id && (
+        <AssignDriverForm loadId={load.id} currentDriverId={load.driver_id} currentName={load.driver_name} />
+      )}
 
       {payment && (
         <section className="rounded-lg border border-border p-3 text-sm">

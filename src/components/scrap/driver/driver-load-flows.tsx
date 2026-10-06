@@ -9,7 +9,18 @@ import { EmptyState } from "@/components/patterns/empty-state";
 import { StatusBadge } from "@/components/patterns/status-badge";
 import { useDriverLoad, useDriverLoads, useDriverMutations, useScrapThumbnails } from "@/lib/query/scrap";
 import type { DriverLoad } from "@/lib/data/scrap";
-import { PhotoTile, driverStateLabel, timeLabel, usePhotoUrl, dateLabel } from "@/components/scrap/scrap-shared";
+import { PhotoTile, timeLabel, usePhotoUrl, dateLabel } from "@/components/scrap/scrap-shared";
+
+/** Short load identifier shown to the driver and the office (first 8 characters of the load id, upper case). */
+export const loadRef = (id: string) => id.slice(0, 8).toUpperCase();
+
+/** Driver-facing status for an assigned load: Open, In Progress, Awaiting Ticket, Ready to Complete, Completed. */
+export function assignedStatusLabel(l: Pick<DriverLoad, "driver_state" | "has_load_photo">): string {
+  if (l.driver_state === "complete") return "Completed";
+  if (l.driver_state === "ticket_attached") return "Ready to Complete";
+  if (l.driver_state === "awaiting_ticket") return "Awaiting Ticket";
+  return l.has_load_photo ? "In Progress" : "Open";
+}
 
 /** Shared top bar for a driver screen. */
 export function DriverBack({ onBack, label = "Back" }: { onBack: () => void; label?: string }) {
@@ -116,10 +127,12 @@ export function LoadDetailFlow({ loadId, onBack, onNextLoad }: { loadId: string;
       <DriverBack onBack={onBack} />
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold">Load · {timeLabel(load.created_at)}</h2>
-          <p className="text-xs text-muted-foreground">{dateLabel(load.load_date)}</p>
+          <h2 className="text-lg font-semibold">Load {loadRef(load.id)}</h2>
+          <p className="text-xs text-muted-foreground">
+            {dateLabel(load.load_date)} · Assigned {timeLabel(load.assigned_at ?? load.created_at)}
+          </p>
         </div>
-        <StatusBadge tone={stateTone}>{driverStateLabel[load.driver_state]}</StatusBadge>
+        <StatusBadge tone={stateTone}>{assignedStatusLabel(load)}</StatusBadge>
       </div>
 
       <section className="space-y-2 rounded-lg border border-border bg-card p-3">
@@ -128,6 +141,20 @@ export function LoadDetailFlow({ loadId, onBack, onNextLoad }: { loadId: string;
           <PhotoTile url={loadPhoto.data} size="size-20" label="Load photo" />
           <p className="text-sm">{load.has_load_photo ? "Saved" : "Not taken yet"}</p>
         </div>
+        {!load.has_load_photo && load.driver_state === "saved" && (
+          <MediaCapture
+            label="Load photo"
+            ownerType="scrap_load"
+            ownerId={load.id}
+            role="load_photo"
+            onUploaded={(mediaId) =>
+              attachPhoto.mutate(
+                { loadId: load.id, kind: "load", mediaId },
+                { onSuccess: () => toast.success("Load photo saved to this load."), onError: (e) => toast.error(e.message) }
+              )
+            }
+          />
+        )}
         {canDeliver && (
           <Button className="w-full" onClick={() => markDelivered.mutate(load.id, { onSuccess: () => toast.success("Load marked delivered. Add the ticket photo next."), onError: (e) => toast.error(e.message) })}>
             <Truck className="size-4" /> Mark Delivered
@@ -205,7 +232,7 @@ export function MyLoadsFlow({ onOpen, onBack }: { onOpen: (id: string) => void; 
             <PhotoTile url={l.load_photo_asset_id ? thumbs.data?.[l.load_photo_asset_id] : null} label="Load photo" />
             <span className="min-w-0 flex-1">
               <span className="block text-sm font-medium">{timeLabel(l.created_at)} · {dateLabel(l.load_date)}</span>
-              <span className="block text-xs text-muted-foreground">{driverStateLabel[l.driver_state]}</span>
+              <span className="block text-xs text-muted-foreground">{assignedStatusLabel(l)}</span>
             </span>
           </button>
         ))}

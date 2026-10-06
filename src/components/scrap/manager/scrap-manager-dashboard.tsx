@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, Clock, DollarSign, Recycle, Truck } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock, DollarSign, Plus, Recycle, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -13,6 +13,7 @@ import { useManagerLoads, useManagerSummary } from "@/lib/query/scrap";
 import type { LoadBucket, ManagerLoad } from "@/lib/data/scrap";
 import { DriverCard } from "@/components/scrap/manager/driver-card";
 import { LoadDetailSheet } from "@/components/scrap/manager/load-detail-sheet";
+import { NewScrapLoadDialog } from "@/components/scrap/manager/new-scrap-load-dialog";
 import { PaymentsPanel } from "@/components/scrap/manager/payment-panel";
 import { TireShopPanel } from "@/components/scrap/manager/tire-shop-panel";
 import { DailyClosePanel } from "@/components/scrap/manager/daily-close-panel";
@@ -50,6 +51,9 @@ export function ScrapManagerDashboard({ user, onOpenUsers }: { user: User; onOpe
   const [bucket, setBucket] = useState<LoadBucket>("all");
   const [driverId, setDriverId] = useState<string | null>(null);
   const [selectedLoadId, setSelectedLoadId] = useState<string | null>(null);
+  const [newLoadOpen, setNewLoadOpen] = useState(false);
+  // Creating and assigning loads is office authority (server-checked too). Auction and others do not see the button.
+  const canCreateLoad = user.role === "owner" || user.role === "engineer_admin" || user.role === "manager";
 
   const range = useMemo(() => {
     if (period === "today") return { from: yardDay(), to: yardDay() };
@@ -80,6 +84,11 @@ export function ScrapManagerDashboard({ user, onOpenUsers }: { user: User; onOpe
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {canCreateLoad && (
+            <Button className="h-9" onClick={() => setNewLoadOpen(true)}>
+              <Plus className="size-4" /> New Scrap Load
+            </Button>
+          )}
           <Select value={period} onValueChange={(v) => setPeriod((v as Period) ?? "today")}>
             <SelectTrigger className="w-36">
               <SelectValue>{(value: Period) => ({ today: "Today", week: "Last 7 days", month: "Last 30 days", custom: "Custom" })[value] ?? "Today"}</SelectValue>
@@ -246,6 +255,7 @@ export function ScrapManagerDashboard({ user, onOpenUsers }: { user: User; onOpe
       {section === "reports" && <ReportsPanel drivers={drivers} />}
 
       <LoadDetailSheet loadId={selectedLoadId} open={!!selectedLoadId} onOpenChange={(o) => !o && setSelectedLoadId(null)} />
+      {canCreateLoad && <NewScrapLoadDialog open={newLoadOpen} onOpenChange={setNewLoadOpen} />}
     </div>
   );
 }

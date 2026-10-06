@@ -27,10 +27,13 @@ export type DriverLoad = {
   has_ticket_photo: boolean;
   load_photo_asset_id: string | null;
   ticket_photo_asset_id: string | null;
+  assigned_at: string | null;
 };
 
 export type ManagerLoad = DriverLoad & {
   driver_name: string;
+  created_by: string | null;
+  created_by_name: string | null;
   state: ManagerLoadState;
   weight: number | null;
   rate: number | null;
@@ -249,6 +252,14 @@ export const managerSetAmountOverride = (p: { loadId: string; amount: number; re
 export const managerCorrectFinancials = (p: { loadId: string; weight: number | null; rate: number | null; amount: number | null; reason: string }) =>
   rpc<ManagerLoad>("scrap_manager_correct_financials", { p_load_id: p.loadId, p_weight: p.weight, p_rate: p.rate, p_amount_override: p.amount, p_reason: p.reason });
 export const managerApproveLoad = (loadId: string) => rpc<ManagerLoad>("scrap_manager_approve_load", { p_load_id: loadId });
+
+// ------------------------------------------------------------------ office: create and assign
+/** Active Scrap Drivers only (names and ids). The server re-checks the role and status on create and on assign. */
+export const managerListDrivers = () => rpc<{ id: string; name: string }[]>("scrap_manager_list_drivers", {});
+export const managerCreateLoad = (driverId: string, requestId: string) =>
+  rpc<ManagerLoad>("scrap_manager_create_load", { p_driver_id: driverId, p_client_request_id: requestId });
+export const managerAssignDriver = (loadId: string, driverId: string) =>
+  rpc<ManagerLoad>("scrap_manager_assign_driver", { p_load_id: loadId, p_driver_id: driverId });
 export const managerOpenDiscrepancy = (p: { kind: Exclude<DiscrepancyKind, "payment_mismatch">; loadId?: string | null; paymentId?: string | null; note: string }) =>
   rpc<Discrepancy>("scrap_manager_open_discrepancy", { p_kind: p.kind, p_load_id: p.loadId ?? null, p_payment_id: p.paymentId ?? null, p_note: p.note });
 export const managerResolveDiscrepancy = (id: string, note: string) => rpc<Discrepancy>("scrap_manager_resolve_discrepancy", { p_discrepancy_id: id, p_resolution_note: note });

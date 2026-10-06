@@ -12,9 +12,11 @@ import {
   driverMarkDelivered,
   fetchScrapThumbnailUrls,
   managerApproveLoad,
+  managerAssignDriver,
   managerAttachPaymentProof,
   managerCorrectFinancials,
   managerCorrectPayment,
+  managerCreateLoad,
   managerCreateRim,
   managerDailyClose,
   managerDailyClosePreview,
@@ -22,6 +24,7 @@ import {
   managerGetRim,
   managerListChecks,
   managerListDiscrepancies,
+  managerListDrivers,
   managerListLoads,
   managerListPayments,
   managerListRim,
@@ -227,6 +230,27 @@ export function useManagerMutations() {
     }),
     dailyClose: useMutation({
       mutationFn: (p: { date: string; overrideReason: string | null }) => managerDailyClose(p.date, p.overrideReason),
+      onSuccess: done,
+    }),
+  };
+}
+
+// ------------------------------------------------------------------ office: create and assign
+/** Active Scrap Drivers for the assignment picker. Office roles only; a driver never calls this. */
+export function useScrapDrivers(enabled: boolean) {
+  return useQuery({ queryKey: ["scrap", "manager", "drivers"] as const, queryFn: managerListDrivers, enabled, staleTime: 60_000 });
+}
+
+export function useOfficeLoadMutations() {
+  const qc = useQueryClient();
+  const done = () => invalidateScrap(qc);
+  return {
+    createLoad: useMutation({
+      mutationFn: (p: { driverId: string; requestId: string }) => managerCreateLoad(p.driverId, p.requestId),
+      onSuccess: done,
+    }),
+    assignDriver: useMutation({
+      mutationFn: (p: { loadId: string; driverId: string }) => managerAssignDriver(p.loadId, p.driverId),
       onSuccess: done,
     }),
   };

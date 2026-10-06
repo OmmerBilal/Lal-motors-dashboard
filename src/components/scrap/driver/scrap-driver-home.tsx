@@ -8,8 +8,8 @@ import { useSession } from "@/lib/session";
 import type { User } from "@/lib/types";
 import type { DriverLoad } from "@/lib/data/scrap";
 import { useDriverLoads } from "@/lib/query/scrap";
-import { CheckFlow, LoadDetailFlow, MyLoadsFlow, NewLoadFlow } from "@/components/scrap/driver/driver-load-flows";
-import { driverStateLabel, yardDay } from "@/components/scrap/scrap-shared";
+import { CheckFlow, LoadDetailFlow, MyLoadsFlow, NewLoadFlow, assignedStatusLabel, loadRef } from "@/components/scrap/driver/driver-load-flows";
+import { timeLabel, yardDay } from "@/components/scrap/scrap-shared";
 
 type DriverView = { name: "home" } | { name: "new" } | { name: "load"; id: string } | { name: "loads" } | { name: "check" };
 
@@ -64,12 +64,30 @@ export function ScrapDriverHome({ user }: { user: User }) {
       {active && (
         <div className="rounded-xl border border-primary/30 bg-primary/5 p-4">
           <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Active load</p>
-          <p className="mt-1 text-sm font-medium">{driverStateLabel[active.driver_state]}</p>
+          <p className="mt-1 text-sm font-medium">{assignedStatusLabel(active)}</p>
           <Button className="mt-3 w-full" onClick={() => setView({ name: "load", id: active.id })}>
             Continue Active Load
           </Button>
         </div>
       )}
+
+      <section className="space-y-2">
+        <h3 className="text-sm font-semibold">My Assigned Scrap Loads</h3>
+        {!loads.isPending && rows.length === 0 && <p className="rounded-lg border border-dashed border-border p-4 text-center text-sm text-muted-foreground">No loads assigned to you yet.</p>}
+        {rows.slice(0, 10).map((l) => (
+          <button
+            key={l.id}
+            onClick={() => setView({ name: "load", id: l.id })}
+            className="flex w-full items-center justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2.5 text-left hover:bg-accent/30"
+          >
+            <span className="min-w-0">
+              <span className="block text-sm font-medium">Load {loadRef(l.id)} · {l.load_date}</span>
+              <span className="block text-xs text-muted-foreground">Assigned {timeLabel(l.assigned_at ?? l.created_at)}</span>
+            </span>
+            <span className="shrink-0 text-xs font-semibold text-muted-foreground">{assignedStatusLabel(l)}</span>
+          </button>
+        ))}
+      </section>
 
       <div className="space-y-3">
         <ActionCard tone="success" icon={Camera} title="New Load" subtitle="Take a photo when loaded" onClick={() => setView({ name: "new" })} />
