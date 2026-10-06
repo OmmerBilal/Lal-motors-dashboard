@@ -14,6 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
+import { ManualPartDialog } from "@/components/parts/manual-part-dialog";
 import { EmptyState } from "@/components/patterns/empty-state";
 import { StatusBadge } from "@/components/patterns/status-badge";
 import { usePartsData } from "@/components/parts/parts-data-context";
@@ -44,6 +45,7 @@ function isSold(p: PartRecord): boolean {
 }
 
 export function PartsInventoryView({ manager, initialPartId }: { manager: boolean; initialPartId?: string | null }) {
+  const [addPartOpen, setAddPartOpen] = useState(false);
   const { parts, setStage } = usePartsData();
   const { user } = useSession();
   const [filter, setFilter] = useState<CardFilter>("all");
@@ -184,6 +186,11 @@ export function PartsInventoryView({ manager, initialPartId }: { manager: boolea
           {filter !== "all" ? ` · ${partStageLabels[filter as PartStage] ?? "Sold"}` : ""}
         </p>
         <div className="flex items-center gap-2">
+          {manager && (
+            <Button size="sm" onClick={() => setAddPartOpen(true)}>
+              + Add Inventory Part
+            </Button>
+          )}
           {selected.size > 0 && filter === "needs_processing" && (
             <Button size="sm" variant="outline" onClick={startProcessingSelected}>
               Start Processing ({selected.size})
@@ -261,6 +268,7 @@ export function PartsInventoryView({ manager, initialPartId }: { manager: boolea
         </div>
       </div>
       <LoadMorePartsButton />
+      <ManualPartDialog open={addPartOpen} onOpenChange={setAddPartOpen} />
     </div>
   );
 }

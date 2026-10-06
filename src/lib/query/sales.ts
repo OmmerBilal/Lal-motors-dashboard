@@ -1,6 +1,8 @@
 "use client";
 
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { createSaleWithPayment, getCustomerOutstanding, receiveCustomerPayment, type CheckoutResult } from "@/lib/data/sales-checkout";
+import { customerKeys } from "@/lib/query/customers";
 import {
   createSale,
   fetchPosThumbnailUrls,
@@ -53,11 +55,49 @@ export function useSaleDetail(id: string | null) {
   });
 }
 
+/** The desk searches only after two characters. Nothing is requested for an empty or one-character search. */
 export function useSellableParts(search: string) {
+  const term = search.trim();
   return useQuery({
-    queryKey: partKeys.sellable(search),
-    queryFn: () => searchSellableParts(search),
+    queryKey: partKeys.sellable(term),
+    queryFn: () => searchSellableParts(term),
+    enabled: term.length >= 2,
     placeholderData: keepPreviousData,
+  });
+}
+
+/** Sale and optional payment in one step. Sale lists, customer history and the sellable list refresh. */
+export function useCheckoutSale() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (args: Parameters<typeof createSaleWithPayment>[0]): Promise<CheckoutResult> => createSaleWithPayment(args),
+    onSuccess: (_data, args) => {
+      queryClient.invalidateQueries({ queryKey: salesKeys.all });
+      queryClient.invalidateQueries({ queryKey: ["parts", "sellable"] });
+      queryClient.invalidateQueries({ queryKey: customerKeys.history(args.customerId) });
+      queryClient.invalidateQueries({ queryKey: ["customers", "outstanding", args.customerId] });
+    },
+  });
+}
+
+export function useCustomerOutstanding(customerId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["customers", "outstanding", customerId ?? ""],
+    queryFn: () => getCustomerOutstanding(customerId as string),
+    enabled: !!customerId,
+  });
+}
+
+/** A receipt changes that customer's outstanding balance, history and sales. Nothing else. */
+export function useReceiveCustomerPayment(customerId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (args: Parameters<typeof receiveCustomerPayment>[0]) => receiveCustomerPayment(args),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customers", "outstanding", customerId] });
+      queryClient.invalidateQueries({ queryKey: customerKeys.history(customerId) });
+      queryClient.invalidateQueries({ queryKey: salesKeys.all });
+    },
   });
 }
 

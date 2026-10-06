@@ -23,13 +23,25 @@ const AMOUNT_PATTERN = /^\d{1,8}(\.\d{1,2})?$/;
 /** Lightweight list. Allocations and history load only on the detail screen. */
 export function PaymentsList({ onOpen, manager }: { onOpen: (id: string) => void; manager: boolean }) {
   const [q, setQ] = useState("");
-  const [status, setStatus] = useState<PaymentStatus | null>(null);
+  // Front desk sees posted payments by default. Pending items are shown as a banner only when something needs attention.
+  const [status, setStatus] = useState<PaymentStatus | null>("posted");
   const [createOpen, setCreateOpen] = useState(false);
   const list = usePaymentList(q.trim(), status);
   const rows = list.data?.pages.flatMap((p) => p.rows) ?? [];
+  const pendingCheck = usePaymentList("", "pending");
+  const pendingCount = pendingCheck.data?.pages.flatMap((p) => p.rows).length ?? 0;
 
   return (
     <div className="space-y-3">
+      {pendingCount > 0 && status !== "pending" && (
+        <button
+          onClick={() => setStatus("pending")}
+          className="flex w-full items-center justify-between rounded-lg border border-warning/40 bg-warning/10 px-4 py-2.5 text-left text-sm"
+        >
+          <span><b>{pendingCount}</b> pending payment{pendingCount === 1 ? "" : "s"} need attention</span>
+          <span className="text-xs font-semibold text-primary">Review</span>
+        </button>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         <Input className="h-9 max-w-xs text-sm" placeholder="Customer name or reference" value={q} onChange={(e) => setQ(e.target.value)} />
         {([null, "pending", "posted", "void"] as const).map((s) => (

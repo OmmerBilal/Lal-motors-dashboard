@@ -1,3 +1,6 @@
+"use client";
+
+import { createPortal } from "react-dom";
 import { usd, type Customer, type PaymentMethod, type SaleItem } from "@/lib/mock/sales";
 import { computePosTotals } from "@/lib/mock/pos";
 
@@ -29,6 +32,20 @@ const methodLabels: Record<PaymentMethod, string> = {
   OTHER: "Other",
 };
 
+/**
+ * A printed document is rendered straight under <body>. The print stylesheet then hides the application root, so the
+ * sidebar and page layout never take up printed pages. On screen the document is hidden.
+ */
+function PrintRoot({ children }: { children: React.ReactNode }) {
+  if (typeof document === "undefined") return null;
+  return createPortal(
+    <div id="print-root" className="print-area">
+      {children}
+    </div>,
+    document.body
+  );
+}
+
 export function ReceiptPrint({ data }: { data: PrintSaleData }) {
   const totals = computePosTotals({
     items: data.items,
@@ -41,7 +58,7 @@ export function ReceiptPrint({ data }: { data: PrintSaleData }) {
   const customerName = data.customer ? data.customer.companyName || `${data.customer.firstName} ${data.customer.lastName}`.trim() : "";
 
   return (
-    <div className="print-area">
+    <PrintRoot>
       <div className="mx-auto max-w-[300px] p-4 font-mono text-[11px] leading-snug text-black">
         <div className="text-center">
           <b className="text-sm">{data.businessName}</b>
@@ -111,7 +128,7 @@ export function ReceiptPrint({ data }: { data: PrintSaleData }) {
         </p>
         <p className="mt-2 text-center text-[10px]">Thank you for your business!</p>
       </div>
-    </div>
+    </PrintRoot>
   );
 }
 
@@ -126,7 +143,7 @@ export function InvoicePrint({ data }: { data: PrintSaleData }) {
   });
 
   return (
-    <div className="print-area">
+    <PrintRoot>
       <div className="mx-auto max-w-[800px] p-8 text-black">
         <div className="flex items-start justify-between border-b-2 border-black pb-4">
           <div>
@@ -246,6 +263,6 @@ export function InvoicePrint({ data }: { data: PrintSaleData }) {
           return of the old part. Thank you for your business!
         </p>
       </div>
-    </div>
+    </PrintRoot>
   );
 }

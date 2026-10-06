@@ -9,7 +9,7 @@ import { CustomerStep } from "@/components/sales/pos/customer-step";
 import { FindPartsStep } from "@/components/sales/pos/find-parts-step";
 import { ManualItemPanel } from "@/components/sales/pos/manual-item-panel";
 import { CurrentSaleStep } from "@/components/sales/pos/current-sale-step";
-import { PaymentStep, type CompletedSale } from "@/components/sales/pos/payment-step";
+import { PaymentStep, type CompletedSale, type PaymentDraft } from "@/components/sales/pos/payment-step";
 import { LowerInfoArea } from "@/components/sales/pos/lower-info-area";
 import { AdvancedActionsBar } from "@/components/sales/pos/advanced-actions-bar";
 import { ReturnsPanel } from "@/components/sales/pos/returns-panel";
@@ -21,7 +21,8 @@ import type { User } from "@/lib/types";
 import { cartToLines, getSaleDetail, listSalePage, salesErrorMessage, type SellablePart, type SaleMode } from "@/lib/data/sales";
 import { getQuoteDetail, quoteItemsToCart } from "@/lib/data/quotes";
 import { useCustomerRecord } from "@/lib/query/customers";
-import { useCreateSale, useSalesSettings } from "@/lib/query/sales";
+import { useCheckoutSale, useSalesSettings } from "@/lib/query/sales";
+import { CHECKOUT_METHODS } from "@/lib/data/sales-checkout";
 import { useCreateQuote, useQuoteList } from "@/lib/query/quotes";
 
 /** Open quotes the desk can load. Lines are copied into the sale; the quote itself is not changed. */
@@ -86,11 +87,14 @@ export function PosDeskView({ user, initialCustomerId }: { user: User; initialCu
   const [printMode, setPrintMode] = useState<"receipt" | "invoice" | null>(null);
   const [overridePrintData, setOverridePrintData] = useState<PrintSaleData | null>(null);
 
-  const createSale = useCreateSale();
+  const checkout = useCheckoutSale();
   const createQuote = useCreateQuote();
+  const emptyPayment: PaymentDraft = { amountPaid: "", method: "CASH", reference: "" };
+  const [payment, setPayment] = useState<PaymentDraft>(emptyPayment);
+  const [paymentRequestId, setPaymentRequestId] = useState(() => crypto.randomUUID());
 
   const totals = computePosTotals({ items, discount, coreCharge: 0, taxRate, depositApplied: 0, amountPaid: 0 });
-  const canComplete = items.length > 0 && !!selectedCustomer && !completed && !createSale.isPending;
+  const canComplete = items.length > 0 && !!selectedCustomer && !completed && !checkout.isPending;
 
   function addPart(part: SellablePart) {
     if (part.out_of_stock || part.available <= 0) {
@@ -135,7 +139,9 @@ export function PosDeskView({ user, initialCustomerId }: { user: User; initialCu
     setMode("draft");
     setCompleted(null);
     setCompletedPrint(null);
+    setPayment(emptyPayment);
     setSaleRequestId(crypto.randomUUID());
+    setPaymentRequestId(crypto.randomUUID());
   }
 
   function clearSale() {
@@ -174,17 +180,35 @@ export function PosDeskView({ user, initialCustomerId }: { user: User; initialCu
   async function completeSale() {
     if (!selectedCustomer || !items.length) return;
     const lines = cartToLines(items);
+    const paidNow = Number(payment.amountPaid || 0);
     try {
-      const r = await createSale.mutateAsync({
+      // One call: the sale in the chosen mode, and the payment if any, allocated and posted to this sale.
+      const r = await checkout.mutateAsync({
         customerId: selectedCustomer.id,
         lines,
         mode,
         discount,
         notes,
         clientRequestId: saleRequestId,
+        amountPaid: paidNow,
+        method: paidNow > 0 ? payment.method : null,
+        reference: payment.reference,
+        paymentRequestId,
       });
-      // Shown only after the server confirms the sale.
-      setCompleted({ saleId: r.sale_id, saleNumber: r.sale_number, total: r.total, fulfillmentStatus: r.fulfillment_status });
+      const methodLabel = CHECKOUT_METHODS.find((m) => m.value === payment.method)?.label ?? null;
+      const customerName = selectedCustomer.companyName || `${selectedCustomer.firstName} ${selectedCustomer.lastName}`.trim();
+      // Shown only after the server confirms the sale and its payment.
+      setCompleted({
+        saleId: r.sale_id,
+        saleNumber: r.sale_number,
+        customerName,
+        total: r.total,
+        paidNow: r.amount_paid,
+        balanceDue: r.balance_due,
+        paymentStatus: r.payment_status,
+        methodLabel: Number(r.amount_paid) > 0 ? methodLabel : null,
+        fulfillmentStatus: r.fulfillment_status,
+      });
       setCompletedPrint({
         saleNumber: r.sale_number,
         invoiceNumber: r.sale_number,
@@ -197,12 +221,14 @@ export function PosDeskView({ user, initialCustomerId }: { user: User; initialCu
         depositApplied: 0,
         taxRate,
         notes,
-        amountPaid: 0,
+        method: Number(r.amount_paid) > 0 ? payment.method : undefined,
+        amountPaid: Number(r.amount_paid),
         businessName: settings?.businessName ?? "",
         taxLabel: settings?.taxLabel ?? "",
       });
       setSaleRequestId(crypto.randomUUID());
-      toast.success(`Sale ${r.sale_number} saved`);
+      setPaymentRequestId(crypto.randomUUID());
+      toast.success(`Sale ${r.sale_number} complete`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : salesErrorMessage(null));
     }
@@ -308,8 +334,11 @@ export function PosDeskView({ user, initialCustomerId }: { user: User; initialCu
         mode={mode}
         onSelectMode={setMode}
         canComplete={canComplete}
-        completing={createSale.isPending}
+        completing={checkout.isPending}
         completed={completed}
+        grandTotal={totals.grandTotal}
+        payment={payment}
+        onChangePayment={setPayment}
         onComplete={completeSale}
         onNewSale={resetTransaction}
         onPrintReceipt={() => printDocument("receipt")}

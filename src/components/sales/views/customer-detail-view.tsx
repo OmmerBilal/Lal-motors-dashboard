@@ -1,7 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { useCustomerRecord, useCustomerHistory } from "@/lib/query/customers";
-import { useCustomerQuotes } from "@/lib/query/sales";
+import { useCustomerOutstanding, useCustomerQuotes } from "@/lib/query/sales";
+import { ReceivePaymentDialog } from "@/components/sales/views/receive-payment-dialog";
+import { usd } from "@/lib/mock/sales";
 import { ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { HistoryPanel } from "@/components/sales/shared";
@@ -24,6 +27,9 @@ export function CustomerDetailView({
   const recordQuery = useCustomerRecord(customerId);
   const historyQuery = useCustomerHistory(customerId);
   const quotesQuery = useCustomerQuotes(customerId);
+  const outstandingQuery = useCustomerOutstanding(customerId);
+  const outstanding = outstandingQuery.data;
+  const [receiveOpen, setReceiveOpen] = useState(false);
   const customer = recordQuery.data ?? null;
   if (!customer) return null;
 
@@ -73,6 +79,43 @@ export function CustomerDetailView({
         </div>
         <p className="mt-4 text-xs text-muted-foreground">Documents: Not Connected. A resale certificate cannot be attached yet.</p>
       </div>
+
+      <div className="rounded-lg border border-border bg-card">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-4">
+          <div>
+            <small className="block text-xs text-muted-foreground">Total Outstanding Balance</small>
+            <b className="text-xl tabular-nums">{usd(outstanding?.total_outstanding ?? 0)}</b>
+          </div>
+          <Button size="sm" disabled={!outstanding || Number(outstanding.total_outstanding) <= 0} onClick={() => setReceiveOpen(true)}>
+            Receive Payment
+          </Button>
+        </div>
+        {outstandingQuery.isPending && <p className="p-4 text-sm text-muted-foreground">Loading balance…</p>}
+        {outstanding && outstanding.sales.length === 0 && <p className="p-4 text-sm text-muted-foreground">No outstanding sales.</p>}
+        {outstanding && outstanding.sales.length > 0 && (
+          <div className="divide-y divide-border">
+            {outstanding.sales.map((o) => (
+              <div key={o.sale_id} className="grid grid-cols-2 gap-x-3 px-4 py-2.5 text-sm sm:grid-cols-5">
+                <b>Sale {o.sale_number}</b>
+                <span className="text-muted-foreground">{new Date(o.sale_date).toLocaleDateString()}</span>
+                <span className="tabular-nums">Total {usd(o.total)}</span>
+                <span className="tabular-nums">Paid {usd(o.amount_paid)}</span>
+                <span className="font-semibold tabular-nums text-warning-foreground">Balance {usd(o.balance_due)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      {outstanding && (
+        <ReceivePaymentDialog
+          open={receiveOpen}
+          onOpenChange={setReceiveOpen}
+          customerId={customerId}
+          customerName={customer.companyName || `${customer.firstName} ${customer.lastName}`.trim()}
+          outstanding={Number(outstanding.total_outstanding)}
+          sales={outstanding.sales}
+        />
+      )}
 
       <HistoryPanel
         title="Quotes"

@@ -203,6 +203,22 @@
   @page {
     margin: 12mm;
   }
+  /* A printed sales document lives under <body> in #print-root. Only then is the application root removed from print
+     layout, so its height cannot create blank trailing pages. Other print users keep the rules below. */
+  body:has(> #print-root) > *:not(#print-root) {
+    display: none !important;
+  }
+  body:has(> #print-root) {
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+  #print-root {
+    display: block !important;
+    position: static !important;
+    inset: auto !important;
+    width: auto !important;
+  }
   body * {
     visibility: hidden;
   }
