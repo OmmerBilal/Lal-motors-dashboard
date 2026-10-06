@@ -11,7 +11,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { MediaCapture, usePersistedPhoto } from "@/components/media/media-capture";
+import { MediaCapture } from "@/components/media/media-capture";
+import { PhotoStrip } from "@/components/media/signed-photo";
 import { useEffectiveUser } from "@/lib/effective-user";
 import type { User } from "@/lib/types";
 import { ISSUE_TYPES, findMyDismantlingAssignment, type EmployeeAssignmentRow, type EmployeeWorkspace, type WorkspacePart } from "@/lib/data/dismantling-v2";
@@ -353,7 +354,7 @@ function CapturedParts({ ws, readOnly, m }: { ws: EmployeeWorkspace; readOnly: b
       </ul>
       {editing && (
         <Dialog open onOpenChange={(o) => !o && setEditing(null)}>
-          <DialogContent>
+          <DialogContent className="sm:max-w-md">
             <DialogHeader><DialogTitle>Correct part capture</DialogTitle></DialogHeader>
             <div className="space-y-3">
               <Input className="h-12 text-base" value={editName} onChange={(e) => setEditName(e.target.value)} maxLength={NAME_MAX} aria-label="Part Name" />
@@ -371,18 +372,10 @@ function CapturedParts({ ws, readOnly, m }: { ws: EmployeeWorkspace; readOnly: b
 }
 
 function CapturedPartCard({ part, readOnly, onEdit }: { part: WorkspacePart; readOnly: boolean; onEdit: () => void }) {
-  const photo = usePersistedPhoto(part.photo_asset_ids[0] ?? null);
   const isSaved = !!part.capture_saved_at;
   return (
     <li className="flex min-w-0 gap-3 rounded-xl border border-border bg-card p-3">
-      <div className="size-20 shrink-0 overflow-hidden rounded-lg bg-muted">
-        {photo.data ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={photo.data} alt={`${part.capture_name} photo`} className="size-full object-cover" />
-        ) : (
-          <div className="flex size-full items-center justify-center text-[10px] text-muted-foreground">{part.photo_asset_ids.length ? "Loading" : "No photo"}</div>
-        )}
-      </div>
+      <PhotoStrip mediaIds={part.photo_asset_ids} label={part.capture_name} thumbClassName="size-20" />
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 flex-wrap items-start justify-between gap-x-2 gap-y-1">
           <p className="min-w-0 font-semibold leading-tight break-words">{part.capture_name}</p>
@@ -415,7 +408,7 @@ function IssueSection({ ws, m }: { ws: EmployeeWorkspace; m: ReturnType<typeof u
       {ws.issues.length > 0 && <p className="mt-2 text-xs text-warning-foreground">{ws.issues.length} issue(s) reported on this vehicle.</p>}
       {open && (
         <Dialog open onOpenChange={(o) => !o && setOpen(false)}>
-          <DialogContent>
+          <DialogContent className="sm:max-w-md">
             <DialogHeader><DialogTitle>Report an issue (optional)</DialogTitle></DialogHeader>
             <div className="space-y-3">
               <div className="space-y-1.5">

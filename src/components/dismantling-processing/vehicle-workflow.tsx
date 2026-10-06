@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "cn";
 import type { User } from "@/lib/types";
-import { usePersistedPhoto } from "@/components/media/media-capture";
+import { PhotoStrip } from "@/components/media/signed-photo";
 import { AnalyzePartDialog } from "@/components/dismantling-processing/analyze-part-dialog";
 import * as processing from "@/lib/data/processing";
 import type { AdminVehicleRow, DismantlingTab, WorkloadRow } from "@/lib/data/dismantling-v2";
@@ -171,7 +171,7 @@ function ActionDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
         <p className="text-sm text-muted-foreground break-words">{v.year} {v.make} {v.model} · VIN {v.vin ?? "—"} · Lot {v.lot_number ?? "—"} · Stock {v.stock_number ?? "—"}</p>
 
@@ -315,7 +315,7 @@ export function VehicleRecordPanel({ user, vehicleId, onBack }: { user: User; ve
             <ol className="grid gap-3 md:grid-cols-2">
               {parts.map((p, idx) => (
                 <li key={p.id} className="flex min-w-0 gap-3 rounded-xl border border-border bg-card p-3">
-                  <PartPhoto assetId={p.photo_asset_ids[0] ?? null} label={p.capture_name} />
+                  <PhotoStrip mediaIds={p.photo_asset_ids} label={p.capture_name} thumbClassName="size-24" />
                   <div className="min-w-0 flex-1 space-y-1">
                     <p className="text-xs text-muted-foreground">Part {idx + 1} · Captured {dayTime(p.captured_at)}{p.captured_by_name ? ` by ${p.captured_by_name}` : ""}</p>
                     <p className="font-semibold leading-tight break-words">{p.capture_name}</p>
@@ -344,7 +344,7 @@ export function VehicleRecordPanel({ user, vehicleId, onBack }: { user: User; ve
 
       {editFor && (
         <Dialog open onOpenChange={(o) => !o && setEditFor(null)}>
-          <DialogContent>
+          <DialogContent className="sm:max-w-md">
             <DialogHeader><DialogTitle>Edit &amp; approve</DialogTitle></DialogHeader>
             <p className="text-xs text-muted-foreground">The employee’s capture text (“{editFor.captureName}”) stays in history. These fields are the final inventory details, set by management.</p>
             <div className="space-y-2">
@@ -370,7 +370,7 @@ export function VehicleRecordPanel({ user, vehicleId, onBack }: { user: User; ve
 
       {duplicateOf && (
         <Dialog open onOpenChange={(o) => !o && setDuplicateOf(null)}>
-          <DialogContent>
+          <DialogContent className="sm:max-w-md">
             <DialogHeader><DialogTitle>Mark duplicate</DialogTitle></DialogHeader>
             <p className="text-sm">“{duplicateOf.partLabel}” duplicates an existing approved part. Enter that part’s id. The duplicate stays in history and cannot be sold.</p>
             <Input value={duplicateRef} onChange={(e) => setDuplicateRef(e.target.value)} placeholder="Existing part id" aria-label="Existing part id" />
@@ -384,7 +384,7 @@ export function VehicleRecordPanel({ user, vehicleId, onBack }: { user: User; ve
 
       {rejectFor && (
         <Dialog open onOpenChange={(o) => !o && setRejectFor(null)}>
-          <DialogContent>
+          <DialogContent className="sm:max-w-md">
             <DialogHeader><DialogTitle>Reject — not inventory</DialogTitle></DialogHeader>
             <p className="text-sm">“{rejectFor.label}” will be kept as history and cannot be sold.</p>
             <Textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} placeholder="Reason" aria-label="Reason" />
@@ -405,18 +405,4 @@ function reviewLabel(status: string, stage: string | null) {
   if (status === "duplicate") return "Duplicate · not sellable";
   if (status === "manager_review" || status === "captured" || status === "draft_ready") return "Needs review";
   return status;
-}
-
-function PartPhoto({ assetId, label }: { assetId: string | null; label: string }) {
-  const photo = usePersistedPhoto(assetId);
-  return (
-    <div className="size-24 shrink-0 overflow-hidden rounded-lg bg-muted">
-      {photo.data ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={photo.data} alt={`${label} photo`} className="size-full object-cover" />
-      ) : (
-        <div className="flex size-full items-center justify-center text-[10px] text-muted-foreground">{assetId ? "Loading" : "No photo"}</div>
-      )}
-    </div>
-  );
 }
