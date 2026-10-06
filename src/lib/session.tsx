@@ -1,117 +1,126 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import type { Role, User } from "@/lib/types";
 
+/**
+ * One provider for the whole application lifecycle. It is mounted once in the root layout and never removed or
+ * remounted based on whether a user exists. Every state is a valid provider state:
+ *   booting         first authentication bootstrap only (full-screen "Loading session…")
+ *   profile-loading a session exists and its profile and role are being read (login transition)
+ *   signed-out      no session. Valid state, used by the root page, the login page and the logout transition.
+ *   signed-in       the user, role and profile are loaded
+ *   error           a session exists but the profile or role could not be read
+ *
+ * Protected screens render only when signed in. The gate below decides that from state, so no component that needs
+ * a user can run while the user is absent. Public screens (root, login, invite, reset) always render.
+ */
+export type SessionStatus = "booting" | "profile-loading" | "signed-out" | "signed-in" | "error";
+
 type SessionContextValue = {
-  user: User;
+  status: SessionStatus;
+  user: User | null;
+  error: string | null;
   signOut: () => Promise<void>;
 };
 
 const SessionContext = createContext<SessionContextValue | null>(null);
 
-/**
- * Real Supabase Auth session, replacing the old localStorage-based mock identity. Deliberately
- * keeps the SAME exported shape every existing consumer already expects (`useSession().user`,
- * a `User` with `id`/`name`/`email`/`role`) so call sites elsewhere in the app did not need to
- * change — only the four places that used to fake "logout" by resetting to `users[0]` were
- * updated, to call `signOut()` instead (there is no `users` list / `setUserId` escape hatch
- * anymore: a real session cannot let you instantly become a different person).
- *
- * `role` is sourced from `user_roles`/`roles`, not stored in the JWT. If a person is ever
- * assigned more than one role, the first one returned is used for nav/display purposes — the
- * frontend's `Role` type is still single-valued; true multi-role UI is a larger, separate
- * change, not done here.
- */
+/** Screens that render with no session. The root page decides where to send the person. */
+const PUBLIC_PATHS = ["/", "/login", "/accept-invite", "/reset-password"];
+
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const supabase = useMemo(() => createClient(), []);
-  const [user, setUser] = useState<User | null>(null);
-  // Only the first authentication bootstrap shows the full-screen "Loading session…". After that, every session event
-  // (token refresh, tab focus, visibility) is a background revalidation, so the mounted app tree and its workflow stay.
-  const [booting, setBooting] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [state, setState] = useState<{ status: SessionStatus; user: User | null; error: string | null }>({
+    status: "booting",
+    user: null,
+    error: null,
+  });
 
   useEffect(() => {
     let active = true;
     // The user id the app is currently showing. Routine events for this same user change nothing on screen.
     let currentUserId: string | null = null;
+    // The user whose data is in the query cache. A different user clears the cache, so nothing from the last person stays visible.
+    let cachedUserId: string | null = null;
+
+    function switchCacheTo(userId: string | null) {
+      if (cachedUserId !== userId) {
+        queryClient.clear();
+        cachedUserId = userId;
+      }
+    }
 
     async function loadProfile(authUserId: string) {
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("id, name, email")
-        .eq("id", authUserId)
-        .maybeSingle();
-
-      const { data: roleRows, error: roleError } = await supabase
-        .from("user_roles")
-        .select("roles(key)")
-        .eq("user_id", authUserId);
-
+      const [profileResult, roleResult] = await Promise.all([
+        supabase.from("profiles").select("id, name, email").eq("id", authUserId).maybeSingle(),
+        supabase.from("user_roles").select("roles(key)").eq("user_id", authUserId),
+      ]);
       if (!active) return;
 
-      if (profileError || roleError || !profile) {
-        // A failed background refresh must not sign the user out of a working screen; only an empty bootstrap shows an error.
-        setError("Could not load your profile. Contact an administrator.");
-        setUser((prev) => (prev && prev.id === authUserId ? prev : null));
-        setBooting(false);
+      const profile = profileResult.data;
+      if (profileResult.error || roleResult.error || !profile) {
+        // A failed background refresh must not sign the person out of a working screen.
+        setState((prev) =>
+          prev.user && prev.user.id === authUserId
+            ? prev
+            : { status: "error", user: null, error: "Could not load your profile. Contact an administrator." },
+        );
         return;
       }
 
-      // No generated Database type is available yet (Section "client.ts" note), so
-      // supabase-js can't infer the embedded `roles` relation's cardinality — cast through
-      // `unknown` rather than fighting the inferred (and here, incorrect) array shape.
-      const firstRoleRow = roleRows?.[0] as unknown as { roles: { key: string } | null } | undefined;
+      // No generated Database type is available yet, so the embedded relation is cast through unknown.
+      const firstRoleRow = roleResult.data?.[0] as unknown as { roles: { key: string } | null } | undefined;
       const roleKey = firstRoleRow?.roles?.key as Role | undefined;
-
       if (!roleKey) {
-        setError("Your account has no role assigned yet. Contact an administrator.");
-        setUser(null);
-        setBooting(false);
+        setState({ status: "error", user: null, error: "Your account has no role assigned yet. Contact an administrator." });
         return;
       }
 
       const next: User = { id: profile.id, name: profile.name, email: profile.email, role: roleKey };
+      switchCacheTo(next.id);
       // Keep the same object when nothing changed, so consumers do not re-render or reset.
-      setUser((prev) =>
-        prev && prev.id === next.id && prev.name === next.name && prev.email === next.email && prev.role === next.role ? prev : next,
-      );
-      setError(null);
-      setBooting(false);
+      setState((prev) => {
+        const same = prev.user && prev.user.id === next.id && prev.user.name === next.name && prev.user.email === next.email && prev.user.role === next.role;
+        return { status: "signed-in", user: same ? prev.user : next, error: null };
+      });
     }
 
-    // getSession() reads the local session; the proxy already verified the request server-side,
-    // so this avoids a second remote Auth call on every full page load.
+    // getSession() reads the local session; the proxy already verified the request server-side.
     supabase.auth.getSession().then(({ data }) => {
       if (!active) return;
       if (data.session?.user) {
         currentUserId = data.session.user.id;
         loadProfile(data.session.user.id);
       } else {
-        setUser(null);
-        setBooting(false);
+        switchCacheTo(null);
+        setState({ status: "signed-out", user: null, error: null });
       }
     });
 
     const { data: subscription } = supabase.auth.onAuthStateChange((event, session) => {
       if (!active) return;
       if (session?.user) {
-        // TOKEN_REFRESHED, routine SIGNED_IN for the same user, focus and visibility revalidation:
-        // background only. No loading state, no profile reload, no navigation.
+        // TOKEN_REFRESHED, routine SIGNED_IN and focus revalidation for the same user: background only.
         if (session.user.id === currentUserId) return;
         currentUserId = session.user.id;
+        // A different person (or the first sign-in after logout): no previous user's screen or data stays.
+        switchCacheTo(null);
+        setState({ status: "profile-loading", user: null, error: null });
         loadProfile(session.user.id);
         return;
       }
-      // Other events without a session (for example the initial empty event) are left to the bootstrap above.
+      // Other events without a session (the initial empty event) are left to the bootstrap above.
       if (event !== "SIGNED_OUT") return;
-      // A genuine sign-out: the only event that clears the user and leaves the protected app.
+      // A genuine sign-out: clears the person and the cached data, then leaves the protected app.
       currentUserId = null;
-      setUser(null);
-      setBooting(false);
+      switchCacheTo(null);
+      setState({ status: "signed-out", user: null, error: null });
       router.replace("/login");
     });
 
@@ -119,47 +128,61 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       active = false;
       subscription.subscription.unsubscribe();
     };
+  }, [supabase, router, queryClient]);
+
+  const signOut = useCallback(async () => {
+    await supabase.auth.signOut();
+    router.replace("/login");
   }, [supabase, router]);
 
-  const value = useMemo<SessionContextValue | null>(() => {
-    if (!user) return null;
-    return {
-      user,
-      signOut: async () => {
-        await supabase.auth.signOut();
-        router.replace("/login");
-      },
-    };
-  }, [user, supabase, router]);
+  const value = useMemo<SessionContextValue>(
+    () => ({ status: state.status, user: state.user, error: state.error, signOut }),
+    [state, signOut],
+  );
 
-  if (booting) {
+  return (
+    <SessionContext.Provider value={value}>
+      <SessionGate>{children}</SessionGate>
+    </SessionContext.Provider>
+  );
+}
+
+/** Decides what renders from state. Protected children render only when signed in. */
+function SessionGate({ children }: { children: React.ReactNode }) {
+  const session = useSessionState();
+  const pathname = usePathname();
+  const isPublic = PUBLIC_PATHS.includes(pathname);
+
+  if (session.status === "booting") {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <p className="text-sm text-muted-foreground">Loading session…</p>
       </div>
     );
   }
-
-  if (!value) {
-    // Middleware already redirects unauthenticated requests away from protected routes
-    // before this can render for them — reaching this branch means either we're on a
-    // public route (/login etc., which never calls useSession()) or a signed-in session
-    // whose profile/role failed to load, which IS a real error worth surfacing.
-    if (error) {
-      return (
-        <div className="flex min-h-screen items-center justify-center px-4">
-          <p className="max-w-sm text-center text-sm text-destructive">{error}</p>
-        </div>
-      );
-    }
-    return <>{children}</>;
+  if (isPublic) return <>{children}</>;
+  if (session.status === "signed-in") return <>{children}</>;
+  if (session.status === "error") {
+    return (
+      <div className="flex min-h-screen items-center justify-center px-4">
+        <p className="max-w-sm text-center text-sm text-destructive">{session.error}</p>
+      </div>
+    );
   }
-
-  return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
+  // signed-out or profile-loading on a protected path: nothing from the app renders until the state settles.
+  return null;
 }
 
-export function useSession() {
+/** The whole session state, including the signed-out state. Use this where a person may not be signed in. */
+export function useSessionState(): SessionContextValue {
   const ctx = useContext(SessionContext);
   if (!ctx) throw new Error("useSession must be used within SessionProvider");
   return ctx;
+}
+
+/** For screens under the protected gate. The gate renders them only when signed in, so `user` is always present there. */
+export function useSession(): { user: User; signOut: () => Promise<void> } {
+  const ctx = useSessionState();
+  if (!ctx.user) throw new Error("useSession needs a signed-in session. Protected screens render only when signed in.");
+  return { user: ctx.user, signOut: ctx.signOut };
 }

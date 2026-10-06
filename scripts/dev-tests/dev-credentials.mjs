@@ -22,5 +22,10 @@ export function loadDevCredentials() {
   const creds = JSON.parse(fs.readFileSync(path.join(ROOT, "dev-test-credentials.json"), "utf8"));
   const local = readEnvFile(path.join(ROOT, ".env.local"));
   const ownerPassword = process.env.DEV_TEST_OWNER_PASSWORD || local.DEV_TEST_OWNER_PASSWORD;
-  return creds.map((u) => (u.role === "owner" && ownerPassword ? { ...u, password: ownerPassword } : u));
+  const employeePassword = process.env.DEV_TEST_DISMANTLER_PASSWORD || local.DEV_TEST_DISMANTLER_PASSWORD;
+  return creds.map((u) => {
+    if (u.role === "owner" && ownerPassword) return { ...u, password: ownerPassword };
+    if (u.role === "dismantling" && employeePassword) return { ...u, password: employeePassword };
+    return u;
+  });
 }

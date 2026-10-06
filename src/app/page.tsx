@@ -2,16 +2,19 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useSession } from "@/lib/session";
+import { useSessionState } from "@/lib/session";
 import { homeForRole } from "@/lib/auth/route-access";
 
+/** Public entry point. It reads the whole session state, so signed-out and profile-loading are handled, not thrown on. */
 export default function RootPage() {
-  const { user } = useSession();
+  const session = useSessionState();
   const router = useRouter();
+  const role = session.user?.role;
 
   useEffect(() => {
-    router.replace(homeForRole(user.role));
-  }, [user.role, router]);
+    if (session.status === "signed-in" && role) router.replace(homeForRole(role));
+    else if (session.status === "signed-out") router.replace("/login");
+  }, [session.status, role, router]);
 
   return null;
 }
