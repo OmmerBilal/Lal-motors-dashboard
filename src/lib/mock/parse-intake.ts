@@ -55,47 +55,56 @@ const VEHICLE_IMAGE_RE = /^vehicle image$/i;
 
 // ---------------------------------------------------------------------------------------
 // 1. Block segmentation — find the boundary between one vehicle's lines and the next, without assuming every
-//    physical line is its own record. Four strategies, tried in order of how much signal they need:
-//      a) "Vehicle image" markers, when the paste repeats that label before each listing (the client's format);
-//      b) blank-line runs, the ordinary paragraph separator;
-//      c) repeated "<year> <word...>" title lines, for a paste with no blank lines and no image marker at all;
-//      d) the whole input as one block, when none of the above gives more than one block.
+//    physical line is its own record, and without assuming the WHOLE paste uses one separator consistently (a
+//    real paste can lose a blank line, or be missing the "Vehicle image" marker, for just one listing — e.g. one
+//    with no photo — while the rest of the paste has it; picking one strategy for the entire input misses that).
+//
+// Two kinds of boundary, combined:
+//   "strong" (layout) starts — a "Vehicle image" marker line, or the first line after a blank-line run (including
+//     line 0). These need no guessing: the paste itself marks them.
+//   "hidden" (content) starts — a second "<year> <word…>" title line appearing before the next strong start, i.e.
+//     with no blank line or marker in between. That shape only happens when a separator was lost between two
+//     vehicles, so it is treated as a boundary too — recursively: a THIRD title with nothing between it and the
+//     one just promoted to a boundary is its own boundary as well, and so on.
+// A paste with clean separators for every vehicle (the common case) never triggers a hidden start at all: each
+// strong-start interval then contains exactly one title line, so this reduces to "split at every marker/blank
+// run" with no extra behaviour.
 // ---------------------------------------------------------------------------------------
 function splitBlocks(sourceText: string): string[][] {
   const rawLines = sourceText.replace(/\r\n?/g, "\n").split("\n");
-  const nonEmptyCount = rawLines.filter((l) => l.trim()).length;
-  if (nonEmptyCount === 0) return [];
+  if (rawLines.every((l) => !l.trim())) return [];
 
-  const markerIdx = rawLines.reduce<number[]>((acc, l, i) => (VEHICLE_IMAGE_RE.test(l.trim()) ? [...acc, i] : acc), []);
+  const isMarker = (i: number) => VEHICLE_IMAGE_RE.test(rawLines[i].trim());
+  const isBlankParaStart = (i: number) => !!rawLines[i].trim() && (i === 0 || !rawLines[i - 1].trim());
+  const isTitle = (i: number) => TITLE_LINE_RE.test(rawLines[i].trim());
 
-  let blocks: string[][];
-  if (markerIdx.length >= 1) {
-    // (a) Each "Vehicle image" line starts a new block; anything before the first marker is its own leading block
-    // (normally empty — e.g. a pasted heading with no vehicle data yet — and gets dropped once noise is stripped).
-    const bounds = [0, ...markerIdx, rawLines.length];
-    blocks = [];
-    for (let i = 0; i < bounds.length - 1; i++) {
-      const start = i === 0 ? 0 : markerIdx[i - 1];
-      const end = bounds[i + 1];
-      if (i === 0 && start === markerIdx[0]) continue; // no leading text before the first marker
-      blocks.push(rawLines.slice(start, end));
-    }
-  } else if (/\n[ \t]*\n/.test(rawLines.join("\n"))) {
-    // (b) Blank-line-separated paragraphs.
-    blocks = sourceText
-      .replace(/\r\n?/g, "\n")
-      .split(/\n[ \t]*\n+/)
-      .map((chunk) => chunk.split("\n"));
-  } else {
-    // (c) No blank lines anywhere: look for repeated title lines ("<year> <make model...>") as block anchors.
-    const titleIdx = rawLines.reduce<number[]>((acc, l, i) => (TITLE_LINE_RE.test(l.trim()) ? [...acc, i] : acc), []);
-    if (titleIdx.length >= 2) {
-      blocks = titleIdx.map((start, i) => rawLines.slice(start, titleIdx[i + 1] ?? rawLines.length));
+  // When the paste uses "Vehicle image" markers at all, they are the strong signal and a blank line is not — a
+  // stray/decorative blank line INSIDE one marker's span must not fragment that vehicle. Blank-line starts are the
+  // strong signal only for a paste that never uses the marker at all.
+  const usesMarkers = rawLines.some((_, i) => isMarker(i));
+  const starts = new Set<number>();
+  for (let i = 0; i < rawLines.length; i++) {
+    if (isMarker(i) || (!usesMarkers && isBlankParaStart(i))) starts.add(i);
+  }
+  if (starts.size === 0) starts.add(0);
+
+  // A start "has its title" once the first title line at or after it has been seen. A second title before the
+  // next strong start becomes a new (hidden) start, and immediately counts as having its own title, so a third
+  // glued-on vehicle is caught too.
+  const hasTitle = new Set<number>();
+  for (let i = 0; i < rawLines.length; i++) {
+    if (!isTitle(i)) continue;
+    const nearestStart = Math.max(...[...starts].filter((s) => s <= i));
+    if (hasTitle.has(nearestStart)) {
+      starts.add(i);
+      hasTitle.add(i);
     } else {
-      // (d) Nothing to anchor on: the whole paste is treated as one block rather than one record per line.
-      blocks = [rawLines];
+      hasTitle.add(nearestStart);
     }
   }
+
+  const sortedStarts = [...starts].sort((a, b) => a - b);
+  const blocks = sortedStarts.map((s, idx) => rawLines.slice(s, sortedStarts[idx + 1] ?? rawLines.length));
 
   return blocks
     .map((lines) => lines.map((l) => l.trim()).filter((l) => l && !NOISE_LINES.test(l)))
@@ -114,9 +123,11 @@ function parseBlock(lines: string[]): IntakeItem["draft"] & { reviewNotes: strin
   const claim = (i: number) => claimed.add(i);
 
   // VIN: a labeled line first (most reliable), then a bare line that is exactly a 17-character VIN-alphabet token.
+  // The FIRST match wins (not the last) — a block should never legitimately contain two VINs; if it does (e.g. a
+  // missed separator upstream), taking the first one is the safer failure, consistent with year/make/model below.
   let vinRaw = "";
   lines.forEach((l, i) => {
-    if (claimed.has(i)) return;
+    if (claimed.has(i) || vinRaw) return;
     const m = l.match(/^vin:?\s*([A-HJ-NPR-Z0-9]{8,19})\b/i);
     if (m) {
       vinRaw = m[1].toUpperCase();
@@ -135,9 +146,9 @@ function parseBlock(lines: string[]): IntakeItem["draft"] & { reviewNotes: strin
   draft.vin = vinRaw;
   if (vinRaw && vinRaw.length !== 17) uncertain.add("vin");
 
-  // Stock #.
+  // Stock #. First match wins.
   lines.forEach((l, i) => {
-    if (claimed.has(i)) return;
+    if (claimed.has(i) || draft.stockNumber) return;
     const m = l.match(/^stock\s*#?:?\s*([A-Za-z0-9-]+)/i);
     if (m) {
       draft.stockNumber = m[1];
@@ -163,7 +174,7 @@ function parseBlock(lines: string[]): IntakeItem["draft"] & { reviewNotes: strin
 
   // Auction item # (rarely present; label only — never guessed from a bare number, to avoid colliding with stock/lot).
   lines.forEach((l, i) => {
-    if (claimed.has(i)) return;
+    if (claimed.has(i) || draft.auctionItemNumber) return;
     const m = l.match(/^(?:auction\s*item\s*#?|item\s*#?):?\s*([A-Za-z0-9-]+)/i);
     if (m) {
       draft.auctionItemNumber = m[1];
@@ -227,7 +238,19 @@ function parseBlock(lines: string[]): IntakeItem["draft"] & { reviewNotes: strin
   draft.auctionSource ??= "";
   if (!draft.auctionSource) uncertain.add("auctionSource");
 
-  // Dated / money fields with an explicit label.
+  // Sale/pickup status, when the listing labels it explicitly (e.g. "Status: Waiting Arrival", "Pickup Status:
+  // ..."). Higher confidence than the positional guess further down, so it is not flagged uncertain.
+  lines.forEach((l, i) => {
+    if (claimed.has(i) || draft.pickupStatus) return;
+    const m = l.match(/^(?:pickup\s*status|sale\s*status|status):?\s*(.+)/i);
+    if (m) {
+      draft.pickupStatus = m[1].trim();
+      claim(i);
+    }
+  });
+
+  // Dated / money fields with an explicit label. The line is claimed whether or not it is the first (and so the
+  // one actually kept) match for its field, so a repeated label never turns into a stray "unrecognized line".
   const labeled: [RegExp, keyof typeof draft][] = [
     [/^date won:?\s*(.+)/i, "saleDate"],
     [/^due:?\s*(.+)/i, "__due__" as never],
@@ -238,23 +261,23 @@ function parseBlock(lines: string[]): IntakeItem["draft"] & { reviewNotes: strin
     for (const [re, key] of labeled) {
       const m = l.match(re);
       if (!m) continue;
+      claim(i);
       if (key === "__due__") {
         // "Due" in these listings is a payment due DATE, not an amount — there is no matching field in the
         // current schema (balanceDue is numeric money, not a date), so it is surfaced for review, not stored.
         reviewNotes.push(`Payment due date "${m[1].trim()}" was found but has no matching field in the current data model.`);
-      } else {
+      } else if (!draft[key]) {
         draft[key] = m[1].trim();
       }
-      claim(i);
       break;
     }
   });
   draft.saleDate ??= "";
   draft.pickupDeadline ??= "";
 
-  // Winning bid / purchase amount: a line that is (mostly) a dollar figure.
+  // Winning bid / purchase amount: a line that is (mostly) a dollar figure. First match wins.
   lines.forEach((l, i) => {
-    if (claimed.has(i)) return;
+    if (claimed.has(i) || draft.purchasePrice) return;
     const m = l.match(/^\$\s?([\d,]+(?:\.\d{2})?)\s*$/);
     if (m) {
       draft.purchasePrice = m[1].replace(/,/g, "");
@@ -283,27 +306,35 @@ function parseBlock(lines: string[]): IntakeItem["draft"] & { reviewNotes: strin
   });
   draft.pickupPin ??= "";
 
-  // Whatever is left, in order, is positional: in this auction site's export the branch/location, the sale
-  // status (e.g. "Pre-Bid") and the buyer name appear as consecutive unlabeled lines, in that order, between the
-  // VIN/stock lines and the dated fields. This is a heuristic for the GIVEN export shape, not a general rule —
-  // flagged below so a reviewer can confirm it.
+  // Whatever is left, in order, is positional: in this auction site's export the branch/location and (when not
+  // already found as an explicit "Status:" label above) the sale status appear as consecutive unlabeled lines,
+  // followed by the buyer name, between the VIN/stock lines and the dated fields. This is a heuristic for the
+  // GIVEN export shape, not a general rule — flagged below so a reviewer can confirm it. Because an explicit
+  // Status: label (if found) already claimed its line above, it is no longer in `leftover` at all here, so the
+  // buyer-name slot shifts left automatically — tracked explicitly via `nextSlot` rather than a fixed index.
   const leftover = lines.filter((l, i) => !claimed.has(i));
-  if (leftover[0]) {
-    draft.location = leftover[0];
+  let nextSlot = 0;
+  if (leftover[nextSlot]) {
+    draft.location = leftover[nextSlot];
     uncertain.add("location");
+    nextSlot++;
   } else {
     draft.location ??= "";
   }
-  if (leftover[1]) {
-    draft.pickupStatus = leftover[1];
-    uncertain.add("pickupStatus");
-  } else {
-    draft.pickupStatus ??= "";
+  if (!draft.pickupStatus) {
+    if (leftover[nextSlot]) {
+      draft.pickupStatus = leftover[nextSlot];
+      uncertain.add("pickupStatus");
+      nextSlot++;
+    } else {
+      draft.pickupStatus = "";
+    }
   }
-  if (leftover[2]) {
-    reviewNotes.push(`"${leftover[2]}" was found (likely a buyer name) but there is no buyer field in the current data model.`);
+  if (leftover[nextSlot]) {
+    reviewNotes.push(`"${leftover[nextSlot]}" was found (likely a buyer name) but there is no buyer field in the current data model.`);
+    nextSlot++;
   }
-  for (const extra of leftover.slice(3)) {
+  for (const extra of leftover.slice(nextSlot)) {
     reviewNotes.push(`Unrecognized line: "${extra}"`);
   }
 

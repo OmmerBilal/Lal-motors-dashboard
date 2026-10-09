@@ -8,6 +8,7 @@ import {
   listCarriers,
   updateTransportStatus,
 } from "@/lib/data/vehicles";
+import { editVehicleFields } from "@/lib/data/vehicle-workspace";
 import {
   listGroupVehicles,
   listInboundVehicles,
@@ -78,6 +79,21 @@ export function useAssignCarrierItems() {
 export function useUpdateTransportStatus() {
   const queryClient = useQueryClient();
   return useMutation({ mutationFn: updateTransportStatus, onSuccess: () => invalidateDispatch(queryClient) });
+}
+
+/**
+ * Sets a vehicle's pickup location (name + address) for Central Dispatch. Writes to the SAME vehicle record
+ * through the existing vehicle_edit_fields RPC — no new table, no new RPC. The dispatch grouping, which keys on
+ * these same two columns, refetches automatically on success, so the vehicle moves into the right Pickup
+ * Location group (or out of "(no pickup location)") without a manual page refresh.
+ */
+export function useSetPickupLocation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (p: { vehicleId: string; pickupLocationName: string; pickupAddress: string }) =>
+      editVehicleFields(p.vehicleId, { pickup_location_name: p.pickupLocationName, pickup_address: p.pickupAddress }),
+    onSuccess: () => invalidateDispatch(queryClient),
+  });
 }
 
 export function useAddCarrier() {

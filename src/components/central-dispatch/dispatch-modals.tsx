@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cash, lotOrStockDisplay, transportProblemReasons, type Carrier, type VehicleRecord } from "@/lib/mock/vehicles";
-import { useAssignCarrierItems, useUpdateTransportStatus } from "@/lib/query/dispatch";
+import { useAssignCarrierItems, useSetPickupLocation, useUpdateTransportStatus } from "@/lib/query/dispatch";
 
 /**
  * Central Dispatch posting. The external API is not connected in this environment, so this shows the payload that
@@ -53,7 +53,7 @@ export function PrepareTransportationModal({
         <p className="flex items-start gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
           <WifiOff className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
           <span>
-            <b>Not Connected · UI Preview.</b> The Central Dispatch API is not connected, so nothing is posted and no vehicle&apos;s status changes.
+            <b>External posting not connected.</b> The 3rd-party Central Dispatch load-board API is not connected, so nothing is posted there and no vehicle&apos;s status changes here. Use &ldquo;Dispatch to Carrier&rdquo; to record the carrier assignment in this system.
           </span>
         </p>
         <p className="text-sm text-muted-foreground">
@@ -96,17 +96,44 @@ export function DispatchToCarrierModal({
   onDone: () => void;
 }) {
   const assignMutation = useAssignCarrierItems();
+  const setLocation = useSetPickupLocation();
   const [carrierId, setCarrierId] = useState("");
   const [prices, setPrices] = useState<Record<string, string>>({});
+  // Vehicles selected elsewhere in Central Dispatch arrive here as a snapshot, not a live query result, so a
+  // location saved from inside THIS dialog is tracked locally too — otherwise the just-saved value would not be
+  // reflected until the dialog is reopened. The underlying vehicle record (and every other screen) is already
+  // correct as soon as the save succeeds; this is purely so this dialog's own display and validation stay in sync.
+  const [savedLocations, setSavedLocations] = useState<Record<string, string>>({});
+  const [locationDrafts, setLocationDrafts] = useState<Record<string, string>>({});
 
   const chosen = vehicles;
-  const pickupLocations = [...new Set(chosen.map((v) => v.pickupLocationName).filter(Boolean))];
+  const locationFor = (v: VehicleRecord) => savedLocations[v.id] ?? v.pickupLocationName ?? "";
+  const missingLocation = chosen.filter((v) => !locationFor(v).trim());
   const total = chosen.reduce((s, v) => s + (Number(prices[v.id] ?? v.transportPrice) || 0), 0);
   const carrier = carriers.find((c) => c.id === carrierId);
+
+  function saveLocation(v: VehicleRecord) {
+    const value = (locationDrafts[v.id] ?? "").trim();
+    if (!value) return;
+    setLocation.mutate(
+      { vehicleId: v.id, pickupLocationName: value, pickupAddress: "" },
+      {
+        onSuccess: () => {
+          setSavedLocations((m) => ({ ...m, [v.id]: value }));
+          toast.success("Pickup location saved.");
+        },
+        onError: (err) => toast.error(err instanceof Error ? err.message : "The pickup location was not saved. Nothing was changed."),
+      }
+    );
+  }
 
   /** The dialog closes only after the server accepts the assignment. A refusal keeps the selection and the prices. */
   function confirm() {
     if (!carrierId) return;
+    if (missingLocation.length > 0) {
+      toast.error(`Enter a pickup location for ${missingLocation.length} vehicle(s) before confirming dispatch.`);
+      return;
+    }
     const items = chosen.map((v) => ({ vehicleId: v.id, transportPrice: Number(prices[v.id] ?? v.transportPrice) }));
     if (items.some((i) => !(i.transportPrice > 0))) {
       toast.error("Enter a transport price above zero for every vehicle.");
@@ -119,6 +146,8 @@ export function DispatchToCarrierModal({
           toast.success(`${r.assigned} vehicle(s) dispatched to ${carrier?.company}`);
           setPrices({});
           setCarrierId("");
+          setSavedLocations({});
+          setLocationDrafts({});
           onDone();
         },
         onError: (err) => toast.error(err instanceof Error ? err.message : "Nothing was assigned. Try again."),
@@ -155,28 +184,61 @@ export function DispatchToCarrierModal({
           </div>
 
           <p className="text-xs text-muted-foreground">
-            {chosen.length} vehicle(s) · Pickup: {pickupLocations.join(", ") || "—"}
+            {chosen.length} vehicle(s) selected
+            {missingLocation.length > 0 && (
+              <span className="ml-1.5 font-semibold text-destructive">· {missingLocation.length} missing a pickup location</span>
+            )}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Vehicles may have different pickup locations — each is shown and confirmed individually below.
           </p>
 
-          <div className="max-h-52 space-y-1.5 overflow-y-auto rounded-md border border-border p-2">
+          <div className="max-h-64 space-y-2 overflow-y-auto rounded-md border border-border p-2">
             {chosen.map((v) => (
-              <div key={v.id} className="flex items-center justify-between gap-2 rounded-md bg-muted/40 px-2.5 py-1.5 text-xs">
-                <span className="min-w-0 truncate">
-                  <b>
-                    {v.year} {v.make} {v.model}
-                  </b>{" "}
-                  · {lotOrStockDisplay(v)}
-                </span>
-                <Input
-                  aria-label={`Price for ${v.vin || v.id}`}
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  className="h-7 w-24 shrink-0 text-xs"
-                  placeholder={v.transportPrice || "0.00"}
-                  value={prices[v.id] ?? ""}
-                  onChange={(e) => setPrices({ ...prices, [v.id]: e.target.value })}
-                />
+              <div key={v.id} className="space-y-1.5 rounded-md bg-muted/40 px-2.5 py-2 text-xs">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="min-w-0 truncate">
+                    <b>
+                      {v.year} {v.make} {v.model}
+                    </b>{" "}
+                    · {lotOrStockDisplay(v)}
+                  </span>
+                  <Input
+                    aria-label={`Price for ${v.vin || v.id}`}
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    className="h-7 w-24 shrink-0 text-xs"
+                    placeholder={v.transportPrice || "0.00"}
+                    value={prices[v.id] ?? ""}
+                    onChange={(e) => setPrices({ ...prices, [v.id]: e.target.value })}
+                  />
+                </div>
+                {locationFor(v) ? (
+                  <p className="text-[11px] text-muted-foreground">
+                    Pickup: <span className="font-medium text-foreground">{locationFor(v)}</span>
+                  </p>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <Input
+                      aria-label={`Pickup location for ${v.vin || v.id}`}
+                      className="h-7 flex-1 text-xs"
+                      placeholder={v.location ? `Pickup location — e.g. ${v.location}` : "Pickup location — required"}
+                      value={locationDrafts[v.id] ?? ""}
+                      onChange={(e) => setLocationDrafts({ ...locationDrafts, [v.id]: e.target.value })}
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 shrink-0 text-xs"
+                      disabled={!(locationDrafts[v.id] ?? "").trim() || setLocation.isPending}
+                      onClick={() => saveLocation(v)}
+                    >
+                      Save
+                    </Button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -187,7 +249,7 @@ export function DispatchToCarrierModal({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button disabled={!carrierId} onClick={confirm}>
+          <Button disabled={!carrierId || missingLocation.length > 0} onClick={confirm}>
             <Truck className="size-4" /> Confirm Dispatch
           </Button>
         </DialogFooter>

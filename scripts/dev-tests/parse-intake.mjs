@@ -180,5 +180,66 @@ const synthItems = bulk(synthetic);
 check("synthetic (non-sample) three-vehicle paste: exactly three records, not tuned to the client's data", synthItems.length === 3, `got ${synthItems.length}`);
 check("synthetic: VINs and stock numbers are distinct and correctly parsed", new Set(synthItems.map((i) => i.draft.vin)).size === 3 && synthItems.every((i) => i.draft.vin.length === 17), synthItems.map((i) => i.draft.vin).join(","));
 
+// ---------------------------------------------------------------------------------------
+// 3. A real client-style paste: one vehicle in the middle has no "Vehicle image" marker and no blank line before
+//    it (a common paste artifact), and the sale status is an explicit "Status:" label rather than a bare line.
+//    This is the exact shape a real report described: fewer vehicles detected than pasted, a vehicle's own title
+//    line showing up as an "unrecognized line", and another vehicle's identifiers bleeding into the wrong record.
+// ---------------------------------------------------------------------------------------
+const MISSING_SEPARATOR = `Vehicle image
+2012 KIA OPTIMA SX
+Stock#: 45611382
+VIN: 5XXGR4A69CG024170
+Atlanta East
+A - #25
+Status: Waiting Arrival
+Date Won: Thu, Oct 8
+$850.00
+Pick up By: Thu, Oct 15
+2019 KIA FORTE S
+Stock#: 45624096
+VIN: 3KPF34AD3KE075909
+Atlanta East
+B - #72
+Status: Waiting Arrival
+Date Won: Thu, Oct 8
+$1,175.00
+Pick up By: Thu, Oct 15
+
+Vehicle image
+2020 Honda Accord
+Stock#: 45794139
+VIN: 5XXGR4A69CG012679
+Atlanta East
+D - #100
+Status: Waiting Arrival
+Date Won: Thu, Oct 8
+$740.00
+Pick up By: Thu, Oct 15
+Cost Details
+`;
+const missingSepItems = bulk(MISSING_SEPARATOR);
+check("missing separator: a vehicle with no marker and no blank line before it is still its own record", missingSepItems.length === 3, `got ${missingSepItems.length}`);
+check("missing separator: the first vehicle keeps its OWN VIN and stock number (not overwritten by the next one)", missingSepItems[0]?.draft.vin === "5XXGR4A69CG024170" && missingSepItems[0]?.draft.stockNumber === "45611382", JSON.stringify(missingSepItems[0]?.draft.vin));
+check("missing separator: the second (marker-less) vehicle gets its own correct VIN and stock number", missingSepItems[1]?.draft.vin === "3KPF34AD3KE075909" && missingSepItems[1]?.draft.stockNumber === "45624096", JSON.stringify(missingSepItems[1]?.draft.vin));
+check("missing separator: the title line of the glued-on vehicle is not reported as an unrecognized line", !missingSepItems.some((it) => (it.reviewNotes ?? []).some((n) => /unrecognized line.*kia forte/i.test(n))), JSON.stringify(missingSepItems.map((i) => i.reviewNotes)));
+check("missing separator: all three are ready (no errors)", missingSepItems.every((it) => it.errors.length === 0), missingSepItems.map((i) => i.errors));
+
+// An explicit "Status:" label is captured directly and is NOT flagged uncertain (unlike the positional guess).
+const statusItem = bulk("Vehicle image\n2015 HONDA CIVIC\nStock#: 1\nVIN: 1HGCM82633A000001\nStatus: Waiting Arrival\nCost Details\n")[0];
+check("explicit Status label: captured as pickupStatus", statusItem?.draft.pickupStatus === "Waiting Arrival", JSON.stringify(statusItem?.draft.pickupStatus));
+check("explicit Status label: not flagged uncertain (higher confidence than a positional guess)", !(statusItem?.draft.uncertainFields ?? []).includes("pickupStatus"));
+
+// Three vehicles glued together with NO separator of any kind (no markers, no blank lines) — the recursive
+// hidden-boundary detection must catch the second AND the third, not just the first glued-on vehicle.
+const tripleGlued = bulk("2015 HONDA CIVIC\nVIN: 1HGCM82633A000001\n2016 TOYOTA CAMRY\nVIN: 4T1BF1FK000000002\n2017 FORD FUSION\nVIN: 3FA6P0H000000003\n");
+check("three vehicles glued with no separator at all: three records, not one or two", tripleGlued.length === 3, `got ${tripleGlued.length}`);
+check("three vehicles glued: each keeps its own VIN", JSON.stringify(tripleGlued.map((i) => i.draft.vin)) === JSON.stringify(["1HGCM82633A000001", "4T1BF1FK000000002", "3FA6P0H000000003"]), tripleGlued.map((i) => i.draft.vin).join(","));
+
+// A corrupted/merged block with the SAME field labeled twice: the first occurrence wins, consistent with how
+// year/make/model and lot already behaved — this is the defence-in-depth fix, independent of segmentation.
+const duplicateVinBlock = bulk("Vehicle image\n2015 HONDA CIVIC\nStock#: 1\nVIN: 1HGCM82633A000001\nVIN: 4T1BF1FK000000002\nCost Details\n")[0];
+check("duplicate VIN label in one block: the first VIN wins, not the last", duplicateVinBlock?.draft.vin === "1HGCM82633A000001", duplicateVinBlock?.draft.vin);
+
 console.log(`\nTOTAL ${pass + fail} | PASS ${pass} | FAIL ${fail}`);
 process.exit(fail === 0 ? 0 : 1);

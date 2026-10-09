@@ -22,6 +22,8 @@ export function DispatchTable({
   onView,
   onReportProblem,
   onAdvance,
+  canEdit = false,
+  onEditLocation,
 }: {
   vehicles: VehicleRecord[];
   selected: string[];
@@ -30,6 +32,9 @@ export function DispatchTable({
   onView: (v: VehicleRecord) => void;
   onReportProblem: (v: VehicleRecord) => void;
   onAdvance: (v: VehicleRecord) => void;
+  /** Whether the signed-in role may change a vehicle's pickup location (owner, engineer_admin, manager, auction). */
+  canEdit?: boolean;
+  onEditLocation?: (v: VehicleRecord) => void;
 }) {
   const allSelected = vehicles.length > 0 && vehicles.every((v) => selected.includes(v.id));
 
@@ -79,7 +84,19 @@ export function DispatchTable({
               <td className="p-2.5 whitespace-nowrap">{lotOrStockDisplay(v)}</td>
               <td className="p-2.5 whitespace-nowrap">{v.pickupPin || "—"}</td>
               <td className="p-2.5 whitespace-nowrap">{v.saleDate || "—"}</td>
-              <td className="p-2.5 whitespace-nowrap">{v.pickupLocationName || "—"}</td>
+              <td className="p-2.5 whitespace-nowrap">
+                {canEdit && onEditLocation ? (
+                  <button
+                    type="button"
+                    onClick={() => onEditLocation(v)}
+                    className={v.pickupLocationName ? "underline decoration-dotted underline-offset-2 hover:text-primary" : "font-medium text-warning-foreground underline decoration-dotted underline-offset-2 hover:text-primary"}
+                  >
+                    {v.pickupLocationName || "Set pickup location"}
+                  </button>
+                ) : (
+                  v.pickupLocationName || "—"
+                )}
+              </td>
               <td className="p-2.5 whitespace-nowrap">{v.transportPrice ? cash(v.transportPrice) : "—"}</td>
               <td className="p-2.5 whitespace-nowrap">
                 {v.carrierName ? <span className="text-primary">{v.carrierName}</span> : "Not Assigned"}

@@ -250,8 +250,12 @@ merge (when an edit would collide with another vehicle's identifiers).
 
 ### 4.2 Central Dispatch (owner, engineer_admin, manager, auction)
 
-Groups open (not-yet-transported) vehicles, assigns a carrier in bulk, tracks transport status
-(`NEED_TRANSPORT → READY_TO_POST → POSTED_TO_CD → ASSIGNED → IN_TRANSIT → ARRIVED`, or `PROBLEM`).
+Groups open (not-yet-transported) vehicles **by pickup location** (including a `(no pickup location)` group for
+vehicles without one — editable directly from this screen, §7.7), assigns a carrier in bulk, tracks transport status
+(`NEED_TRANSPORT → READY_TO_POST → POSTED_TO_CD → ASSIGNED → IN_TRANSIT → ARRIVED`, or `PROBLEM`). Internal carrier
+assignment and tracking are fully functional against the real database; only posting to the 3rd-party Central
+Dispatch load board is unconnected (truthfully labeled as such, not presented as the whole module being a preview —
+§7.7).
 
 ### 4.3 Vehicle Receiving & Arrival (owner, engineer_admin, receiving)
 
@@ -580,6 +584,41 @@ thinks, per the architectural principle in §1.
 logic — were read in full to confirm the fix only needed to change client-side parsing, and were re-run as a
 regression (§12) to confirm they still pass unmodified.
 
+**7.1b — second real-world round of fixes (later session, same file, still no RPC changed).** A second real client
+paste broke the fix above in a different way: one vehicle in the middle of the paste had **neither** a `Vehicle
+image` marker **nor** a blank line before it (a common paste artifact for a listing with no photo), and used an
+explicit `Status: Waiting Arrival` label instead of a bare line. Two distinct bugs, both in `parse-intake.ts`:
+
+1. **Segmentation merged two vehicles into one block.** The old `splitBlocks()` picked *one* strategy
+   (marker-or-blank-or-title) for the **entire paste**; a single missing separator for one listing fell through to
+   no boundary at all and its lines were absorbed into the previous vehicle's block. Fixed by replacing the
+   strategy-selection with a single unified pass that combines two kinds of boundary: "strong" (layout) starts — a
+   marker line, or the first line after a blank-line run — plus "hidden" (content) starts, found *within* a strong
+   start's span: a second `"<year> <word…>"` title line before the next strong start is itself promoted to a
+   boundary, recursively (so a third glued-on vehicle, with nothing separating it from the second, is caught too).
+   A paste with clean separators for every vehicle never triggers a hidden start at all — this is additive, not a
+   behaviour change for the common case. One self-introduced regression during this fix (a stray blank line
+   *inside* one marker-delimited vehicle's span wrongly splitting it) was caught by an **existing** permanent test
+   and fixed by only treating blank lines as a strong signal when the paste uses no markers at all.
+2. **Within a merged/corrupted block, the LAST matching line silently overwrote the first** for VIN, stock number,
+   auction item number, and purchase price — the exact mechanism that made the reported symptom "fields get
+   assigned to the wrong vehicle". These four fields lacked the "first match wins" guard that year/make/model and
+   lot number already had; added the same guard to all four, so a corrupted block fails safely (keeps the first,
+   correct value) rather than silently cross-contaminating two vehicles' data.
+
+Also added: an explicit `Status:` / `Sale Status:` / `Pickup Status:` label matcher (higher confidence than the
+positional "second unlabeled line" guess in the table above, so it is captured directly and **not** flagged
+`uncertainFields`); and the positional-leftover logic now tracks a dynamic `nextSlot` instead of fixed indices 0/1/2,
+so a line consumed by the new Status: label no longer shifts the buyer-name slot into the wrong leftover line.
+
+**Regression suite:** `scripts/dev-tests/parse-intake.mjs` grew from 25 to **35** checks (10 new: the exact
+missing-separator/Status-label adversarial sample, a triple-glued-with-zero-separators case, and a duplicate-VIN-
+in-one-block case) — all still pure-function, no DB, no server. Verified again against the **real DEV database**
+through the actual browser UI (not just the pure-function suite): pasted the adversarial sample as the `auction`
+role, confirmed one vehicle, then re-pasted the identical batch and confirmed the server correctly reports that one
+vehicle `EXISTING VEHICLE` while the other two remain `ready` — i.e. the fix produces drafts the server's existing,
+**unmodified** duplicate/existing logic correctly recognizes end-to-end (§12.3).
+
 ### 7.2 Navigation cleanup — `src/lib/nav.ts` (data change only, no RPC)
 
 Removed one array entry (`{ id: "dismantling", label: "Dismantling Employee App", href: "/preview/dismantling", …
@@ -651,9 +690,47 @@ $$;
 Error codes used consistently: `28000` unauthenticated, `42501` forbidden (wrong role), `22023` invalid input /
 not found, `P0001` state conflict (illegal transition, already done, day closed, etc.).
 
----
+### 7.7 Central Dispatch: truthful messaging + pickup-location workflow (this session; no migration, no new RPC)
 
-## 8. Authentication and authorisation
+**Messaging fix.** Central Dispatch previously showed a literal "Central Dispatch Integration · Not Connected · UI
+Preview" banner, and `PrepareTransportationModal` said "Not Connected · UI Preview" — both read as if the **whole
+module**, including internal carrier assignment, was non-functional. In reality only the 3rd-party Central Dispatch
+load-board API (posting a listing to their external marketplace) is unconnected; internal vehicle grouping, carrier
+assignment, transport pricing, and status tracking all work against the real database today. Reworded both to name
+the specific unconnected piece — `"External posting (3rd-party Central Dispatch load board)" / "Not connected —
+internal carrier assignment and tracking below are fully functional"` — without claiming the external API *is*
+connected or that a vehicle was ever posted there (it still is not, and nothing in this change makes it so; that
+remains a genuine, separate limitation — a real integration would need the 3rd-party API's credentials and payload
+contract, which this session did not have).
+
+**Pickup-location workflow.** The canonical field already existed — `vehicles.pickup_location_name` /
+`vehicles.pickup_address` (migration 0001), writable through the existing `vehicle_edit_fields` RPC (migration
+0049, role-checked: `owner`, `engineer_admin`, `manager`, `auction`), and already the literal source of the
+`"(no pickup location)"` dispatch-group label (`_dispatch_group_key`, migration 0052). **No migration and no new
+RPC were needed** — confirmed by reading all three before writing any UI code. What was missing was a way to set it
+*from Central Dispatch itself* (previously only reachable via the full vehicle-detail edit form):
+- `useSetPickupLocation()` (`src/lib/query/dispatch.ts`) — a mutation wrapping `editVehicleFields` with the two
+  pickup fields, invalidating the dispatch queries on success so the vehicle's group membership (and the
+  `"(no pickup location)"` count) updates **without a manual page refresh** — verified live: saving a location
+  moved the vehicle's row out of `(no pickup location)` and into its new named group in the same render pass.
+- `PickupLocationDialog` (new file, `src/components/central-dispatch/pickup-location-dialog.tsx`) — a focused
+  dialog for one vehicle's location + address, reachable by clicking its Pickup Location cell in the dispatch
+  table (now a "Set pickup location" button, styled as a warning, when blank) — gated by the **same** `canEdit`
+  check (`EDIT_ROLES.includes(user.role)`) that already gates every other dispatch mutation in this component, so
+  no new authorization surface was introduced.
+- `DispatchToCarrierModal` (`dispatch-modals.tsx`) now shows **each selected vehicle's own pickup location**
+  individually (not one assumed-shared summary line as before), lets the user enter/save a missing one inline
+  without leaving the dialog, and **disables Confirm Dispatch** — with an explicit count and explanatory text —
+  while any selected vehicle still has none. A vehicle's existing location is always preserved and shown as-is;
+  nothing is overwritten unless the user explicitly edits it.
+
+**Verified live, as the `auction` role, against the real DEV database and the real UI (not asserted from reading
+the code):** a freshly-created vehicle with no pickup location appears under `(no pickup location)`; the
+"Set pickup location" button is shown and opens the dialog; saving succeeds and the vehicle's row and group move
+immediately, with no manual refresh; Dispatch to Carrier shows a per-vehicle location for two different real
+vehicles (one located, one not) rather than one shared line; the vehicle missing a location is flagged by name/VIN
+context in the dialog; Confirm Dispatch is disabled while that's true. Also checked at 390px width and for
+React/console errors across the whole flow (zero). Full results: §12.3.
 
 ### 8.1 Supabase clients (verified by reading the three files directly)
 
@@ -938,6 +1015,29 @@ are never printed, logged, or written back to any file by these scripts.
 **Not run this session** (out of scope for this task's three deliverables, per the explicit instruction to keep
 changes focused): the Sales/Scrap/Containers/Warehouse browser suites beyond what's listed above, `rpc-money-stock.mjs`,
 `rpc-sales-checkout.mjs`, and every other `rpc-*`/`ux-*`/`e2e-*` suite not named in the table.
+
+### 12.3b Latest verified test status (later session: Auction parser re-fix §7.1b + Central Dispatch pickup
+location §7.7, against live DEV)
+
+| Suite | Result |
+|---|---|
+| `parse-intake.mjs` (grew from 25 to **35**, this session) | **35/35** — all prior checks still pass, plus 10 new: the exact missing-separator/explicit-Status-label adversarial sample (3 vehicles, correct per-vehicle VIN/stock, no false "unrecognized line"), a triple-glued-with-zero-separators case, a duplicate-VIN-in-one-block case |
+| Live browser, `auction` role, real DEV database — **both tasks combined, one script** | **23/23** |
+| — Task 1 detail | the adversarial 3-vehicle sample parses correctly (not fewer, not merged); all three VINs present; the glued-on vehicle's title never shown as "unrecognized line"; all three `ready`; confirming only vehicle 1 creates exactly one real row; re-pasting the identical batch reports that vehicle `EXISTING VEHICLE` against the real database while the other two remain `ready`; a byte-identical in-batch duplicate is correctly flagged `DUPLICATE IN BATCH` |
+| — Task 2 detail | the old "UI Preview" wording is gone and the banner truthfully states what is/isn't connected; a freshly-created vehicle with no pickup location is found under `(no pickup location)`; "Set pickup location" is offered and saving succeeds; the vehicle's row and group move without a manual refresh; Dispatch to Carrier shows two different real vehicles' pickup locations individually (not one shared summary); the vehicle missing a location is flagged; Confirm Dispatch is disabled until every selected vehicle has one; zero React/console errors across the whole flow; 390px width has no horizontal overflow on either screen and the "UI Preview" wording is gone there too |
+| `npx tsc --noEmit` | clean |
+| `npm run lint` (ESLint) | clean |
+| `npm run build` (production, Turbopack) | succeeds, all 40 routes generated |
+
+**Not re-run this session** (noted rather than silently skipped): `rpc-intake-batch.mjs` — this suite needs real
+signed-in `manager` and `scrap_driver` role sessions, and this session had no working password for either (only the
+`auction` role's). The underlying RPCs it covers (`intake_evaluate_batch`, `intake_commit_batch`,
+`_intake_evaluate_rows`, `match_or_create_vehicle`) were **not modified** by this session's work, and the exact same
+RPCs were independently re-confirmed behaving correctly (`created` / `existing` / `duplicate` responses all
+observed directly from the live network responses) through the browser-QA run above, signed in as `auction` — which
+does have `intake_commit_batch` access. The three-role regression file itself should still be re-run with the
+missing credentials at the next opportunity, since it additionally checks `scrap_driver`'s role-denial (`42501`) and
+a >200-row batch-size refusal that the browser run did not exercise.
 
 ### 12.4 Prerequisites for the full suite
 

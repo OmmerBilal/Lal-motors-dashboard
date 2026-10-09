@@ -24,6 +24,7 @@ import { toVehicleRecord } from "@/lib/data/vehicle-record";
 import { groupKeyFor, type DispatchFilters, type PickupGroup } from "@/lib/data/dispatch-read";
 import { DispatchTable } from "@/components/central-dispatch/dispatch-table";
 import { CarrierDirectoryModal } from "@/components/central-dispatch/carrier-directory-modal";
+import { PickupLocationDialog } from "@/components/central-dispatch/pickup-location-dialog";
 import {
   DispatchToCarrierModal,
   PrepareTransportationModal,
@@ -82,6 +83,7 @@ function PickupGroupCard({
   onView,
   onReportProblem,
   onAdvance,
+  onEditLocation,
 }: {
   group: PickupGroup;
   filters: DispatchFilters;
@@ -92,6 +94,7 @@ function PickupGroupCard({
   onView: (v: VehicleRecord) => void;
   onReportProblem: (v: VehicleRecord) => void;
   onAdvance: (v: VehicleRecord) => void;
+  onEditLocation: (v: VehicleRecord) => void;
 }) {
   const [open, setOpen] = useState(false);
   const key = groupKeyFor(group);
@@ -156,6 +159,8 @@ function PickupGroupCard({
               onView={onView}
               onReportProblem={onReportProblem}
               onAdvance={onAdvance}
+              canEdit={canEdit}
+              onEditLocation={onEditLocation}
             />
           )}
           {vehicles.hasNextPage && (
@@ -190,6 +195,7 @@ export function CentralDispatch({ user }: { user: User }) {
   const [dispatchOpen, setDispatchOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [problemVehicle, setProblemVehicle] = useState<VehicleRecord | null>(null);
+  const [locationVehicle, setLocationVehicle] = useState<VehicleRecord | null>(null);
 
   const filters: DispatchFilters = { tab, search: submittedSearch, auction: auctionFilter === "all" ? null : auctionFilter };
   const groups = usePickupGroups(filters);
@@ -255,8 +261,8 @@ export function CentralDispatch({ user }: { user: User }) {
         <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs">
           <WifiOff className="size-4 text-muted-foreground" />
           <span>
-            <b className="block text-foreground">Central Dispatch Integration</b>
-            <span className="text-muted-foreground">Not Connected · UI Preview</span>
+            <b className="block text-foreground">External posting (3rd-party Central Dispatch load board)</b>
+            <span className="text-muted-foreground">Not connected — internal carrier assignment and tracking below are fully functional</span>
           </span>
         </div>
       </div>
@@ -373,6 +379,7 @@ export function CentralDispatch({ user }: { user: User }) {
               onView={openVehicle}
               onReportProblem={setProblemVehicle}
               onAdvance={advance}
+              onEditLocation={setLocationVehicle}
             />
           ))}
         </div>
@@ -410,6 +417,7 @@ export function CentralDispatch({ user }: { user: User }) {
       />
       <SendShareModal open={shareOpen} vehicles={selectedVehicles} onOpenChange={setShareOpen} />
       <ReportProblemModal vehicle={problemVehicle} onOpenChange={(o) => !o && setProblemVehicle(null)} />
+      <PickupLocationDialog key={locationVehicle?.id ?? "closed"} vehicle={locationVehicle} onOpenChange={(o) => !o && setLocationVehicle(null)} />
     </div>
   );
 }
