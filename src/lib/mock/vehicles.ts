@@ -353,6 +353,10 @@ export type IntakeItem = {
   errors: string[];
   match: { status: "new" | "existing" | "conflict" | "duplicate" | "invalid"; vehicle?: { id: string } };
   sourceExcerpt?: string;
+  /** Recognized in the pasted text but with no matching field in the current data model (e.g. a buyer name).
+   *  Shown to the reviewer for transparency; never sent to the server. Not a substitute for sourceExcerpt,
+   *  which already preserves the complete raw text for this record. */
+  reviewNotes?: string[];
 };
 
 export type IntakeBatch = {

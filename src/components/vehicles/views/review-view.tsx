@@ -202,6 +202,16 @@ function ReviewEditor({
         ))}
       </div>
       {item.errors.length > 0 && <p className="mt-3 text-sm font-medium text-destructive">{item.errors.join(" · ")}</p>}
+      {item.reviewNotes && item.reviewNotes.length > 0 && (
+        <div className="mt-3 rounded-md border border-dashed border-warning/40 bg-warning/5 p-2.5 text-xs text-warning-foreground">
+          <b className="block font-semibold">Found in the text, not stored (no matching field yet):</b>
+          <ul className="mt-1 list-disc space-y-0.5 pl-4">
+            {item.reviewNotes.map((n, idx) => (
+              <li key={idx}>{n}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       {["existing", "conflict"].includes(item.match.status) && item.match.vehicle?.id && (
         <>
           <p className="mt-3 text-xs text-muted-foreground">

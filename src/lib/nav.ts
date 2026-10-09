@@ -30,7 +30,9 @@ export function getPrimaryNav(role: Role): NavItem[] {
         { id: "central-dispatch", label: "Central Dispatch", href: "/central-dispatch", icon: Truck },
         { id: "auction-intake", label: "Auction Vehicle Inventory", href: "/preview/auction", icon: CarFront },
         { id: "vehicle-receiving", label: "Vehicle Receiving & Arrival", href: "/preview/vehicle-receiving", icon: ScanLine },
-        { id: "dismantling", label: "Dismantling Employee App", href: "/preview/dismantling", icon: Wrench },
+        // The Dismantling Employee App preview is deliberately NOT in the owner sidebar: it is an employee-facing
+        // workspace. Management reviews and manages dismantling work through Vehicle Dismantling Processing below.
+        // The preview route itself (/preview/dismantling) is unchanged and still reachable directly if needed.
         {
           id: "dismantling-processing",
           label: "Vehicle Dismantling Processing",
