@@ -28,3 +28,18 @@ export function receiveStateBlocker(v: ReceiveFacts): ReceiveBlocker | null {
 export function canReceiveVehicle(v: ReceiveFacts, role: string): boolean {
   return RECEIVE_ROLES.includes(role) && receiveStateBlocker(v) === null;
 }
+
+/** Why the Receive action is disabled for this role/vehicle, or null when it's enabled. For a disabled button's tooltip. */
+export function receiveBlockedReason(v: ReceiveFacts, role: string): string | null {
+  if (!RECEIVE_ROLES.includes(role)) return "Your role cannot receive vehicles.";
+  switch (receiveStateBlocker(v)) {
+    case "closed":
+      return "This vehicle is closed or removed and cannot be received.";
+    case "dismantled":
+      return "This vehicle is dismantled and cannot be received.";
+    case "received":
+      return "This vehicle has already been received.";
+    default:
+      return null;
+  }
+}

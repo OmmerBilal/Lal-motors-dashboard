@@ -6,13 +6,30 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/patterns/status-badge";
 import { EmptyState } from "@/components/patterns/empty-state";
-import { useDismantlingProcessingData } from "@/components/dismantling-processing/use-dismantling-data";
+import {
+  periodPhrase,
+  periodTitle,
+  useDismantlingProcessingData,
+  type PeriodId,
+} from "@/components/dismantling-processing/use-dismantling-data";
 
-export function CompletedTodayList({ onBack, onOpenVehicle }: { onBack: () => void; onOpenVehicle: (vehicleId: string) => void }) {
-  const { completedToday } = useDismantlingProcessingData();
+export function CompletedTodayList({
+  period = "today",
+  custom,
+  anchorMs,
+  onBack,
+  onOpenVehicle,
+}: {
+  period?: PeriodId;
+  custom?: { from?: string; to?: string };
+  anchorMs?: number;
+  onBack: () => void;
+  onOpenVehicle: (vehicleId: string) => void;
+}) {
+  const { completedInRange } = useDismantlingProcessingData(period, custom, anchorMs);
   const [query, setQuery] = useState("");
 
-  const filtered = completedToday.filter((c) => {
+  const filtered = completedInRange.filter((c) => {
     const q = query.trim().toLowerCase();
     if (!q) return true;
     return (
@@ -32,9 +49,9 @@ export function CompletedTodayList({ onBack, onOpenVehicle }: { onBack: () => vo
       </Button>
 
       <div>
-        <h3 className="text-lg font-semibold">Completed Today</h3>
+        <h3 className="text-lg font-semibold">Completed {periodTitle(period)}</h3>
         <p className="text-sm text-muted-foreground">
-          {completedToday.length} vehicle{completedToday.length === 1 ? "" : "s"} completed today.
+          {completedInRange.length} vehicle{completedInRange.length === 1 ? "" : "s"} completed {periodPhrase(period)}.
         </p>
       </div>
 

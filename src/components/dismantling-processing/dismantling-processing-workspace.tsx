@@ -5,7 +5,12 @@ import { ChevronRight, ClipboardCheck, Search, TriangleAlert, Wrench } from "luc
 import { cn } from "cn";
 import { Input } from "@/components/ui/input";
 import { roleLabels, type User } from "@/lib/types";
-import { useDismantlingProcessingData } from "@/components/dismantling-processing/use-dismantling-data";
+import {
+  periodPhrase,
+  periodTitle,
+  useDismantlingProcessingData,
+  type PeriodId,
+} from "@/components/dismantling-processing/use-dismantling-data";
 import { EmployeeDetail } from "@/components/dismantling-processing/employee-detail";
 import { VehicleDismantlingDetail } from "@/components/dismantling-processing/vehicle-dismantling-detail";
 import { NeedsReviewQueue } from "@/components/dismantling-processing/needs-review-queue";
@@ -22,7 +27,18 @@ type View =
   | { name: "completed" };
 
 export function DismantlingProcessingWorkspace({ user }: { user: User }) {
-  const { roster, needsReviewCount, completedToday, todayCountForEmployee } = useDismantlingProcessingData();
+  // The date range selector lives inside EmployeeDetail (the right-hand panel), but is lifted here so the
+  // left-hand "Completed" card and the per-employee "cars" counts below can be computed from the exact same
+  // range/query instead of staying hard-coded to today while the detail panel shows a different range.
+  const [period, setPeriod] = useState<PeriodId>("today");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+  const [dataAnchor] = useState(() => Date.now());
+  const { roster, needsReviewCount, completedInRange, countForEmployeeInRange } = useDismantlingProcessingData(
+    period,
+    { from: customFrom, to: customTo },
+    dataAnchor
+  );
   const [view, setView] = useState<View>({ name: "home" });
   const [search, setSearch] = useState("");
   const [now, setNow] = useState<Date>(() => new Date());
@@ -76,7 +92,7 @@ export function DismantlingProcessingWorkspace({ user }: { user: User }) {
 
       <div className={isSplit ? "lg:grid lg:grid-cols-[1.35fr_1fr] lg:items-start lg:gap-6" : undefined}>
         <div className={view.name === "home" ? "space-y-5" : isSplit ? "hidden space-y-5 lg:block" : "hidden"}>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <button
               onClick={() => setView({ name: "workflow" })}
               className={cn(
@@ -125,9 +141,9 @@ export function DismantlingProcessingWorkspace({ user }: { user: User }) {
                 <ClipboardCheck className="size-7" />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-sm font-semibold text-success">Completed Today</span>
-                <span className="block text-4xl font-bold text-success sm:text-5xl">{completedToday.length}</span>
-                <span className="block text-xs text-success/80">cars completed</span>
+                <span className="block text-sm font-semibold text-success">Completed {periodTitle(period)}</span>
+                <span className="block text-4xl font-bold text-success sm:text-5xl">{completedInRange.length}</span>
+                <span className="block text-xs text-success/80">cars completed {periodPhrase(period)}</span>
               </span>
               <ChevronRight className="size-5 shrink-0 text-success/60" />
             </button>
@@ -135,7 +151,7 @@ export function DismantlingProcessingWorkspace({ user }: { user: User }) {
 
           <div>
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <h3 className="text-lg font-bold">Employee Activity Today</h3>
+              <h3 className="text-lg font-bold">Employee Activity · {periodTitle(period)}</h3>
               <div className="relative w-full max-w-[220px]">
                 <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
                 <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search employee..." className="pl-9" />
@@ -144,7 +160,7 @@ export function DismantlingProcessingWorkspace({ user }: { user: User }) {
 
             <div className="grid gap-3 sm:grid-cols-2">
               {filteredRoster.map((person) => {
-                const count = todayCountForEmployee(person.id);
+                const count = countForEmployeeInRange(person.id);
                 const selected = person.id === activeEmployeeId;
                 return (
                   <button
@@ -161,7 +177,7 @@ export function DismantlingProcessingWorkspace({ user }: { user: User }) {
                     <span className="min-w-0 flex-1">
                       <span className="block text-sm font-semibold">{person.name.split(" ")[0]}</span>
                       <span className="block text-3xl leading-tight font-bold text-primary">{count}</span>
-                      <span className="block text-xs text-muted-foreground">car{count === 1 ? "" : "s"} today</span>
+                      <span className="block text-xs text-muted-foreground">car{count === 1 ? "" : "s"} {periodPhrase(period)}</span>
                     </span>
                     <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
                   </button>
@@ -193,6 +209,13 @@ export function DismantlingProcessingWorkspace({ user }: { user: User }) {
               <EmployeeDetail
                 employeeId={view.employeeId}
                 employeeName={view.employeeName}
+                period={period}
+                onPeriodChange={setPeriod}
+                customFrom={customFrom}
+                customTo={customTo}
+                onCustomFromChange={setCustomFrom}
+                onCustomToChange={setCustomTo}
+                anchorMs={dataAnchor}
                 onBack={() => setView({ name: "home" })}
                 onOpenVehicle={(vehicleId) => openVehicle(vehicleId, view)}
               />
@@ -207,7 +230,13 @@ export function DismantlingProcessingWorkspace({ user }: { user: User }) {
             )}
 
             {view.name === "completed" && (
-              <CompletedTodayList onBack={() => setView({ name: "home" })} onOpenVehicle={(vehicleId) => openVehicle(vehicleId, view)} />
+              <CompletedTodayList
+                period={period}
+                custom={{ from: customFrom, to: customTo }}
+                anchorMs={dataAnchor}
+                onBack={() => setView({ name: "home" })}
+                onOpenVehicle={(vehicleId) => openVehicle(vehicleId, view)}
+              />
             )}
 
             {view.name === "vehicle" && <VehicleDismantlingDetail vehicleId={view.vehicleId} onBack={() => setView(view.back)} />}

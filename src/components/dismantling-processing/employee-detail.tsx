@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { FilterPills } from "@/components/patterns/search-bar";
 import { StatusBadge } from "@/components/patterns/status-badge";
 import { EmptyState } from "@/components/patterns/empty-state";
-import { useEmployeeWork, type PeriodId } from "@/components/dismantling-processing/use-dismantling-data";
+import { useEmployeeWork, periodPhrase, type PeriodId } from "@/components/dismantling-processing/use-dismantling-data";
 import {
   categoryBucket,
   categoryBucketLabels,
@@ -53,21 +53,33 @@ const bucketIcon: Record<string, LucideIcon> = {
 export function EmployeeDetail({
   employeeId,
   employeeName,
+  period,
+  onPeriodChange,
+  customFrom,
+  customTo,
+  onCustomFromChange,
+  onCustomToChange,
+  anchorMs,
   onBack,
   onOpenVehicle,
 }: {
   employeeId: string;
   employeeName: string;
+  /** Lifted to the parent workspace so the left-hand summary cards can follow the same selected range. */
+  period: PeriodId;
+  onPeriodChange: (period: PeriodId) => void;
+  customFrom: string;
+  customTo: string;
+  onCustomFromChange: (value: string) => void;
+  onCustomToChange: (value: string) => void;
+  anchorMs: number;
   onBack: () => void;
   onOpenVehicle: (vehicleId: string) => void;
 }) {
-  const [period, setPeriod] = useState<PeriodId>("today");
-  const [customFrom, setCustomFrom] = useState("");
-  const [customTo, setCustomTo] = useState("");
   const [tab, setTab] = useState<"vehicles" | "parts">("vehicles");
   const [galleryOpen, setGalleryOpen] = useState(false);
 
-  const work = useEmployeeWork(employeeId, period, { from: customFrom, to: customTo });
+  const work = useEmployeeWork(employeeId, period, { from: customFrom, to: customTo }, anchorMs);
   const vehicleCompletions = work.completions;
   const partsCaptured = work.parts;
 
@@ -101,29 +113,32 @@ export function EmployeeDetail({
         <ArrowLeft className="size-4" /> Back
       </Button>
 
-      <div className="flex items-center gap-3">
-        <span className="flex size-14 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xl font-bold text-primary">
-          {employeeName.charAt(0)}
-        </span>
-        <div>
-          <h3 className="text-xl font-bold">{employeeName}</h3>
-          <p className="text-sm text-muted-foreground">
-            {vehicleCompletions.length} car{vehicleCompletions.length === 1 ? "" : "s"} completed{" "}
-            {period === "today" ? "today" : period === "week" ? "this week" : period === "month" ? "this month" : "in range"}
-          </p>
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <FilterPills options={periods} value={period} onChange={(v) => setPeriod(v as PeriodId)} />
-        {period === "custom" && (
-          <div className="flex flex-wrap items-center gap-2">
-            <Input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="w-auto" />
-            <span className="text-sm text-muted-foreground">to</span>
-            <Input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="w-auto" />
+      <section className="rounded-lg border border-border bg-card p-4">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="flex size-14 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xl font-bold text-primary">
+              {employeeName.charAt(0)}
+            </span>
+            <div>
+              <h3 className="text-xl font-bold">{employeeName}</h3>
+              <p className="text-sm text-muted-foreground">
+                {vehicleCompletions.length} car{vehicleCompletions.length === 1 ? "" : "s"} completed {periodPhrase(period)}
+              </p>
+            </div>
           </div>
-        )}
-      </div>
+
+          <div className="space-y-2">
+            <FilterPills options={periods} value={period} onChange={(v) => onPeriodChange(v as PeriodId)} />
+            {period === "custom" && (
+              <div className="flex flex-wrap items-center gap-2">
+                <Input type="date" value={customFrom} onChange={(e) => onCustomFromChange(e.target.value)} className="w-auto" />
+                <span className="text-sm text-muted-foreground">to</span>
+                <Input type="date" value={customTo} onChange={(e) => onCustomToChange(e.target.value)} className="w-auto" />
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
 
       <div className="flex gap-2">
         <Button type="button" size="sm" variant={tab === "vehicles" ? "default" : "outline"} className="flex-1 sm:flex-none" onClick={() => setTab("vehicles")}>
@@ -167,9 +182,9 @@ export function EmployeeDetail({
 
       {tab === "parts" && (
         <div className="space-y-5">
-          <div>
-            <div className="mb-2 flex items-center justify-between">
-              <h4 className="text-sm font-semibold">Total Parts Pulled by {employeeName}</h4>
+          <section className="rounded-lg border border-border bg-card p-4">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h4 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Total Parts Pulled by {employeeName}</h4>
               <Button variant="outline" size="sm" onClick={() => setGalleryOpen(true)}>
                 <ImageIcon className="size-4" /> View Photos
               </Button>
@@ -178,7 +193,7 @@ export function EmployeeDetail({
               {categoryBucketOrder.map((bucket) => {
                 const Icon = bucketIcon[bucket];
                 return (
-                  <div key={bucket} className="rounded-lg border border-border bg-card p-3 text-center">
+                  <div key={bucket} className="rounded-lg border border-border bg-background p-3 text-center">
                     <span className={`mx-auto mb-1.5 flex size-9 items-center justify-center rounded-full ${bucketIconClass[bucket]}`}>
                       <Icon className="size-4" />
                     </span>
@@ -188,10 +203,10 @@ export function EmployeeDetail({
                 );
               })}
             </div>
-          </div>
+          </section>
 
-          <div>
-            <h4 className="mb-2 text-sm font-semibold">Part category breakdown</h4>
+          <section className="rounded-lg border border-border bg-card p-4">
+            <h4 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Part category breakdown</h4>
             {!detailedCounts.length && <p className="text-sm text-muted-foreground">No parts captured for this period.</p>}
             <div className="grid gap-2 sm:grid-cols-2">
               {detailedCounts.map(([label, count]) => (
@@ -201,7 +216,7 @@ export function EmployeeDetail({
                 </div>
               ))}
             </div>
-          </div>
+          </section>
         </div>
       )}
 

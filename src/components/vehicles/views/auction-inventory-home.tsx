@@ -4,16 +4,19 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useEffectiveUser } from "@/lib/effective-user";
 import {
+  Ban,
   CarFront,
   Camera,
   CheckCircle2,
   Clock3,
   Download,
+  Eye,
   FileStack,
   FileText,
-  MoreHorizontal,
   Package,
+  PackageCheck,
   Pencil,
+  RotateCcw,
   Search,
   TriangleAlert,
   Truck,
@@ -25,7 +28,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { StatusBadge } from "@/components/patterns/status-badge";
 import { EmptyState } from "@/components/patterns/empty-state";
 import {
@@ -35,7 +37,7 @@ import {
   type ClosedReason,
   type VehicleRecord,
 } from "@/lib/mock/vehicles";
-import { canReceiveVehicle } from "@/lib/receive-eligibility";
+import { receiveBlockedReason } from "@/lib/receive-eligibility";
 import { useVehicleList, useVehicleKpis, useVehicleFilterOptions, useCloseVehicle, useReopenVehicle } from "@/lib/query/vehicles";
 import type { VehicleListFilters } from "@/lib/data/vehicles";
 import { toVehicleRecord } from "@/lib/data/vehicle-record";
@@ -418,30 +420,60 @@ export function AuctionInventoryHome({
                         <td className="p-2.5">
                           <div className="flex items-center justify-end gap-1">
                             {v.receivingStatus === "received" && <StatusBadge tone="success">Received</StatusBadge>}
-                            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onOpenVehicle(v.id)}>
-                              View
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 px-2 text-xs"
+                              title="View"
+                              aria-label="View vehicle"
+                              onClick={() => onOpenVehicle(v.id)}
+                            >
+                              <Eye className="size-3.5 sm:hidden" />
+                              <span className="hidden sm:inline">View</span>
                             </Button>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger
-                                render={
-                                  <Button size="icon-sm" variant="ghost" aria-label="More actions">
-                                    <MoreHorizontal className="size-4" />
+                            {(() => {
+                              const blockedReason = receiveBlockedReason(v, realUser.role);
+                              return (
+                                <span title={blockedReason ?? "Receive"} className="inline-flex">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 px-2 text-xs"
+                                    disabled={!!blockedReason}
+                                    aria-label={blockedReason ? `Receive vehicle — ${blockedReason}` : "Receive vehicle"}
+                                    onClick={() => router.push(`/vehicle-receiving?vehicle=${v.id}`)}
+                                  >
+                                    <PackageCheck className="size-3.5 sm:hidden" />
+                                    <span className="hidden sm:inline">Receive</span>
                                   </Button>
-                                }
-                              />
-                              <DropdownMenuContent align="end">
-                                {canReceiveVehicle(v, realUser.role) && (
-                                  <DropdownMenuItem onClick={() => router.push(`/vehicle-receiving?vehicle=${v.id}`)}>Receive Vehicle</DropdownMenuItem>
-                                )}
-                                {v.closedReason ? (
-                                  <DropdownMenuItem onClick={() => reopenMutation.mutate({ vehicleId: v.id, note: "Reopened from Auction Inventory" })}>
-                                    Reopen vehicle
-                                  </DropdownMenuItem>
-                                ) : (
-                                  <DropdownMenuItem onClick={() => openClose(v)}>Close / Remove Vehicle</DropdownMenuItem>
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+                                </span>
+                              );
+                            })()}
+                            {v.closedReason ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2 text-xs"
+                                title="Reopen"
+                                aria-label="Reopen vehicle"
+                                onClick={() => reopenMutation.mutate({ vehicleId: v.id, note: "Reopened from Auction Inventory" })}
+                              >
+                                <RotateCcw className="size-3.5 sm:hidden" />
+                                <span className="hidden sm:inline">Reopen</span>
+                              </Button>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                className="h-7 px-2 text-xs"
+                                title="Close / Remove"
+                                aria-label="Close or remove vehicle"
+                                onClick={() => openClose(v)}
+                              >
+                                <Ban className="size-3.5 sm:hidden" />
+                                <span className="hidden sm:inline">Close</span>
+                              </Button>
+                            )}
                           </div>
                         </td>
                       </tr>

@@ -62,6 +62,29 @@ export function periodRange(period: PeriodId, custom?: { from?: string; to?: str
   return periodRangeAt(Date.now(), period, custom);
 }
 
+/** Period bounds as ISO strings, for query keys/args — shared so two hooks asked for the same period produce the
+ * exact same cache key and therefore the exact same numbers (one request, not two that could drift apart). */
+function periodIsoRange(anchor: number, period: PeriodId, custom?: { from?: string; to?: string }): { from: string; to: string } {
+  const r = periodRangeAt(anchor, period, custom);
+  return { from: new Date(r.from).toISOString(), to: new Date(r.to + 1).toISOString() };
+}
+
+/** "Today" / "this week" / "this month" / "in range" — lowercase, mid-sentence (e.g. "3 cars today"). */
+export function periodPhrase(period: PeriodId): string {
+  if (period === "today") return "today";
+  if (period === "week") return "this week";
+  if (period === "month") return "this month";
+  return "in range";
+}
+
+/** "Today" / "This Week" / "This Month" / "Selected Range" — title case, for card headings. */
+export function periodTitle(period: PeriodId): string {
+  if (period === "today") return "Today";
+  if (period === "week") return "This Week";
+  if (period === "month") return "This Month";
+  return "Selected Range";
+}
+
 /** Keys for the processing namespace only. Decisions invalidate this namespace, nothing else. */
 export const processingKeys = {
   all: ["processing"] as const,
@@ -118,28 +141,30 @@ function partToEvent(p: WindowPart, employeeName: string): VehicleEvent {
   };
 }
 
-/** Today's bounds in the browser's local day. Used only for the day-limited lists. */
-function todayBounds(nowMs: number) {
-  const now = new Date(nowMs);
-  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  return { from: start.toISOString(), to: now.toISOString() };
-}
-
-/** Dashboard data: aggregate counts, a bounded review queue, and today's completions (capped). */
-export function useDismantlingProcessingData() {
-  // Captured once per mount, so the query keys stay stable while the screen is open.
-  const [anchor] = useState(() => Date.now());
+/** Dashboard data: aggregate counts, a bounded review queue, and the period's completions (capped).
+ * `period`/`custom` default to literally "today" — every existing caller that doesn't pass them keeps the exact
+ * same behaviour as before. A caller that DOES pass the period currently selected elsewhere on the same page (the
+ * date tabs in EmployeeDetail) gets numbers for that same range, from the same cached query, so the two can never
+ * disagree. */
+export function useDismantlingProcessingData(period: PeriodId = "today", custom?: { from?: string; to?: string }, anchorMs?: number) {
+  // Captured once per mount, so the query keys stay stable while the screen is open. A caller showing another
+  // period-aware view of the SAME range (the page passes its own shared anchor down) can pass `anchorMs` so both
+  // resolve "this week"/"this month" to the exact same instant — not just the same day — and hit one cached query.
+  const [localAnchor] = useState(() => Date.now());
+  const anchor = anchorMs ?? localAnchor;
   const wideFrom = useMemo(() => new Date(anchor - WIDE_DAYS * 86400000).toISOString(), [anchor]);
   const nowIso = useMemo(() => new Date(anchor + 60_000).toISOString(), [anchor]);
-  const today = useMemo(() => todayBounds(anchor), [anchor]);
+  const customFrom = custom?.from ?? "";
+  const customTo = custom?.to ?? "";
+  const range = useMemo(() => periodIsoRange(anchor, period, { from: customFrom, to: customTo }), [anchor, period, customFrom, customTo]);
 
   const summaryQ = useQuery({
     queryKey: processingKeys.summary(wideFrom, nowIso),
     queryFn: () => getProcessingSummary(wideFrom, nowIso),
   });
-  const todayCountsQ = useQuery({
-    queryKey: processingKeys.counts(today.from, today.to),
-    queryFn: () => getEmployeeCounts(today.from, today.to),
+  const rangeCountsQ = useQuery({
+    queryKey: processingKeys.counts(range.from, range.to),
+    queryFn: () => getEmployeeCounts(range.from, range.to),
   });
   const queueQ = useInfiniteQuery({
     queryKey: processingKeys.queue(),
@@ -152,8 +177,8 @@ export function useDismantlingProcessingData() {
     },
   });
   const completionsQ = useQuery({
-    queryKey: processingKeys.completions(today.from, today.to),
-    queryFn: () => listCompletions(today.from, today.to),
+    queryKey: processingKeys.completions(range.from, range.to),
+    queryFn: () => listCompletions(range.from, range.to),
   });
   const rosterQ = useQuery({ queryKey: processingKeys.roster(), queryFn: listRoster, staleTime: 5 * 60_000 });
 
@@ -194,7 +219,7 @@ export function useDismantlingProcessingData() {
     return out;
   }, [queueRows, vehicleMap]);
 
-  const completedToday = useMemo<CompletionRecord[]>(() => {
+  const completedInRange = useMemo<CompletionRecord[]>(() => {
     const out: CompletionRecord[] = [];
     for (const c of completionsQ.data ?? []) {
       const vehicle = vehicleMap.get(c.vehicle_id);
@@ -218,11 +243,11 @@ export function useDismantlingProcessingData() {
     [rosterQ.data]
   );
 
-  const todayByEmployee = useMemo(() => {
+  const rangeCountsByEmployee = useMemo(() => {
     const m = new Map<string, number>();
-    for (const c of todayCountsQ.data ?? []) m.set(c.employee_id, c.vehicles_completed);
+    for (const c of rangeCountsQ.data ?? []) m.set(c.employee_id, c.vehicles_completed);
     return m;
-  }, [todayCountsQ.data]);
+  }, [rangeCountsQ.data]);
 
   /** Approved parts for the vehicles on screen, grouped by donor. Bounded to the loaded page. */
   const approvedByVehicle = useMemo(() => {
@@ -239,8 +264,8 @@ export function useDismantlingProcessingData() {
     return approvedByVehicle.get(vehicleId) ?? [];
   }
 
-  function todayCountForEmployee(employeeId: string) {
-    return todayByEmployee.get(employeeId) ?? 0;
+  function countForEmployeeInRange(employeeId: string) {
+    return rangeCountsByEmployee.get(employeeId) ?? 0;
   }
 
   const summary = summaryQ.data;
@@ -253,24 +278,26 @@ export function useDismantlingProcessingData() {
     reviewHasMore: !!queueQ.hasNextPage,
     loadMoreReview: () => queueQ.fetchNextPage(),
     reviewLoadingMore: queueQ.isFetchingNextPage,
-    completedToday,
-    completedTodayCount: summary?.completed_in_range ?? 0,
-    todayCountForEmployee,
+    /** Completions within `period`/`custom` (defaults to today). Same query the per-employee detail screen uses
+     * for the same range, so the two are never out of sync. */
+    completedInRange,
+    completedInRangeCount: summary?.completed_in_range ?? 0,
+    countForEmployeeInRange,
     approvedPartsForVehicle,
     isLoading: summaryQ.isLoading || queueQ.isLoading || rosterQ.isLoading,
     error: (summaryQ.error ?? queueQ.error ?? rosterQ.error) as Error | null,
   };
 }
 
-/** One employee's work in a period: server counts for the cards, and a capped parts list loaded on demand. */
-export function useEmployeeWork(employeeId: string, period: PeriodId, custom?: { from?: string; to?: string }) {
-  const [anchor] = useState(() => Date.now());
+/** One employee's work in a period: server counts for the cards, and a capped parts list loaded on demand.
+ * `anchorMs`: see useDismantlingProcessingData — pass the page's shared anchor so both resolve the period to the
+ * same instant. */
+export function useEmployeeWork(employeeId: string, period: PeriodId, custom?: { from?: string; to?: string }, anchorMs?: number) {
+  const [localAnchor] = useState(() => Date.now());
+  const anchor = anchorMs ?? localAnchor;
   const customFrom = custom?.from ?? "";
   const customTo = custom?.to ?? "";
-  const { from, to } = useMemo(() => {
-    const r = periodRangeAt(anchor, period, { from: customFrom, to: customTo });
-    return { from: new Date(r.from).toISOString(), to: new Date(r.to + 1).toISOString() };
-  }, [anchor, period, customFrom, customTo]);
+  const { from, to } = useMemo(() => periodIsoRange(anchor, period, { from: customFrom, to: customTo }), [anchor, period, customFrom, customTo]);
 
   const countsQ = useQuery({
     queryKey: processingKeys.counts(from, to),
