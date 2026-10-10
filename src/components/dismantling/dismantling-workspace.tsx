@@ -17,6 +17,8 @@ import { useEffectiveUser } from "@/lib/effective-user";
 import type { User } from "@/lib/types";
 import { ISSUE_TYPES, findMyDismantlingAssignment, type EmployeeAssignmentRow, type EmployeeWorkspace, type WorkspacePart } from "@/lib/data/dismantling-v2";
 import { useEmployeeMutations, useMyAssignments, useMyWorkspace } from "@/lib/query/dismantling-v2";
+import { findVehicleByBarcode } from "@/lib/data/vehicles";
+import { VehicleScanInput } from "@/components/media/vehicle-scan-input";
 
 const NAME_MIN = 2, NAME_MAX = 120, DETAILS_MIN = 3, DETAILS_MAX = 500;
 
@@ -92,11 +94,21 @@ function EmployeeHome({ onOpen }: { onOpen: (id: string) => void }) {
     completed: rows.filter((r) => r.assignment_status === "COMPLETED").length,
   };
 
-  async function search() {
-    const clean = term.trim();
+  async function search(explicitTerm?: string) {
+    const clean = (explicitTerm ?? term).trim();
     if (clean.length < 3) return;
     try {
-      const res = await findMyDismantlingAssignment(clean);
+      let res = await findMyDismantlingAssignment(clean);
+      // A scanned barcode (the printed LAL- label, used when a vehicle has no valid VIN) won't match vin/lot/
+      // stock directly. Resolve it first, then retry the assignment lookup with the vehicle's real identifier —
+      // the assignment-ownership check itself is unchanged, just run again with the resolved term.
+      if (res.result === "not_found") {
+        const byCode = await findVehicleByBarcode(clean);
+        if (byCode.found) {
+          const resolved = byCode.vin || byCode.stock_number || byCode.lot_number || byCode.barcode;
+          res = await findMyDismantlingAssignment(resolved);
+        }
+      }
       if (res.result === "found" && res.assignment_id) {
         setNotAssigned(false);
         onOpen(res.assignment_id);
@@ -131,8 +143,14 @@ function EmployeeHome({ onOpen }: { onOpen: (id: string) => void }) {
             <Label htmlFor="assigned-search">Find an assigned vehicle (VIN, lot or stock #)</Label>
             <div className="flex gap-2">
               <Input id="assigned-search" value={term} onChange={(e) => setTerm(e.target.value)} onKeyDown={(e) => e.key === "Enter" && search()} placeholder="VIN, lot or stock number" className="h-11" />
-              <Button variant="outline" className="h-11" onClick={search} disabled={term.trim().length < 3}>Find</Button>
+              <Button variant="outline" className="h-11" onClick={() => search()} disabled={term.trim().length < 3}>Find</Button>
             </div>
+            <VehicleScanInput
+              onDecoded={(code) => {
+                setTerm(code);
+                void search(code);
+              }}
+            />
             {notAssigned && (
               <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm font-medium text-destructive">This vehicle is not assigned to you.</p>
             )}

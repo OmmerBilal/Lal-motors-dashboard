@@ -8,6 +8,8 @@ import type { User } from "@/lib/types";
 import { AuctionInventoryHome } from "@/components/vehicles/views/auction-inventory-home";
 import { usePendingBatches, usePendingCompletions, useRecentVehicleEvents, useVehicleLookup } from "@/lib/query/vehicle-workspace";
 import type { IntakeMethod } from "@/components/vehicles/vehicle-workspace";
+import { findVehicleByBarcode } from "@/lib/data/vehicles";
+import { VehicleScanInput } from "@/components/media/vehicle-scan-input";
 
 /**
  * Vehicles home for intake roles. Every figure and list here is read from the database on demand:
@@ -39,8 +41,22 @@ export function HomeView({
   const recentEvents = (recent.data?.pages[0] ?? []).slice(0, 8);
   const pendingCount = completions.data?.length ?? 0;
 
-  function runLookup() {
-    setSubmitted(search.trim());
+  // Scan-to-open: a scanned barcode (the printed LAL- label or the car's own VIN barcode) resolves through the
+  // same RPC every other scan control uses, and opens the vehicle directly. Manual typing of a partial VIN/lot/
+  // stock falls through to the existing substring lookup below exactly as before.
+  async function runLookup(explicitTerm?: string) {
+    const term = (explicitTerm ?? search).trim();
+    if (term.length < 3) return;
+    try {
+      const byCode = await findVehicleByBarcode(term);
+      if (byCode.found) {
+        onOpenVehicle(byCode.vehicle_id);
+        return;
+      }
+    } catch {
+      // A resolver failure should not block the existing manual search below.
+    }
+    setSubmitted(term);
   }
 
   if (!canIntake) {
@@ -79,6 +95,13 @@ export function HomeView({
             Find existing vehicle
           </Button>
         </form>
+        <VehicleScanInput
+          className="mt-2"
+          onDecoded={(code) => {
+            setSearch(code);
+            void runLookup(code);
+          }}
+        />
         {submitted.length >= 3 && (
           <div className="mt-3 space-y-2" role="status" aria-live="polite">
             {lookup.isPending && <p className="text-sm text-muted-foreground">Searching…</p>}

@@ -40,6 +40,7 @@ import {
 import { receiveBlockedReason } from "@/lib/receive-eligibility";
 import { useVehicleList, useVehicleKpis, useVehicleFilterOptions, useCloseVehicle, useReopenVehicle } from "@/lib/query/vehicles";
 import { findVehicleByBarcode, type VehicleListFilters } from "@/lib/data/vehicles";
+import { VehicleScanInput } from "@/components/media/vehicle-scan-input";
 import { toVehicleRecord } from "@/lib/data/vehicle-record";
 import { toast } from "sonner";
 import type { IntakeMethod } from "@/components/vehicles/vehicle-workspace";
@@ -176,27 +177,32 @@ export function AuctionInventoryHome({
     setPage(1);
   }
 
-  /** Scan-to-open: a keyboard-wedge scanner types the code and sends Enter, same as this handler. Manual typing
-   * behaves identically — every keystroke still updates `search` via onChange above; only Enter also tries an
-   * exact barcode/VIN/stock match and opens the vehicle when one is found. No match just leaves the text search
-   * in place (nothing is cleared, nothing errors). */
-  async function handleSearchKeyDown(e: KeyboardEvent<HTMLInputElement>) {
-    if (e.key !== "Enter" || scanning) return;
-    const code = search.trim();
-    if (!code) return;
+  /** Scan-to-open: a keyboard-wedge scanner types the code and sends Enter, same as the camera/upload scanner
+   * below. Manual typing behaves identically — every keystroke still updates `search` via onChange above; only
+   * a scan/Enter also tries an exact barcode/VIN/stock match and opens the vehicle when one is found. No match
+   * just leaves the text search in place (nothing is cleared, nothing errors). */
+  async function runScanLookup(code: string) {
+    if (scanning) return;
+    const clean = code.trim();
+    if (!clean) return;
     setScanning(true);
     try {
-      const result = await findVehicleByBarcode(code);
+      const result = await findVehicleByBarcode(clean);
       if (result.found) {
         onOpenVehicle(result.vehicle_id);
       } else {
-        toast.info(`No vehicle matches "${code}" by barcode, VIN or stock #. Showing text search results.`);
+        toast.info(`No vehicle matches "${clean}" by barcode, VIN or stock #. Showing text search results.`);
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not look up that code.");
     } finally {
       setScanning(false);
     }
+  }
+
+  async function handleSearchKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key !== "Enter") return;
+    await runScanLookup(search);
   }
 
   function toggleAll() {
@@ -346,6 +352,12 @@ export function AuctionInventoryHome({
               onKeyDown={handleSearchKeyDown}
             />
           </div>
+          <VehicleScanInput
+            onDecoded={(code) => {
+              setSearch(code);
+              void runScanLookup(code);
+            }}
+          />
           <Select value={stageFilter} onValueChange={(v) => setStage((v as AuctionStage | "all") ?? "all")}>
             <SelectTrigger className="h-9 w-40 text-xs">
               <SelectValue placeholder="All Statuses" />

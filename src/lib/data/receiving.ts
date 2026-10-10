@@ -1,7 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import type { VehicleListRow } from "@/lib/data/vehicles";
+import { findVehicleByBarcode, type VehicleListRow } from "@/lib/data/vehicles";
 import { receiveStateBlocker } from "@/lib/receive-eligibility";
 
 export type ReceivingLookup =
@@ -17,6 +17,14 @@ export type ReceivingLookup =
 export async function lookupForReceiving(term: string): Promise<ReceivingLookup> {
   const clean = term.trim();
   if (!clean) return { status: "not_found", vehicle: null };
+
+  // Scan-to-open: a scanned barcode (the printed LAL- label, used when a vehicle has no valid VIN, or the car's
+  // own VIN barcode) resolves through the same RPC every other scan control uses. Falls through to the exact
+  // VIN/lot/stock match below only when the code doesn't resolve this way (e.g. a lot number, which that RPC
+  // does not index) — manual typing of VIN/lot/stock keeps behaving exactly as before.
+  const byCode = await findVehicleByBarcode(clean);
+  if (byCode.found) return lookupVehicleById(byCode.vehicle_id);
+
   const supabase = createClient();
   const { data, error } = await supabase.rpc("list_vehicles", {
     p_stage: null,

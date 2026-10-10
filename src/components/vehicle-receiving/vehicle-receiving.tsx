@@ -30,6 +30,7 @@ import { useArrivalPhotos } from "@/lib/query/media";
 import { ARRIVAL_EXTRA_ROLE, ARRIVAL_PHOTO_SLOTS, type ArrivalPhotoCompletion } from "@/lib/media/arrival-photos";
 import { useArrivedTodayCount, useReceiveVehicle } from "@/lib/query/receiving";
 import { lookupForReceiving, lookupVehicleById, type ReceivingLookup } from "@/lib/data/receiving";
+import { VehicleScanInput } from "@/components/media/vehicle-scan-input";
 import { toVehicleRecord } from "@/lib/data/vehicle-record";
 import { MediaCapture, usePendingSlots } from "@/components/media/media-capture";
 
@@ -265,12 +266,6 @@ export function VehicleReceiving({ user }: { user: User }) {
       .catch((err: unknown) => toast.error(err instanceof Error ? err.message : "This vehicle could not be opened."));
   }, [linkedVehicleId, applyLookup]);
 
-  // Barcode and photo scanning are not connected. This focuses the manual entry instead.
-  function simulateScan() {
-    toast.info("Barcode and photo scanning are not connected. Type the VIN, lot or stock number.");
-    document.getElementById("vin-manual")?.focus();
-  }
-
   // Arrival photos come only from the server (ready originals for this vehicle). Local previews and uploads in flight never count.
   // One helper decides progress, the missing-photo message and the Confirm gate. A background refetch keeps the last loaded result.
   const arrivalPhotos = useArrivalPhotos(matched?.id);
@@ -369,22 +364,17 @@ export function VehicleReceiving({ user }: { user: User }) {
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
         {/* 1. Scan VIN — always active */}
         <CardShell tone="blue" className="xl:col-span-3" badge={<NumberBadge n={1} tone="blue" />} title="Scan VIN" subtitle="Scan the VIN barcode or take a photo">
-          <button
-            onClick={simulateScan}
-            className="flex w-full flex-col items-center gap-2 rounded-lg bg-muted py-7 text-muted-foreground transition-colors hover:bg-muted/70 hover:text-primary"
-          >
-            <ScanLine className="size-10" />
-            <span className="text-sm font-semibold">Tap to Scan VIN</span>
-          </button>
+          <VehicleScanInput
+            onDecoded={(code) => {
+              setVinInput(code);
+              void lookupVin(code);
+            }}
+          />
           <div className="my-3 flex items-center gap-2 text-xs text-muted-foreground">
             <span className="h-px flex-1 bg-border" /> OR <span className="h-px flex-1 bg-border" />
           </div>
-          <Button className="w-full" variant="outline" disabled>
-            <Camera className="size-4" /> VIN photo scan is not connected
-          </Button>
-          <p className="mt-1.5 text-xs text-muted-foreground">Type the VIN below. Scanning is not available yet.</p>
-          <div className="mt-4 space-y-1.5">
-            <Label htmlFor="vin-manual">Enter VIN Manually (if needed)</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="vin-manual">Enter VIN Manually</Label>
             <div className="flex gap-1.5">
               <Input
                 id="vin-manual"
