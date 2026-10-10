@@ -1,68 +1,58 @@
 "use client";
 
-import { useState } from "react";
-import type { DateRange } from "react-day-picker";
-import { Bell } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DateRangePicker } from "@/components/vehicles/owner-dashboard/date-range-picker";
-import type { User } from "@/lib/types";
+import { useEffect, useState } from "react";
+import { Bell, Search } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { roleLabels, type User } from "@/lib/types";
 
-const locations = [
-  { id: "all", label: "All Locations" },
-  { id: "yard", label: "LAL Motors Yard" },
-  { id: "auction", label: "Auction Lots" },
-];
-
-export function DashboardHeader({
-  user,
-  notificationCount,
-  dateRange,
-  onDateRangeChange,
-}: {
-  user: User;
-  notificationCount: number;
-  dateRange: DateRange | undefined;
-  onDateRangeChange: (range: DateRange | undefined) => void;
-}) {
-  const [location, setLocation] = useState("all");
+/**
+ * Top bar: a wide global search (visual only in this pass — no cross-entity search RPC exists yet to wire it
+ * to; see the project guide), a notifications bell with the real count, the signed-in user's avatar/name/role,
+ * and a live clock. Replaces the previous date-range + fake location-filter header; the date-ranged KPIs that
+ * header drove are not part of the new 6-tile layout (see owner-dashboard.tsx), so no range picker is needed here.
+ */
+export function DashboardHeader({ user, notificationCount }: { user: User; notificationCount: number }) {
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    setNow(new Date());
+    const id = window.setInterval(() => setNow(new Date()), 30_000);
+    return () => window.clearInterval(id);
+  }, []);
 
   return (
-    <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-      <div>
-        <h2 className="text-2xl font-semibold tracking-tight">Welcome, {user.name.split(" ")[0]}</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Here&apos;s what&apos;s happening across LAL Motors today.</p>
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3">
+      <div className="relative min-w-[200px] flex-1 sm:max-w-md">
+        <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input placeholder="Search vehicles, parts, customers…" className="h-10 pl-9" aria-label="Global search" />
       </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <DateRangePicker value={dateRange} onChange={onDateRangeChange} />
-        <Select value={location} onValueChange={(v) => setLocation(v ?? "all")}>
-          <SelectTrigger className="w-[150px]" aria-label="Location">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {locations.map((l) => (
-              <SelectItem key={l.id} value={l.id}>
-                {l.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+
+      <div className="flex items-center gap-3">
+        {now && (
+          <span className="hidden text-sm text-muted-foreground md:block" suppressHydrationWarning>
+            {now.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} ·{" "}
+            {now.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+          </span>
+        )}
         <button
           type="button"
           aria-label={`${notificationCount} notifications`}
-          className="relative flex size-8 items-center justify-center rounded-md border border-border bg-card hover:bg-accent/40"
+          className="relative flex size-10 items-center justify-center rounded-full border border-border bg-background hover:bg-accent/40"
         >
-          <Bell className="size-4" />
+          <Bell className="size-4.5" />
           {notificationCount > 0 && (
-            <span className="absolute -top-1.5 -right-1.5 flex size-4 items-center justify-center rounded-full bg-destructive text-[10px] font-semibold text-white">
+            <span className="absolute -top-1 -right-1 flex size-5 items-center justify-center rounded-full bg-destructive text-[10px] font-semibold text-white">
               {notificationCount > 9 ? "9+" : notificationCount}
             </span>
           )}
         </button>
-        <div className="flex items-center gap-2 rounded-md border border-border bg-card px-2.5 py-1.5">
-          <div className="flex size-7 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
-            {user.name[0]}
-          </div>
-          <span className="hidden text-sm font-medium sm:inline">{user.name}</span>
+        <div className="flex items-center gap-2 rounded-full border border-border bg-background py-1 pr-3 pl-1">
+          <span className="flex size-8 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
+            {user.name.charAt(0)}
+          </span>
+          <span className="hidden min-w-0 sm:block">
+            <span className="block text-sm font-medium leading-tight">{user.name}</span>
+            <span className="block text-[11px] leading-tight text-muted-foreground">{roleLabels[user.role]}</span>
+          </span>
         </div>
       </div>
     </div>

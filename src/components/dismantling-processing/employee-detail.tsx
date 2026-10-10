@@ -108,7 +108,7 @@ export function EmployeeDetail({
   ];
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <Button variant="ghost" size="sm" onClick={onBack}>
         <ArrowLeft className="size-4" /> Back
       </Button>
@@ -116,11 +116,11 @@ export function EmployeeDetail({
       <section className="rounded-lg border border-border bg-card p-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <span className="flex size-14 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xl font-bold text-primary">
+            <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-primary/10 text-lg font-bold text-primary">
               {employeeName.charAt(0)}
             </span>
             <div>
-              <h3 className="text-xl font-bold">{employeeName}</h3>
+              <h3 className="text-lg font-bold">{employeeName}</h3>
               <p className="text-sm text-muted-foreground">
                 {vehicleCompletions.length} car{vehicleCompletions.length === 1 ? "" : "s"} completed {periodPhrase(period)}
               </p>
@@ -181,7 +181,7 @@ export function EmployeeDetail({
       )}
 
       {tab === "parts" && (
-        <div className="space-y-5">
+        <div className="space-y-4">
           <section className="rounded-lg border border-border bg-card p-4">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <h4 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Total Parts Pulled by {employeeName}</h4>

@@ -45,13 +45,13 @@ export function VehicleDismantlingDetail({ vehicleId, onBack }: { vehicleId: str
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <Button variant="ghost" size="sm" onClick={onBack}>
         <ArrowLeft className="size-4" /> Back
       </Button>
 
-      <div className="grid gap-5 lg:grid-cols-[1.1fr_1fr]">
-        <div className="space-y-5">
+      <div className="grid gap-4 lg:grid-cols-[1.1fr_1fr]">
+        <div className="space-y-4">
           <section className="rounded-lg border border-border bg-card p-4">
             <div className="flex items-start gap-4">
               <div className="flex aspect-[4/3] w-32 shrink-0 items-center justify-center rounded-md border border-dashed border-border bg-muted/40 text-muted-foreground">
@@ -92,7 +92,7 @@ export function VehicleDismantlingDetail({ vehicleId, onBack }: { vehicleId: str
           </section>
         </div>
 
-        <div className="space-y-5">
+        <div className="space-y-4">
           <section className="rounded-lg border border-border bg-card p-4">
             <h4 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Processing</h4>
             {!parts.length && <p className="text-sm text-muted-foreground">No parts captured.</p>}

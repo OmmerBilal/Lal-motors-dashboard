@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronRight, ClipboardCheck, Search, TriangleAlert, Wrench } from "lucide-react";
+import { ChevronRight, ClipboardCheck, Search, TriangleAlert, Wrench, type LucideIcon } from "lucide-react";
 import { cn } from "cn";
 import { Input } from "@/components/ui/input";
 import { roleLabels, type User } from "@/lib/types";
@@ -64,13 +64,12 @@ export function DismantlingProcessingWorkspace({ user }: { user: User }) {
   const isSplit = activeEmployeeId !== null;
 
   return (
-    <div className="space-y-5 pb-10">
-      <div className="-mx-4 -mt-6 border-b-4 border-accent-gold bg-brand px-4 py-4 text-brand-foreground sm:-mx-6 sm:px-6 sm:py-5">
+    <div className="space-y-4 pb-8">
+      <div className="-mx-4 -mt-6 border-b-4 border-accent-gold bg-brand px-4 py-3 text-brand-foreground sm:-mx-6 sm:px-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[11px] font-bold tracking-[0.14em] text-brand-foreground/60 uppercase">LAL Motors</p>
-            <h2 className="text-xl font-bold sm:text-2xl">Vehicle Dismantling Processing</h2>
-            <p className="text-xs text-brand-foreground/70">Track People. Parts. Progress.</p>
+            <p className="text-[10px] font-bold tracking-[0.14em] text-brand-foreground/60 uppercase">LAL Motors</p>
+            <h2 className="text-lg font-bold sm:text-xl">Vehicle Dismantling Processing</h2>
           </div>
           <div className="flex items-center gap-3">
             <span className="hidden text-sm text-brand-foreground/80 sm:block" suppressHydrationWarning>
@@ -90,75 +89,48 @@ export function DismantlingProcessingWorkspace({ user }: { user: User }) {
         </div>
       </div>
 
-      <div className={isSplit ? "lg:grid lg:grid-cols-[1.35fr_1fr] lg:items-start lg:gap-6" : undefined}>
-        <div className={view.name === "home" ? "space-y-5" : isSplit ? "hidden space-y-5 lg:block" : "hidden"}>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            <button
+      <div className={isSplit ? "lg:grid lg:grid-cols-[1.2fr_1fr] lg:items-start lg:gap-5" : undefined}>
+        <div className={view.name === "home" ? "space-y-4" : isSplit ? "hidden space-y-4 lg:block" : "hidden"}>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <KpiLinkCard
+              icon={Wrench}
+              tone="primary"
+              active={view.name === "workflow"}
+              label="Vehicle Workflow"
+              value="Ready · Assign"
+              hint="Mark vehicles ready, assign one employee each"
               onClick={() => setView({ name: "workflow" })}
-              className={cn(
-                "flex items-center gap-4 rounded-xl border border-primary/30 bg-primary/5 p-6 text-left transition-colors hover:bg-primary/10",
-                view.name === "workflow" && "ring-2 ring-primary/40"
-              )}
-            >
-              <span className="flex size-14 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
-                <Wrench className="size-7" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-semibold text-primary">Vehicle Workflow</span>
-                <span className="block text-base font-bold">Ready · Assign · Monitor</span>
-                <span className="block text-xs text-muted-foreground">Mark vehicles ready and assign one employee each</span>
-              </span>
-              <ChevronRight className="size-5 shrink-0 text-primary/60" />
-            </button>
-            <button
+            />
+            <KpiLinkCard
+              icon={TriangleAlert}
+              tone="destructive"
+              active={view.name === "review"}
+              label="Needs Review"
+              value={needsReviewCount}
+              hint={`${needsReviewCount} item${needsReviewCount === 1 ? "" : "s"} need review`}
               onClick={() => setView({ name: "review" })}
-              className={cn(
-                "flex items-center gap-4 rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-left transition-colors hover:bg-destructive/10",
-                view.name === "review" && "ring-2 ring-destructive/40"
-              )}
-            >
-              <span className="flex size-14 shrink-0 items-center justify-center rounded-full bg-destructive/15 text-destructive">
-                <TriangleAlert className="size-7" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-semibold text-destructive">Needs Review</span>
-                <span className="block text-4xl font-bold text-destructive sm:text-5xl">{needsReviewCount}</span>
-                <span className="block text-xs text-destructive/80">
-                  {needsReviewCount} item{needsReviewCount === 1 ? "" : "s"} need review
-                </span>
-              </span>
-              <ChevronRight className="size-5 shrink-0 text-destructive/60" />
-            </button>
-
-            <button
+            />
+            <KpiLinkCard
+              icon={ClipboardCheck}
+              tone="success"
+              active={view.name === "completed"}
+              label={`Completed ${periodTitle(period)}`}
+              value={completedInRange.length}
+              hint={`car${completedInRange.length === 1 ? "" : "s"} completed ${periodPhrase(period)}`}
               onClick={() => setView({ name: "completed" })}
-              className={cn(
-                "flex items-center gap-4 rounded-xl border border-success/30 bg-success/5 p-6 text-left transition-colors hover:bg-success/10",
-                view.name === "completed" && "ring-2 ring-success/40"
-              )}
-            >
-              <span className="flex size-14 shrink-0 items-center justify-center rounded-full bg-success/15 text-success">
-                <ClipboardCheck className="size-7" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-semibold text-success">Completed {periodTitle(period)}</span>
-                <span className="block text-4xl font-bold text-success sm:text-5xl">{completedInRange.length}</span>
-                <span className="block text-xs text-success/80">cars completed {periodPhrase(period)}</span>
-              </span>
-              <ChevronRight className="size-5 shrink-0 text-success/60" />
-            </button>
+            />
           </div>
 
-          <div>
+          <div className="rounded-lg border border-border bg-card p-4">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <h3 className="text-lg font-bold">Employee Activity · {periodTitle(period)}</h3>
-              <div className="relative w-full max-w-[220px]">
-                <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search employee..." className="pl-9" />
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Employee Activity · {periodTitle(period)}</h3>
+              <div className="relative w-full max-w-[200px]">
+                <Search className="pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search employee..." className="h-9 pl-8 text-sm" />
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
               {filteredRoster.map((person) => {
                 const count = countForEmployeeInRange(person.id);
                 const selected = person.id === activeEmployeeId;
@@ -167,24 +139,25 @@ export function DismantlingProcessingWorkspace({ user }: { user: User }) {
                     key={person.id}
                     onClick={() => setView({ name: "employee", employeeId: person.id, employeeName: person.name })}
                     className={cn(
-                      "flex items-center gap-3 rounded-lg border border-border bg-card p-5 text-left transition-colors hover:border-primary/40",
+                      "flex items-center gap-3 rounded-lg border border-border bg-background p-3 text-left transition-colors hover:border-primary/40",
                       selected && "border-primary bg-primary/5 ring-1 ring-primary/30"
                     )}
                   >
-                    <span className="flex size-14 shrink-0 items-center justify-center rounded-full bg-primary/10 text-lg font-bold text-primary">
+                    <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
                       {person.name.charAt(0)}
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-semibold">{person.name.split(" ")[0]}</span>
-                      <span className="block text-3xl leading-tight font-bold text-primary">{count}</span>
-                      <span className="block text-xs text-muted-foreground">car{count === 1 ? "" : "s"} {periodPhrase(period)}</span>
+                      <span className="block truncate text-sm font-semibold">{person.name.split(" ")[0]}</span>
+                      <span className="block text-xs text-muted-foreground">
+                        <b className="text-base text-primary">{count}</b> car{count === 1 ? "" : "s"} {periodPhrase(period)}
+                      </span>
                     </span>
                     <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
                   </button>
                 );
               })}
               {!filteredRoster.length && (
-                <p className="col-span-full flex items-center gap-2 py-8 text-center text-sm text-muted-foreground">
+                <p className="col-span-full flex items-center justify-center gap-2 py-6 text-center text-sm text-muted-foreground">
                   <Wrench className="size-4" /> No employees match that search.
                 </p>
               )}
@@ -204,7 +177,7 @@ export function DismantlingProcessingWorkspace({ user }: { user: User }) {
         )}
 
         {view.name !== "home" && view.name !== "workflow" && view.name !== "record" && (
-          <div className={isSplit ? "mt-5 lg:mt-0" : ""}>
+          <div className={isSplit ? "mt-4 lg:mt-0" : ""}>
             {view.name === "employee" && (
               <EmployeeDetail
                 employeeId={view.employeeId}
@@ -244,5 +217,53 @@ export function DismantlingProcessingWorkspace({ user }: { user: User }) {
         )}
       </div>
     </div>
+  );
+}
+
+const kpiTone: Record<string, { border: string; bg: string; icon: string; text: string; ring: string }> = {
+  primary: { border: "border-primary/30", bg: "bg-primary/5 hover:bg-primary/10", icon: "bg-primary/15 text-primary", text: "text-primary", ring: "ring-primary/40" },
+  destructive: { border: "border-destructive/30", bg: "bg-destructive/5 hover:bg-destructive/10", icon: "bg-destructive/15 text-destructive", text: "text-destructive", ring: "ring-destructive/40" },
+  success: { border: "border-success/30", bg: "bg-success/5 hover:bg-success/10", icon: "bg-success/15 text-success", text: "text-success", ring: "ring-success/40" },
+};
+
+/** One shared template for the three top KPI buttons, so they always match in height, padding and type scale. */
+function KpiLinkCard({
+  icon: Icon,
+  tone,
+  active,
+  label,
+  value,
+  hint,
+  onClick,
+}: {
+  icon: LucideIcon;
+  tone: keyof typeof kpiTone;
+  active: boolean;
+  label: string;
+  value: string | number;
+  hint: string;
+  onClick: () => void;
+}) {
+  const t = kpiTone[tone];
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "flex h-full items-center gap-3 rounded-xl border p-4 text-left transition-colors",
+        t.border,
+        t.bg,
+        active && `ring-2 ${t.ring}`
+      )}
+    >
+      <span className={cn("flex size-11 shrink-0 items-center justify-center rounded-full", t.icon)}>
+        <Icon className="size-5" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className={cn("block text-xs font-semibold", t.text)}>{label}</span>
+        <span className="block text-2xl leading-tight font-bold">{value}</span>
+        <span className="block truncate text-xs text-muted-foreground">{hint}</span>
+      </span>
+      <ChevronRight className={cn("size-5 shrink-0", t.text, "opacity-60")} />
+    </button>
   );
 }

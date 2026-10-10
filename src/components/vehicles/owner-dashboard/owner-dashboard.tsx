@@ -2,18 +2,25 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { DateRange } from "react-day-picker";
-import { CarFront, Cog, Container, Filter, Recycle } from "lucide-react";
+import { AlertTriangle, CarFront, Cog, Container, Recycle } from "lucide-react";
 import type { User } from "@/lib/types";
 import { type VehicleStage } from "@/lib/mock/owner-dashboard";
-import { useOwnerActivity, useOwnerEmployees, useOwnerSummary } from "@/lib/query/owner-dashboard";
+import { useOwnerActivity, useOwnerPartsStatus, useOwnerSalesByDay, useOwnerSummary, useOwnerTodaySales, useOwnerTopSellingParts } from "@/lib/query/owner-dashboard";
+import { useExportCounts } from "@/lib/query/containers";
+import { useManagerSummary } from "@/lib/query/scrap";
+import { useDispatchCounts } from "@/lib/query/dispatch";
+import { useArrivedTodayCount } from "@/lib/query/receiving";
+import { cash } from "@/lib/mock/vehicles";
 import { DashboardHeader } from "@/components/vehicles/owner-dashboard/dashboard-header";
-import { VehicleStatusCards } from "@/components/vehicles/owner-dashboard/vehicle-status-cards";
+import { WelcomeBanner } from "@/components/vehicles/owner-dashboard/welcome-banner";
+import { KpiGrid, type KpiTile } from "@/components/vehicles/owner-dashboard/kpi-grid";
+import { ActivityTimeline, type TimelineItem } from "@/components/vehicles/owner-dashboard/activity-timeline";
+import { TransportStatusPanel } from "@/components/vehicles/owner-dashboard/transport-status-panel";
 import { KeyExceptionsPanel } from "@/components/vehicles/owner-dashboard/key-exceptions-panel";
-import { KpiRow, type KpiItem } from "@/components/vehicles/owner-dashboard/kpi-row";
-import { EmployeeOverview, type EmployeeCardData } from "@/components/vehicles/owner-dashboard/employee-overview";
-import { RecentActivityTable, type ActivityRow } from "@/components/vehicles/owner-dashboard/recent-activity-table";
-import { VehiclesByStageChart } from "@/components/vehicles/owner-dashboard/vehicles-by-stage-chart";
+import { SalesOverviewChart } from "@/components/vehicles/owner-dashboard/sales-overview-chart";
+import { PartsStatusDonut } from "@/components/vehicles/owner-dashboard/parts-status-donut";
+import { TopSellingParts } from "@/components/vehicles/owner-dashboard/top-selling-parts";
+import { DashboardFooter } from "@/components/vehicles/owner-dashboard/dashboard-footer";
 
 const ZERO_STAGES: Record<VehicleStage, number> = { purchased: 0, inTransit: 0, arrived: 0, processing: 0, waitingReview: 0, completed: 0 };
 
@@ -23,8 +30,9 @@ function ymd(d: Date) {
 }
 
 /**
- * Owner Dashboard. Visuals are unchanged. Every number, exception, employee row and activity line comes from
- * the database read models (migration 0042) for the selected date range, which the server filters.
+ * Owner Dashboard. Every tile is backed by a real read model — see the comment above each data hook below for
+ * exactly which one, and src/lib/data/owner-dashboard.ts for the two tiles that read a table directly (no RPC
+ * exists yet for parts-status / sales totals). Nothing on this page is invented.
  */
 export function OwnerDashboard({
   user,
@@ -38,77 +46,125 @@ export function OwnerDashboard({
   onGoActivity: (actorId?: string, kind?: string) => void;
 }) {
   const router = useRouter();
-  const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
-    const to = new Date();
-    const from = new Date();
-    from.setDate(from.getDate() - 6);
-    return { from, to };
-  });
-  const from = dateRange?.from ? ymd(dateRange.from) : "";
-  const to = dateRange?.to ? ymd(dateRange.to) : from;
+  const today = ymd(new Date());
+  const [salesDays, setSalesDays] = useState(7);
 
-  const summary = useOwnerSummary(from, to);
-  const employeesQ = useOwnerEmployees(from, to);
-  const activityQ = useOwnerActivity(from, to);
+  // owner_dashboard_summary: stage_counts/exceptions/notification_count are always a live snapshot (not
+  // date-ranged in the RPC itself); kpis.total_vehicles is likewise unranged. Passing "today" just satisfies
+  // the RPC's required range parameter.
+  const summary = useOwnerSummary(today, today);
+  const activityQ = useOwnerActivity(today, today, 8);
+  const exportCountsQ = useExportCounts();
+  const scrapSummaryQ = useManagerSummary(today, today);
+  const dispatchCountsQ = useDispatchCounts();
+  const arrivedTodayQ = useArrivedTodayCount();
+  const partsStatusQ = useOwnerPartsStatus();
+  const todaySalesQ = useOwnerTodaySales();
+  const salesByDayQ = useOwnerSalesByDay(salesDays);
+  const topSellingQ = useOwnerTopSellingParts(30, 5);
+
   const s = summary.data;
-
   const stageCounts = s?.stage_counts ?? ZERO_STAGES;
   const exceptions = s?.exceptions ?? [];
+  const notificationCount = s?.notification_count ?? 0;
 
-  const kpis: KpiItem[] = useMemo(() => {
-    const k = s?.kpis;
-    const show = (n: number | undefined) => (summary.isError ? "—" : n ?? 0);
+  const loadError = summary.error ?? exportCountsQ.error ?? scrapSummaryQ.error ?? dispatchCountsQ.error;
+
+  const kpis: KpiTile[] = useMemo(() => {
+    const vehiclesInProgress = (s?.kpis.total_vehicles ?? 0) - stageCounts.completed;
+    const ps = partsStatusQ.data;
+    const ec = exportCountsQ.data;
+    const scrap = scrapSummaryQ.data;
     return [
-      { label: "Total Vehicles", value: show(k?.total_vehicles), trend: "All records", icon: CarFront },
-      { label: "Total Parts Pulled", value: show(k?.parts_pulled), trend: "In selected range", icon: Cog },
-      { label: "Total Converters", value: show(k?.converters), trend: "In selected range", icon: Filter },
-      { label: "Containers Shipped", value: show(k?.containers_shipped), trend: "On the way or closed", icon: Container },
-      { label: "Scrap Loads", value: show(k?.scrap_loads), trend: `${k?.scrap_loads_today ?? 0} today`, icon: Recycle },
+      {
+        key: "vehicles",
+        tone: "blue",
+        icon: CarFront,
+        label: "Vehicles in Progress",
+        value: Math.max(0, vehiclesInProgress),
+        subStats: [
+          { label: "purchased", value: stageCounts.purchased },
+          { label: "in transit", value: stageCounts.inTransit },
+          { label: "processing", value: stageCounts.processing },
+        ],
+        onClick: () => onGoList("active"),
+      },
+      {
+        key: "parts",
+        tone: "green",
+        icon: Cog,
+        label: "Parts in Inventory",
+        value: ps ? ps.available + ps.reserved : "—",
+        subStats: [
+          { label: "available", value: ps?.available ?? "—" },
+          { label: "reserved", value: ps?.reserved ?? "—" },
+        ],
+        onClick: () => router.push("/parts"),
+      },
+      {
+        key: "sales",
+        tone: "orange",
+        icon: Container,
+        label: "Today's Sales",
+        value: todaySalesQ.data ? cash(todaySalesQ.data.total) : "—",
+        subStats: [{ label: "sales today", value: todaySalesQ.data?.count ?? "—" }],
+        onClick: () => router.push("/sales"),
+      },
+      {
+        key: "containers",
+        tone: "purple",
+        icon: Container,
+        label: "Export Containers",
+        value: ec ? ec.loading + ec.ready_for_invoice + ec.on_the_way : "—",
+        subStats: [
+          { label: "loading", value: ec?.loading ?? "—" },
+          { label: "ready to invoice", value: ec?.ready_for_invoice ?? "—" },
+          { label: "on the way", value: ec?.on_the_way ?? "—" },
+        ],
+        onClick: () => router.push("/containers"),
+      },
+      {
+        key: "scrap",
+        tone: "grey",
+        icon: Recycle,
+        label: "Scrap Inventory",
+        value: scrap?.open_now ?? "—",
+        subStats: [
+          { label: "awaiting ticket", value: scrap?.awaiting_ticket_now ?? "—" },
+          { label: "needs review", value: scrap?.needs_review_now ?? "—" },
+        ],
+        onClick: () => router.push("/scrap"),
+      },
+      {
+        key: "alerts",
+        tone: "red",
+        icon: AlertTriangle,
+        label: "Alerts",
+        value: notificationCount,
+        subStats: exceptions.filter((e) => e.count > 0).slice(0, 2).map((e) => ({ label: e.label.toLowerCase(), value: e.count })),
+        onClick: () => onGoList("overdue"),
+      },
     ];
-  }, [s, summary.isError]);
+  }, [s, stageCounts, partsStatusQ.data, exportCountsQ.data, scrapSummaryQ.data, todaySalesQ.data, notificationCount, exceptions, onGoList, router]);
 
-  const employees: EmployeeCardData[] = useMemo(
-    () =>
-      (employeesQ.data ?? []).map((r) => {
-        const user = { id: r.profile_id, name: r.name, role: r.role.split(", ")[0] || "employee" } as unknown as User;
-        const metrics =
-          user.role === "scrap_driver"
-            ? [{ label: "loads", value: r.loads }, { label: "actions", value: r.actions }]
-            : user.role === "employee"
-              ? [{ label: "captured", value: r.captured }, { label: "actions", value: r.actions }]
-              : [{ label: "actions", value: r.actions }, { label: "captured", value: r.captured }];
-        return { user, metrics: metrics.filter((m) => m.value > 0 || m.label === "actions") };
-      }),
-    [employeesQ.data]
-  );
-
-  const activityRows: ActivityRow[] = useMemo(
+  const timelineItems: TimelineItem[] = useMemo(
     () =>
       (activityQ.data ?? []).map((e) => ({
         id: e.id,
-        when: new Date(e.created_at).toLocaleString(),
-        employee: e.actor_name,
-        activity: e.action.replaceAll("_", " "),
-        details: e.vehicle_title || e.part_type || e.note || "—",
+        time: new Date(e.created_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }),
+        title: e.action.replaceAll("_", " "),
+        subtitle: `${e.actor_name} · ${e.vehicle_title || e.part_type || e.note || "—"}`,
         vehicleId: e.vehicle_id ?? undefined,
       })),
     [activityQ.data]
   );
 
-  const notificationCount = s?.notification_count ?? 0;
-  const loadError = summary.error ?? employeesQ.error ?? activityQ.error;
-
-  function handleStageSelect(stage: VehicleStage) {
-    const filterByStage: Record<VehicleStage, string> = {
-      purchased: "all",
-      inTransit: "awaitingArrival",
-      arrived: "active",
-      processing: "processing",
-      waitingReview: "history",
-      completed: "history",
-    };
-    onGoList(filterByStage[stage]);
-  }
+  const transportCounts = {
+    inTransit: dispatchCountsQ.data?.inTransit ?? 0,
+    arrivingToday: arrivedTodayQ.data ?? 0,
+    atYard: dispatchCountsQ.data?.arrived ?? 0,
+    dispatched: dispatchCountsQ.data?.assigned ?? 0,
+  };
 
   function handleExceptionSelect(id: string) {
     if (id === "highValue" || id === "converters") return onGoActivity(undefined, id);
@@ -118,34 +174,27 @@ export function OwnerDashboard({
   }
 
   return (
-    <div>
-      <DashboardHeader user={user} notificationCount={notificationCount} dateRange={dateRange} onDateRangeChange={setDateRange} />
+    <div className="space-y-4">
+      <DashboardHeader user={user} notificationCount={notificationCount} />
+      <WelcomeBanner firstName={user.name.split(" ")[0]} />
 
-      {loadError && <p className="mb-4 text-sm text-destructive">{loadError.message}</p>}
-      {(summary.isPending || employeesQ.isPending) && !loadError && <p className="mb-4 text-xs text-muted-foreground">Loading dashboard data…</p>}
+      {loadError && <p className="text-sm text-destructive">{loadError.message}</p>}
 
-      <div className="mb-4 grid gap-4 lg:grid-cols-[1fr_300px]">
-        <VehicleStatusCards counts={stageCounts} onSelectStage={handleStageSelect} />
+      <KpiGrid tiles={kpis} />
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <ActivityTimeline items={timelineItems} onViewAll={() => onGoActivity()} onOpenVehicle={onOpenVehicle} />
+        <TransportStatusPanel counts={transportCounts} />
         <KeyExceptionsPanel rows={exceptions} onSelect={handleExceptionSelect} onViewAll={() => onGoList("overdue")} />
       </div>
 
-      <div className="mb-4">
-        <KpiRow items={kpis} />
+      <div className="grid gap-4 lg:grid-cols-3">
+        <SalesOverviewChart days={salesDays} onDaysChange={setSalesDays} points={salesByDayQ.data ?? []} />
+        <PartsStatusDonut counts={partsStatusQ.data ?? { available: 0, reserved: 0, sold: 0 }} />
+        <TopSellingParts parts={topSellingQ.data ?? []} />
       </div>
 
-      <div className="mb-4">
-        <EmployeeOverview employees={employees} onOpenEmployee={() => router.push("/team")} onViewAll={() => router.push("/team")} />
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
-        {/* min-w-0: the activity table scrolls inside its own container instead of widening the grid on phones */}
-        <div className="min-w-0">
-          <RecentActivityTable rows={activityRows} onViewAll={() => onGoActivity()} onOpenVehicle={onOpenVehicle} />
-        </div>
-        <div className="min-w-0">
-          <VehiclesByStageChart counts={stageCounts} />
-        </div>
-      </div>
+      <DashboardFooter />
     </div>
   );
 }
