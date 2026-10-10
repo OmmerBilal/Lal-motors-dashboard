@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useEffectiveUser } from "@/lib/effective-user";
 import {
@@ -39,7 +39,7 @@ import {
 } from "@/lib/mock/vehicles";
 import { receiveBlockedReason } from "@/lib/receive-eligibility";
 import { useVehicleList, useVehicleKpis, useVehicleFilterOptions, useCloseVehicle, useReopenVehicle } from "@/lib/query/vehicles";
-import type { VehicleListFilters } from "@/lib/data/vehicles";
+import { findVehicleByBarcode, type VehicleListFilters } from "@/lib/data/vehicles";
 import { toVehicleRecord } from "@/lib/data/vehicle-record";
 import { toast } from "sonner";
 import type { IntakeMethod } from "@/components/vehicles/vehicle-workspace";
@@ -124,6 +124,7 @@ export function AuctionInventoryHome({
   const [closeTarget, setCloseTarget] = useState<VehicleRecord | null>(null);
   const [closeReason, setCloseReason] = useState<ClosedReason>("Scrapped");
   const [closeNote, setCloseNote] = useState("");
+  const [scanning, setScanning] = useState(false);
 
   // Server-side filtering and keyset pagination. Filters are part of the query key, so each
   // combination has its own cache entry and returning to one renders from cache immediately.
@@ -173,6 +174,29 @@ export function AuctionInventoryHome({
   function setStage(stage: AuctionStage | "all") {
     setStageFilter(stage);
     setPage(1);
+  }
+
+  /** Scan-to-open: a keyboard-wedge scanner types the code and sends Enter, same as this handler. Manual typing
+   * behaves identically — every keystroke still updates `search` via onChange above; only Enter also tries an
+   * exact barcode/VIN/stock match and opens the vehicle when one is found. No match just leaves the text search
+   * in place (nothing is cleared, nothing errors). */
+  async function handleSearchKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key !== "Enter" || scanning) return;
+    const code = search.trim();
+    if (!code) return;
+    setScanning(true);
+    try {
+      const result = await findVehicleByBarcode(code);
+      if (result.found) {
+        onOpenVehicle(result.vehicle_id);
+      } else {
+        toast.info(`No vehicle matches "${code}" by barcode, VIN or stock #. Showing text search results.`);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not look up that code.");
+    } finally {
+      setScanning(false);
+    }
   }
 
   function toggleAll() {
@@ -313,12 +337,13 @@ export function AuctionInventoryHome({
             <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               className="h-9 pl-8 text-sm"
-              placeholder="Search by VIN, Lot #, Stock #, Make, Model…"
+              placeholder="Search or scan VIN, Lot #, Stock #, Make, Model…"
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
                 setPage(1);
               }}
+              onKeyDown={handleSearchKeyDown}
             />
           </div>
           <Select value={stageFilter} onValueChange={(v) => setStage((v as AuctionStage | "all") ?? "all")}>

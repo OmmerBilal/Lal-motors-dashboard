@@ -30,6 +30,7 @@ const str = (v: unknown) => (v === null || v === undefined ? "" : String(v));
 export function fullVehicleRecord(row: VehicleRow): VehicleRecord {
   return {
     id: row.id,
+    barcode: str(row.barcode),
     auctionSource: str(row.auction_source),
     vin: str(row.vin),
     lotNumber: str(row.lot_number),

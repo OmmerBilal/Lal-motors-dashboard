@@ -18,6 +18,10 @@ export type ClosedReason = "Scrapped" | "Sold Complete" | "Exported" | "Other";
 
 export type VehicleRecord = {
   id: string;
+  /** Stable scannable identifier — the VIN itself when valid, otherwise a generated LAL- code. Assigned once at
+   * creation (match_or_create_vehicle, migration 0076) and never changed. Empty string only for a VehicleRecord
+   * built from a read model that doesn't carry it (list rows) — the detail screen's vehicle_get always has it. */
+  barcode: string;
   auctionSource: string;
   vin: string;
   lotNumber: string;

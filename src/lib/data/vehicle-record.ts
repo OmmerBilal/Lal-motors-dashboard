@@ -9,6 +9,9 @@ import type { VehicleListRow } from "@/lib/data/vehicles";
 export function toVehicleRecord(row: VehicleListRow): VehicleRecord {
   return {
     id: row.id,
+    // Neither read model behind this mapper carries barcode (it's a detail-screen field, read via
+    // vehicle_get's to_jsonb); left empty here rather than invented.
+    barcode: "",
     auctionSource: row.auction_source,
     vin: row.vin ?? "",
     lotNumber: row.lot_number ?? "",
@@ -60,6 +63,9 @@ export function toVehicleRecord(row: VehicleListRow): VehicleRecord {
 export function vehicleRowToRecord(row: import("@/lib/data/processing").VehicleRow): VehicleRecord {
   return {
     id: row.id,
+    // Neither read model behind this mapper carries barcode (it's a detail-screen field, read via
+    // vehicle_get's to_jsonb); left empty here rather than invented.
+    barcode: "",
     auctionSource: row.auction_source,
     vin: row.vin ?? "",
     lotNumber: row.lot_number ?? "",

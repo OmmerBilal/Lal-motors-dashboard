@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,6 +20,7 @@ import {
   type VehicleRecord,
 } from "@/lib/mock/vehicles";
 import { useAddVehicleNote, useEditVehicle, useVehicleEvents } from "@/lib/query/vehicle-workspace";
+import { BarcodeLabelPrint, Code128 } from "@/components/vehicles/views/barcode-label";
 
 /**
  * One vehicle's record. Edits go to the same row through vehicle_edit_fields, and only changed fields are sent.
@@ -91,6 +93,14 @@ export function DetailView({ user, vehicle }: { user: User; vehicle: VehicleReco
   const [note, setNote] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [printing, setPrinting] = useState(false);
+
+  // Same pattern as sale-detail-view.tsx: mount the hidden print-only label, then print on the next paint, so
+  // the barcode's own effect has already drawn into the SVG before window.print() captures it.
+  function printBarcode() {
+    setPrinting(true);
+    requestAnimationFrame(() => requestAnimationFrame(() => window.print()));
+  }
 
   function startEditing() {
     setEdit(Object.fromEntries(EDITABLE.map(([k]) => [k, String(vehicle[k] ?? "")])));
@@ -155,6 +165,9 @@ export function DetailView({ user, vehicle }: { user: User; vehicle: VehicleReco
           <h3 className="text-base font-semibold">{vehicleTitle(vehicle)}</h3>
           <div className="flex items-center gap-2">
             <StatusBadge>{vehicle.status}</StatusBadge>
+            <Button size="sm" variant="outline" className="print:hidden" onClick={printBarcode}>
+              <Printer className="size-4" /> Print barcode
+            </Button>
             {canReceiveVehicle(vehicle, realUser.role) && (
               <Button size="sm" onClick={() => router.push(`/vehicle-receiving?vehicle=${vehicle.id}`)}>
                 Receive Vehicle
@@ -185,6 +198,15 @@ export function DetailView({ user, vehicle }: { user: User; vehicle: VehicleReco
             </div>
           ))}
         </div>
+
+        {vehicle.barcode && (
+          <div className="mt-4 flex items-center gap-3 rounded-md border border-border bg-muted/30 p-3">
+            <Code128 value={vehicle.barcode} height={40} />
+            <span className="text-xs text-muted-foreground">
+              Barcode {vehicle.barcode === vehicle.vin ? "(this vehicle's VIN)" : "(generated — no valid VIN on file)"}
+            </span>
+          </div>
+        )}
         {vehicle.unverifiedFields.length > 0 && (
           <p className="mt-3 text-xs text-warning-foreground">
             Unverified: {vehicle.unverifiedFields.map((k) => vehicleFieldLabels[k] || k).join(", ")}
@@ -308,6 +330,8 @@ export function DetailView({ user, vehicle }: { user: User; vehicle: VehicleReco
           {eventsQuery.isSuccess && events.length === 0 && <p className="text-sm text-muted-foreground">No recorded actions yet.</p>}
         </div>
       </section>
+
+      {printing && vehicle.barcode && <BarcodeLabelPrint vehicle={vehicle} />}
     </div>
   );
 }

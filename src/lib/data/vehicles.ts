@@ -160,6 +160,20 @@ export type IntakeDraftInput = {
   transportationCost?: string;
 };
 
+export type BarcodeLookup =
+  | { found: true; vehicle_id: string; year: number; make: string; model: string; vin: string | null; stock_number: string | null; lot_number: string | null; barcode: string }
+  | { found: false };
+
+/** Scan-to-open: trims/uppercases the input server-side and matches barcode OR vin OR stock_number — so both a
+ * printed LAL- label and the car's own manufacturer VIN barcode resolve to the same vehicle. Never throws for
+ * "not found"; only a real request failure (auth/role) throws. */
+export async function findVehicleByBarcode(code: string): Promise<BarcodeLookup> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("vehicle_find_by_barcode", { p_code: code });
+  if (error) fail(error);
+  return data as BarcodeLookup;
+}
+
 export async function previewVehicleMatch(draft: IntakeDraftInput): Promise<{ status: IntakeMatchStatus; vehicle_id?: string; reason?: string }> {
   const supabase = createClient();
   const { data, error } = await supabase.rpc("find_vehicle_match", {
