@@ -10,6 +10,16 @@ const PERIODS = [
   { id: "90", label: "Last 90 days" },
 ];
 
+/** Rounds a chart's top value up to a "nice" number (1/2/2.5/5/10 × a power of 10), so the y-axis
+ * reads $0 / $250 / $500... instead of an arbitrary value tied to whichever bar happens to be tallest. */
+function niceAxisMax(n: number) {
+  if (n <= 0) return 100;
+  const pow = 10 ** Math.floor(Math.log10(n));
+  const norm = n / pow;
+  const step = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 2.5 ? 2.5 : norm <= 5 ? 5 : 10;
+  return step * pow;
+}
+
 /** "Sales Overview" — a plain CSS/SVG bar chart (no new charting dependency; this app already hand-rolls its
  * one other chart, vehicles-by-stage-chart.tsx, the same way), over real daily totals from ownerSalesByDay. */
 export function SalesOverviewChart({
@@ -21,7 +31,9 @@ export function SalesOverviewChart({
   onDaysChange: (days: number) => void;
   points: SalesByDayPoint[];
 }) {
-  const max = Math.max(1, ...points.map((p) => p.total));
+  const rawMax = Math.max(1, ...points.map((p) => p.total));
+  const axisMax = niceAxisMax(rawMax);
+  const axisSteps = [1, 0.75, 0.5, 0.25, 0].map((f) => axisMax * f);
   // Thin out labels so they don't collide at 30/90 days: show every Nth date.
   const labelEvery = Math.max(1, Math.ceil(points.length / 7));
 
@@ -44,24 +56,44 @@ export function SalesOverviewChart({
       </div>
 
       {points.some((p) => p.total > 0) ? (
-        <div className="flex h-40 items-end gap-[3px]">
-          {points.map((p, i) => (
-            // h-full here matters: a percentage `height` only resolves against a parent with a definite
-            // height, and without it this wrapper (a flex item with no height of its own) collapses to
-            // 0, which collapsed the bar inside it to 0 too — no bars ever rendered, regardless of data.
-            <div key={p.date} className="group relative h-full flex-1">
-              <div
-                className="absolute inset-x-0 bottom-0 w-full rounded-t-sm bg-primary transition-colors group-hover:bg-primary/80"
-                style={{ height: `${Math.max(2, (p.total / max) * 100)}%` }}
-                title={`${new Date(p.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}: ${cash(p.total)}`}
-              />
-              {i % labelEvery === 0 && (
-                <span className="absolute top-full mt-1 block w-full truncate text-center text-[9px] text-muted-foreground">
-                  {new Date(p.date).toLocaleDateString(undefined, { day: "numeric" })}
-                </span>
-              )}
+        <div className="flex h-44 gap-2">
+          {/* Y-axis value labels — real gridline values (0, 25%, 50%, 75%, 100% of a "nice" rounded
+              max), not just the bare day numbers the x-axis showed before. */}
+          <div className="flex h-40 w-10 shrink-0 flex-col justify-between text-right text-[10px] leading-none text-muted-foreground">
+            {axisSteps.map((v) => (
+              <span key={v}>{cash(v)}</span>
+            ))}
+          </div>
+          <div className="relative flex h-40 flex-1 items-end gap-[3px]">
+            {/* Gridlines at the same 4 steps as the axis labels, so a bar's top can be read against them. */}
+            <div className="pointer-events-none absolute inset-0 flex flex-col justify-between">
+              {axisSteps.map((v) => (
+                <div key={v} className="h-px w-full bg-border/60" />
+              ))}
             </div>
-          ))}
+            {points.map((p, i) => (
+              // h-full here matters: a percentage `height` only resolves against a parent with a definite
+              // height, and without it this wrapper (a flex item with no height of its own) collapses to
+              // 0, which collapsed the bar inside it to 0 too — no bars ever rendered, regardless of data.
+              <div key={p.date} className="group relative h-full flex-1">
+                <div
+                  className="absolute inset-x-0 bottom-0 w-full rounded-t-sm bg-primary transition-colors group-hover:bg-primary/80"
+                  style={{ height: `${Math.max(2, (p.total / axisMax) * 100)}%` }}
+                  title={`${new Date(p.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}: ${cash(p.total)}`}
+                />
+                {/* Value on hover — a visible tooltip above the bar, not just the native title (which
+                    is slow to appear and easy to miss on a 3px-wide bar). */}
+                <span className="pointer-events-none absolute bottom-full left-1/2 mb-1 w-max -translate-x-1/2 rounded-md bg-foreground px-1.5 py-0.5 text-[10px] font-semibold whitespace-nowrap text-background opacity-0 shadow-sm transition-opacity group-hover:opacity-100">
+                  {cash(p.total)}
+                </span>
+                {i % labelEvery === 0 && (
+                  <span className="absolute top-full mt-1 block w-full truncate text-center text-[9px] text-muted-foreground">
+                    {new Date(p.date).toLocaleDateString(undefined, { day: "numeric" })}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       ) : (
         <p className="flex h-40 items-center justify-center text-sm text-muted-foreground">No sales recorded in this period.</p>

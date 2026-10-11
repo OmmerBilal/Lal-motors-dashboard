@@ -31,7 +31,11 @@ export function PartsStatusDonut({ counts }: { counts: PartsStatusCounts }) {
   return (
     <div className="h-full rounded-xl border border-border bg-card p-4">
       <h3 className="mb-3 text-sm font-semibold">Parts Inventory Status</h3>
-      <div className="flex flex-col items-center gap-4 sm:flex-row">
+      {/* Always stacked (not sm:flex-row): this card is only ~1/3 of the page width in the dashboard's
+          grid, so a viewport-width breakpoint forced the donut and legend side-by-side long before
+          there was actually room for both — squeezing the legend column down to a sliver and
+          truncating "Available" to "A…". Stacking guarantees the legend gets the full card width. */}
+      <div className="flex flex-col items-center gap-4">
         <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} role="img" aria-label="Parts inventory status donut chart" className="shrink-0">
           <circle cx={CENTER} cy={CENTER} r={RADIUS} fill="none" stroke="var(--border)" strokeWidth={STROKE} />
           <g transform={`rotate(-90 ${CENTER} ${CENTER})`}>
@@ -61,7 +65,7 @@ export function PartsStatusDonut({ counts }: { counts: PartsStatusCounts }) {
             return (
               <div key={s.key} className="flex items-center gap-2 text-sm">
                 <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: s.color }} />
-                <span className="min-w-0 flex-1 truncate text-muted-foreground">{s.label}</span>
+                <span className="min-w-0 flex-1 text-foreground/80">{s.label}</span>
                 <b className="tabular-nums">{count}</b>
                 <span className="w-9 text-right text-xs text-muted-foreground tabular-nums">{pct}%</span>
               </div>

@@ -450,10 +450,11 @@ export function VehicleReceiving({ user }: { user: User }) {
               completion={completion}
               pendingByRole={pendingBySlot}
             />
-            {/* Compact tiles (shorter preview, smaller side-by-side buttons — see MediaCapture's
-                compact prop) in a tight 4-across grid, so the required photos no longer tower over
-                the Scan VIN / Match Found columns. Same capture/save/upload behaviour as elsewhere. */}
-            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {/* Compact tiles (shorter preview, smaller aligned buttons — see MediaCapture's compact
+                prop) in a 2×2 grid (Front/Rear on top, Left/Right below) — NOT 4-across, which packed
+                the tiles so narrow their button labels wrapped/overflowed. Stacks to 1 column on a
+                narrow phone. Same capture/save/upload behaviour as elsewhere. */}
+            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
               {ARRIVAL_PHOTO_SLOTS.map((slot) => (
                 <MediaCapture
                   key={`${matched.id}-${slot.id}`}
@@ -468,8 +469,9 @@ export function VehicleReceiving({ user }: { user: User }) {
                 />
               ))}
             </div>
-            {/* Same compact tile size as the 4 required photos, not a full-width box. */}
-            <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {/* Same compact tile size as the 4 required photos, not a full-width box — one cell of the
+                same 2-column grid. */}
+            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
               <MediaCapture key={`${matched.id}-extra`} label="Additional photo (optional)" ownerType="vehicle" ownerId={matched.id} role={ARRIVAL_EXTRA_ROLE} disabled={receiveMutation.isPending} compact />
             </div>
           </CardShell>
