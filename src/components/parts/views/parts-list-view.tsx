@@ -29,8 +29,12 @@ export function PartsListView({ scope, onOpen }: { scope: "pending" | "inventory
               <div className="flex size-14 shrink-0 items-center justify-center rounded-md bg-muted text-xs text-muted-foreground">
                 Photo
               </div>
-              <span className="min-w-0 flex-1">
-                <b className="block truncate text-sm">{p.draft.partName || "Pending identification"}</b>
+              {/* flex-[1.6] + line-clamp-2 + title: give the name more of the row and let it wrap instead of
+                  cutting off, with a tooltip for the rare name still too long to show in full. */}
+              <span className="min-w-0 flex-[1.6]">
+                <b className="line-clamp-2 text-sm" title={p.draft.partName || "Pending identification"}>
+                  {p.draft.partName || "Pending identification"}
+                </b>
                 <small className="text-xs text-muted-foreground">
                   {p.stockSku || p.draft.partNumber || `Captured ${new Date(p.createdAt).toLocaleString()}`}
                 </small>
@@ -41,7 +45,7 @@ export function PartsListView({ scope, onOpen }: { scope: "pending" | "inventory
                 </b>
                 <small className="text-xs text-muted-foreground">{p.capturedByName}</small>
               </span>
-              <StatusBadge>{p.status.replaceAll("_", " ")}</StatusBadge>
+              <StatusBadge className="shrink-0">{p.status.replaceAll("_", " ")}</StatusBadge>
             </button>
           ))}
         </div>

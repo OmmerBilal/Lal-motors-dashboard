@@ -6,7 +6,6 @@ import {
   driverAttachPhoto,
   driverCompleteLoad,
   driverCreateCheck,
-  driverCreateLoad,
   driverGetLoad,
   driverListLoads,
   driverMarkDelivered,
@@ -83,11 +82,12 @@ export function useDriverLoad(id: string | null) {
 }
 
 
+// A scrap driver never creates their own load (see scrap_driver_create_load, retired server-side in
+// migration 0078) — office creates and assigns one. This mutation set deliberately has no "createLoad".
 export function useDriverMutations() {
   const qc = useQueryClient();
   const done = () => invalidateScrap(qc);
   return {
-    createLoad: useMutation({ mutationFn: (requestId: string) => driverCreateLoad(requestId), onSuccess: done }),
     attachPhoto: useMutation({
       mutationFn: (p: { loadId: string; kind: "load" | "ticket"; mediaId: string }) => driverAttachPhoto(p.loadId, p.kind, p.mediaId),
       onSuccess: done,

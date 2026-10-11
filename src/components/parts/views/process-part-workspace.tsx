@@ -165,13 +165,18 @@ export function ProcessPartWorkspace({
     <div className="flex h-full flex-col rounded-lg border border-border bg-card">
       <div className="flex items-start justify-between gap-3 border-b border-border p-4">
         <div className="min-w-0">
-          <button onClick={onBack} className="mb-1 flex items-center gap-1 text-xs font-medium text-primary hover:underline lg:hidden">
+          <button onClick={onBack} className="mb-1.5 flex items-center gap-1 text-xs font-medium text-primary hover:underline lg:hidden">
             <ChevronLeft className="size-3.5" /> Back to queue
           </button>
-          <h3 className="truncate text-base font-semibold">Process Part: {part.partCode}</h3>
-          <p className="truncate text-xs text-muted-foreground">{part.draft.partName || "Unidentified part"}</p>
+          <h3 className="truncate text-base font-semibold" title={part.draft.partName || "Unidentified part"}>
+            {part.draft.partName || "Unidentified part"}
+          </h3>
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">Processing · {part.partCode}</p>
         </div>
-        <StatusBadge tone={part.operationalStatus === "SOLD" ? "neutral" : part.stage === "ready_for_sale" ? "success" : part.stage === "not_sellable" ? "danger" : part.stage === "in_processing" ? "info" : "warning"}>
+        <StatusBadge
+          className="shrink-0"
+          tone={part.operationalStatus === "SOLD" ? "neutral" : part.stage === "ready_for_sale" ? "success" : part.stage === "not_sellable" ? "danger" : part.stage === "in_processing" ? "info" : "warning"}
+        >
           {part.operationalStatus === "SOLD" ? "Sold" : partStageLabels[part.stage]}
         </StatusBadge>
       </div>
@@ -201,28 +206,31 @@ export function ProcessPartWorkspace({
             </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label className="flex items-center gap-1.5">
-                Part name
-                {unverified.has("partName") && <em className="text-[10px] font-semibold text-warning-foreground not-italic">AI SUGGESTED</em>}
-              </Label>
-              <Input disabled={!manager || locked} value={partName} onChange={(e) => setPartName(e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Part category</Label>
-              <Input disabled={!manager || locked} value={category} onChange={(e) => setCategory(e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="flex items-center gap-1.5">
-                Interchange / OEM #
-                {unverified.has("partNumber") && <em className="text-[10px] font-semibold text-warning-foreground not-italic">AI SUGGESTED · UNVERIFIED</em>}
-              </Label>
-              <Input disabled={!manager || locked} value={interchange} onChange={(e) => setInterchange(e.target.value)} />
-            </div>
-            <div className="space-y-1.5 sm:col-span-2">
-              <Label>Part notes</Label>
-              <Textarea disabled={!manager || locked} rows={3} value={partNotes} onChange={(e) => setPartNotes(e.target.value)} />
+          <div className="rounded-md border border-border p-3">
+            <h4 className="mb-3 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Identification</h4>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-1.5">
+                  Part name
+                  {unverified.has("partName") && <em className="text-[10px] font-semibold text-warning-foreground not-italic">AI SUGGESTED</em>}
+                </Label>
+                <Input disabled={!manager || locked} value={partName} onChange={(e) => setPartName(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Part category</Label>
+                <Input disabled={!manager || locked} value={category} onChange={(e) => setCategory(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-1.5">
+                  Interchange / OEM #
+                  {unverified.has("partNumber") && <em className="text-[10px] font-semibold text-warning-foreground not-italic">AI SUGGESTED · UNVERIFIED</em>}
+                </Label>
+                <Input disabled={!manager || locked} value={interchange} onChange={(e) => setInterchange(e.target.value)} />
+              </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label>Part notes</Label>
+                <Textarea disabled={!manager || locked} rows={3} value={partNotes} onChange={(e) => setPartNotes(e.target.value)} />
+              </div>
             </div>
           </div>
         </TabsContent>
@@ -261,51 +269,54 @@ export function ProcessPartWorkspace({
         </TabsContent>
 
         <TabsContent value="condition" className="space-y-4 py-4">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label>
-                Condition <span className="text-destructive">*</span>
-              </Label>
-              <Select value={condition || undefined} onValueChange={(v) => setCondition(v ?? "")} disabled={!manager || locked}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select condition" />
-                </SelectTrigger>
-                <SelectContent>
-                  {partConditionOptions.map((c) => (
-                    <SelectItem key={c} value={c}>
-                      {c}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>
-                Test status <span className="text-destructive">*</span>
-              </Label>
-              <Select value={testStatus} onValueChange={(v) => setTestStatus((v as typeof testStatus) ?? "Not Tested")} disabled={!manager || locked}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {testStatusOptions.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {s}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5 sm:col-span-2">
-              <Label>Test notes</Label>
-              <Textarea disabled={!manager || locked} rows={3} value={testNotes} onChange={(e) => setTestNotes(e.target.value)} />
+          <div className="rounded-md border border-border p-3">
+            <h4 className="mb-3 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Condition &amp; test result</h4>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>
+                  Condition <span className="text-destructive">*</span>
+                </Label>
+                <Select value={condition || undefined} onValueChange={(v) => setCondition(v ?? "")} disabled={!manager || locked}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select condition" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {partConditionOptions.map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {c}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>
+                  Test status <span className="text-destructive">*</span>
+                </Label>
+                <Select value={testStatus} onValueChange={(v) => setTestStatus((v as typeof testStatus) ?? "Not Tested")} disabled={!manager || locked}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {testStatusOptions.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {s}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label>Test notes</Label>
+                <Textarea disabled={!manager || locked} rows={3} value={testNotes} onChange={(e) => setTestNotes(e.target.value)} />
+              </div>
             </div>
           </div>
         </TabsContent>
 
-        <TabsContent value="location" className="space-y-5 py-4">
-          <div>
-            <h4 className="mb-2 flex items-center gap-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+        <TabsContent value="location" className="space-y-4 py-4">
+          <div className="rounded-md border border-border p-3">
+            <h4 className="mb-3 flex items-center gap-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
               <MapPin className="size-3.5" /> Warehouse location
             </h4>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -319,8 +330,8 @@ export function ProcessPartWorkspace({
               )}
             </div>
           </div>
-          <div>
-            <h4 className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Pricing</h4>
+          <div className="rounded-md border border-border p-3">
+            <h4 className="mb-3 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Pricing</h4>
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="space-y-1.5">
                 <Label>
@@ -339,7 +350,7 @@ export function ProcessPartWorkspace({
                 </Label>
               </div>
             </div>
-            <div className="mt-3 space-y-1.5">
+            <div className="mt-3 space-y-1.5 border-t border-border pt-3">
               <Label>Sale channels</Label>
               <div className="flex flex-wrap gap-4">
                 {saleChannelOptions.map((c) => (

@@ -201,7 +201,9 @@ async function rpc<T>(fn: string, args: Record<string, unknown>): Promise<T> {
 }
 
 // ------------------------------------------------------------------ Scrap Driver
-export const driverCreateLoad = (requestId: string) => rpc<DriverLoad>("scrap_driver_create_load", { p_client_request_id: requestId });
+// No driverCreateLoad here: a driver never creates their own load (see migration 0078). Office
+// creates and assigns one (scrap_manager_create_load, src/lib/data/scrap.ts managerCreateLoad below);
+// the driver only ever confirms a load that already exists.
 export const driverAttachPhoto = (loadId: string, kind: "load" | "ticket", mediaId: string) =>
   rpc<DriverLoad>("scrap_driver_attach_photo", { p_load_id: loadId, p_kind: kind, p_media_id: mediaId });
 export const driverMarkDelivered = (loadId: string) => rpc<DriverLoad>("scrap_driver_mark_delivered", { p_load_id: loadId });

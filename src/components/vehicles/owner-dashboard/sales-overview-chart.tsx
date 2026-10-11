@@ -46,9 +46,12 @@ export function SalesOverviewChart({
       {points.some((p) => p.total > 0) ? (
         <div className="flex h-40 items-end gap-[3px]">
           {points.map((p, i) => (
-            <div key={p.date} className="group relative flex-1">
+            // h-full here matters: a percentage `height` only resolves against a parent with a definite
+            // height, and without it this wrapper (a flex item with no height of its own) collapses to
+            // 0, which collapsed the bar inside it to 0 too — no bars ever rendered, regardless of data.
+            <div key={p.date} className="group relative h-full flex-1">
               <div
-                className="w-full rounded-t-sm bg-primary transition-colors group-hover:bg-primary/80"
+                className="absolute inset-x-0 bottom-0 w-full rounded-t-sm bg-primary transition-colors group-hover:bg-primary/80"
                 style={{ height: `${Math.max(2, (p.total / max) * 100)}%` }}
                 title={`${new Date(p.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}: ${cash(p.total)}`}
               />

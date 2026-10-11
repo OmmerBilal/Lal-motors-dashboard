@@ -220,17 +220,24 @@ export function PartsInventoryView({ manager, initialPartId }: { manager: boolea
                       <div className="flex size-11 shrink-0 items-center justify-center rounded-md bg-muted text-[10px] font-semibold text-muted-foreground">
                         {p.partCode.split("-")[0]}
                       </div>
-                      <span className="min-w-0 flex-1">
-                        <b className="block truncate text-sm">{partDisplayName(p)}</b>
+                      {/* flex-[1.6] (vs the donor column's flex-1) plus line-clamp-2 + title: the name was being
+                          cut to one truncated line in a column no wider than the donor/date columns next to it.
+                          It now gets more of the row and wraps to a second line rather than losing text, with a
+                          title tooltip for the rare name still too long to fully show. */}
+                      <span className="min-w-0 flex-[1.6]">
+                        <b className="line-clamp-2 text-sm" title={partDisplayName(p)}>{partDisplayName(p)}</b>
                         <small className="block truncate text-xs text-muted-foreground">{p.partCode}</small>
                       </span>
                       <span className="hidden min-w-0 flex-1 md:block">
                         <span className="block truncate text-sm">{donorLabel(p)}</span>
                         <small className="text-xs text-muted-foreground">{donorYear(p)}</small>
                       </span>
-                      <span className="hidden text-xs text-muted-foreground sm:block">{new Date(p.createdAt).toLocaleDateString()}</span>
+                      <span className="hidden shrink-0 text-xs text-muted-foreground sm:block">{new Date(p.createdAt).toLocaleDateString()}</span>
                       {/* A sellable part with no quantity left stays listed as Out of Stock (it is not deleted). */}
-                      <StatusBadge tone={p.stage === "ready_for_sale" && p.quantity === 0 ? "danger" : isSold(p) ? "neutral" : p.stage === "ready_for_sale" ? "success" : p.stage === "not_sellable" ? "danger" : p.stage === "in_processing" ? "info" : "warning"}>
+                      <StatusBadge
+                        className="shrink-0"
+                        tone={p.stage === "ready_for_sale" && p.quantity === 0 ? "danger" : isSold(p) ? "neutral" : p.stage === "ready_for_sale" ? "success" : p.stage === "not_sellable" ? "danger" : p.stage === "in_processing" ? "info" : "warning"}
+                      >
                         {p.stage === "ready_for_sale" && p.quantity === 0 ? "Out of Stock" : isSold(p) ? "Sold" : partStageLabels[p.stage]}
                       </StatusBadge>
                     </button>

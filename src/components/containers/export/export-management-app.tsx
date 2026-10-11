@@ -14,13 +14,14 @@ import { CONTAINER_STATUS_LABEL, CONTAINER_STATUS_TONE, type ExportBucket, type 
 import { ExportContainerDetail } from "@/components/containers/export/export-container-detail";
 import { NewContainerDialog } from "@/components/containers/export/new-container-dialog";
 import { dateLabel } from "@/components/scrap/scrap-shared";
+import type { StatusTone } from "@/components/patterns/status-badge";
 
-const TABS: { id: ExportBucket; label: string; icon: LucideIcon; count: (c: ExportCounts) => number }[] = [
-  { id: "all", label: "All", icon: Boxes, count: (c) => c.all },
-  { id: "loading", label: "Loading / Open", icon: Boxes, count: (c) => c.loading },
-  { id: "ready_for_invoice", label: "Ready for Invoice", icon: FileText, count: (c) => c.ready_for_invoice },
-  { id: "on_the_way", label: "On the Way", icon: Truck, count: (c) => c.on_the_way },
-  { id: "closed", label: "Closed", icon: CheckCircle2, count: (c) => c.closed },
+const TABS: { id: ExportBucket; label: string; icon: LucideIcon; tone: StatusTone; count: (c: ExportCounts) => number }[] = [
+  { id: "all", label: "All", icon: Boxes, tone: "neutral", count: (c) => c.all },
+  { id: "loading", label: "Loading / Open", icon: Boxes, tone: CONTAINER_STATUS_TONE.loading, count: (c) => c.loading },
+  { id: "ready_for_invoice", label: "Ready for Invoice", icon: FileText, tone: CONTAINER_STATUS_TONE.ready_for_invoice, count: (c) => c.ready_for_invoice },
+  { id: "on_the_way", label: "On the Way", icon: Truck, tone: CONTAINER_STATUS_TONE.on_the_way, count: (c) => c.on_the_way },
+  { id: "closed", label: "Closed", icon: CheckCircle2, tone: CONTAINER_STATUS_TONE.closed, count: (c) => c.closed },
 ];
 
 /** Export management: the same container rows the loader works on, with the confidential export view. */
@@ -63,6 +64,7 @@ export function ExportManagementApp() {
           <MetricCard
             key={t.id}
             icon={t.icon}
+            tone={t.tone}
             label={t.label}
             value={counts.data ? t.count(counts.data) : "—"}
             onClick={() => setBucket(t.id)}

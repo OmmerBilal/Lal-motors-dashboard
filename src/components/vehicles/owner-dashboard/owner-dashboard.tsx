@@ -21,13 +21,9 @@ import { SalesOverviewChart } from "@/components/vehicles/owner-dashboard/sales-
 import { PartsStatusDonut } from "@/components/vehicles/owner-dashboard/parts-status-donut";
 import { TopSellingParts } from "@/components/vehicles/owner-dashboard/top-selling-parts";
 import { DashboardFooter } from "@/components/vehicles/owner-dashboard/dashboard-footer";
+import { yardDay } from "@/components/scrap/scrap-shared";
 
 const ZERO_STAGES: Record<VehicleStage, number> = { purchased: 0, inTransit: 0, arrived: 0, processing: 0, waitingReview: 0, completed: 0 };
-
-/** Local calendar day as YYYY-MM-DD, for the server's range parameters. */
-function ymd(d: Date) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
 
 /**
  * Owner Dashboard. Every tile is backed by a real read model — see the comment above each data hook below for
@@ -46,7 +42,12 @@ export function OwnerDashboard({
   onGoActivity: (actorId?: string, kind?: string) => void;
 }) {
   const router = useRouter();
-  const today = ymd(new Date());
+  // owner_dashboard_activity (and every other RPC "today" is passed to below) filters by the NY business
+  // date, same as Scrap/Containers — yardDay() matches that, not the browser's own local calendar day. Using
+  // the browser's local date here let "today" silently mean a different day server-side (whenever the
+  // browser's timezone is ahead of/behind America/New_York), which is why "Today's Activities" could come
+  // back empty even with real activity recorded for the actual business day.
+  const today = yardDay();
   const [salesDays, setSalesDays] = useState(7);
 
   // owner_dashboard_summary: stage_counts/exceptions/notification_count are always a live snapshot (not

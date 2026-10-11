@@ -73,10 +73,10 @@ export function OperationsView() {
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <MetricCard icon={PackageCheck} label="Available parts" value={stats.available} onClick={() => setFilter("AVAILABLE")} active={status === "AVAILABLE"} />
-        <MetricCard icon={MapPin} label="Without location" value={stats.unlocated} onClick={() => setFilter("", true)} active={unlocated} />
-        <MetricCard icon={ShieldAlert} label="Reserved" value={stats.reserved} onClick={() => setFilter("RESERVED")} active={status === "RESERVED"} />
-        <MetricCard icon={AlertTriangle} label="Damaged / Missing" value={stats.damaged} onClick={() => setFilter("DAMAGED")} active={status === "DAMAGED"} />
+        <MetricCard tone="success" icon={PackageCheck} label="Available parts" value={stats.available} onClick={() => setFilter("AVAILABLE")} active={status === "AVAILABLE"} />
+        <MetricCard tone="warning" icon={MapPin} label="Without location" value={stats.unlocated} onClick={() => setFilter("", true)} active={unlocated} />
+        <MetricCard tone="info" icon={ShieldAlert} label="Reserved" value={stats.reserved} onClick={() => setFilter("RESERVED")} active={status === "RESERVED"} />
+        <MetricCard tone="danger" icon={AlertTriangle} label="Damaged / Missing" value={stats.damaged} onClick={() => setFilter("DAMAGED")} active={status === "DAMAGED"} />
       </div>
 
       <div className="space-y-3">

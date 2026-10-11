@@ -279,13 +279,15 @@ export function ScrapManagerDashboard({ user, onOpenUsers }: { user: User; onOpe
 
 function SummaryCard({ icon: Icon, tone, value, label, hint }: { icon: typeof Truck; tone: string; value: number | string; label: string; hint?: string }) {
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-border p-4" style={{ backgroundColor: `${tone}0f` }}>
-      <span className="flex size-9 items-center justify-center rounded-md" style={{ backgroundColor: `${tone}26`, color: tone }}>
-        <Icon className="size-5" />
+    <div className="flex items-center gap-3 rounded-lg border border-border p-3.5" style={{ backgroundColor: `${tone}0f` }}>
+      <span className="flex size-11 shrink-0 items-center justify-center rounded-xl" style={{ backgroundColor: `${tone}26`, color: tone }}>
+        <Icon className="size-6" strokeWidth={2.25} />
       </span>
-      <span className="text-2xl leading-none font-semibold tabular-nums">{value}</span>
-      <span className="text-sm font-semibold">{label}</span>
-      {hint && <span className="truncate text-xs text-muted-foreground">{hint}</span>}
+      <span className="flex min-w-0 flex-col gap-0.5">
+        <span className="text-2xl leading-none font-semibold tabular-nums">{value}</span>
+        <span className="truncate text-xs font-semibold text-foreground">{label}</span>
+        {hint && <span className="truncate text-[11px] text-muted-foreground">{hint}</span>}
+      </span>
     </div>
   );
 }

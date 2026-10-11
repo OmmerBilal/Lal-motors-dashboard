@@ -360,8 +360,12 @@ export function VehicleReceiving({ user }: { user: User }) {
         </div>
       </div>
 
-      {/* 3-column workflow grid — always 6 cards, state decides active vs placeholder */}
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+      {/* 3-column workflow grid — always 6 cards, state decides active vs placeholder.
+          xl:items-start: CSS grid stretches every item in a row to the row's tallest item by default,
+          which is what was forcing "Scan VIN" and "Match Found" (naturally short) to match the much
+          taller "Take Arrival Photos" card, leaving dead space below their real content. Each card now
+          sizes to its own content and stays top-aligned with the others in its row. */}
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12 xl:items-start">
         {/* 1. Scan VIN — always active */}
         <CardShell tone="blue" className="xl:col-span-3" badge={<NumberBadge n={1} tone="blue" />} title="Scan VIN" subtitle="Scan the VIN barcode or take a photo">
           <VehicleScanInput

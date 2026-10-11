@@ -1,17 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { toast } from "sonner";
-import { Camera, CheckCircle2, ClipboardList, LogOut, Truck } from "lucide-react";
+import { CheckCircle2, ClipboardList, LogOut, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSession } from "@/lib/session";
 import type { User } from "@/lib/types";
 import type { DriverLoad } from "@/lib/data/scrap";
 import { useDriverLoads } from "@/lib/query/scrap";
-import { CheckFlow, LoadDetailFlow, MyLoadsFlow, NewLoadFlow, assignedStatusLabel, loadRef } from "@/components/scrap/driver/driver-load-flows";
+import { CheckFlow, LoadDetailFlow, MyLoadsFlow, assignedStatusLabel, loadRef } from "@/components/scrap/driver/driver-load-flows";
 import { timeLabel, yardDay } from "@/components/scrap/scrap-shared";
 
-type DriverView = { name: "home" } | { name: "new" } | { name: "load"; id: string } | { name: "loads" } | { name: "check" };
+// A driver never creates their own load — office creates and assigns one (scrap_manager_create_load);
+// the driver only confirms a load that already exists. There is deliberately no "new" view here.
+type DriverView = { name: "home" } | { name: "load"; id: string } | { name: "loads" } | { name: "check" };
 
 /**
  * Scrap Driver home. Evidence only: the driver never sees or enters a weight, rate, amount, payment
@@ -30,11 +31,10 @@ export function ScrapDriverHome({ user }: { user: User }) {
   // The most recent load that is not yet complete is the one to resume.
   const active = rows.find((l) => l.driver_state !== "complete") ?? null;
 
-  if (view.name === "new") {
-    return <NewLoadFlow onBack={() => setView({ name: "home" })} onDone={(id) => { toast.success("Load saved."); setView({ name: "load", id }); }} />;
-  }
   if (view.name === "load") {
-    return <LoadDetailFlow loadId={view.id} onBack={() => setView({ name: "home" })} onNextLoad={() => setView({ name: "new" })} />;
+    // After completing a load there is no "next" load to create — only other loads office has
+    // already assigned, so this goes to the driver's own load list rather than minting a new one.
+    return <LoadDetailFlow loadId={view.id} onBack={() => setView({ name: "home" })} onNextLoad={() => setView({ name: "loads" })} />;
   }
   if (view.name === "loads") {
     return <MyLoadsFlow onBack={() => setView({ name: "home" })} onOpen={(id) => setView({ name: "load", id })} />;
@@ -90,7 +90,6 @@ export function ScrapDriverHome({ user }: { user: User }) {
       </section>
 
       <div className="space-y-3">
-        <ActionCard tone="success" icon={Camera} title="New Load" subtitle="Take a photo when loaded" onClick={() => setView({ name: "new" })} />
         <ActionCard
           tone="info"
           icon={ClipboardList}
