@@ -320,8 +320,8 @@ export function AuctionInventoryHome({
                 className={`rounded-lg border p-3.5 text-left transition-shadow ${tone.card} ${active ? "ring-2 ring-offset-1 ring-offset-background" : ""}`}
                 style={active ? { boxShadow: "none" } : undefined}
               >
-                <span className={`flex size-8 items-center justify-center rounded-md ${tone.icon}`}>
-                  <c.icon className="size-4" />
+                <span className={`flex size-10 items-center justify-center rounded-xl ${tone.icon}`}>
+                  <c.icon className="size-5" strokeWidth={2.25} />
                 </span>
                 <b className={`mt-2 block text-2xl font-bold tabular-nums ${tone.value}`}>{value}</b>
                 <span className="block text-xs font-semibold">{c.label}</span>

@@ -175,6 +175,7 @@ export function MediaCapture({
   persistedMediaId = null,
   onUploaded,
   onPendingChange,
+  compact = false,
 }: {
   label: string;
   ownerType: string;
@@ -186,6 +187,9 @@ export function MediaCapture({
   onUploaded?: (mediaId: string) => void;
   /** True while a local photo is chosen but not yet saved. The parent shows this in the progress block. */
   onPendingChange?: (role: string, pending: boolean) => void;
+  /** Tighter padding, a shorter preview and smaller, side-by-side action buttons — same capture/save/upload
+   * behaviour, just a smaller footprint for grids with many tiles (e.g. Vehicle Receiving's 4 required photos). */
+  compact?: boolean;
 }) {
   const queryClient = useQueryClient();
   const persisted = usePersistedPhoto(persistedMediaId);
@@ -355,20 +359,20 @@ export function MediaCapture({
 
   return (
     <div
-      className="flex min-w-0 flex-col gap-2 rounded-xl border border-border bg-card p-3"
+      className={`flex min-w-0 flex-col rounded-xl border border-border bg-card ${compact ? "gap-1.5 p-2" : "gap-2 p-3"}`}
       data-slot-state={state}
     >
       {inputs}
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-1">
-        <span className="min-w-0 text-sm leading-tight font-semibold break-words">{label}</span>
+        <span className={`min-w-0 leading-tight font-semibold break-words ${compact ? "text-xs" : "text-sm"}`}>{label}</span>
         {pill}
       </div>
 
-      <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-muted">
+      <div className={`relative w-full overflow-hidden rounded-lg bg-muted ${compact ? "aspect-video" : "aspect-[4/3]"}`}>
         {state === "chooser" && !shownImage ? (
           <div className="flex h-full flex-col items-center justify-center gap-1 text-muted-foreground">
-            <Camera className="size-7" aria-hidden />
-            <span className="text-xs">No photo yet</span>
+            <Camera className={compact ? "size-5" : "size-7"} aria-hidden />
+            {!compact && <span className="text-xs">No photo yet</span>}
           </div>
         ) : shownImage ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -380,13 +384,13 @@ export function MediaCapture({
           <div className="flex size-full items-center justify-center text-xs text-muted-foreground">Loading saved photo…</div>
         )}
         {state === "saved" && (
-          <span className="absolute top-2 right-2 flex size-8 items-center justify-center rounded-full bg-success text-success-foreground">
-            <CircleCheckBig className="size-5" aria-hidden />
+          <span className={`absolute top-2 right-2 flex items-center justify-center rounded-full bg-success text-success-foreground ${compact ? "size-6" : "size-8"}`}>
+            <CircleCheckBig className={compact ? "size-3.5" : "size-5"} aria-hidden />
           </span>
         )}
       </div>
 
-      {state === "selected" && (
+      {state === "selected" && !compact && (
         <p className="text-xs font-medium text-warning-foreground">
           {replacing ? "New photo selected. The saved photo stays until you save this one." : "This photo is not saved yet. Tap Save Photo."}
         </p>
@@ -406,59 +410,111 @@ export function MediaCapture({
       )}
 
       <div className="flex flex-col gap-2">
-        {state === "chooser" && (
-          <>
-            <Button className="h-11 w-full text-sm" onClick={openCamera} disabled={disabled}>
-              <Camera className="size-4" /> Take Photo
-            </Button>
-            <Button variant="outline" className="h-11 w-full text-sm" onClick={() => deviceRef.current?.click()} disabled={disabled}>
-              <Upload className="size-4" /> Choose from Device
-            </Button>
-            {replacing && (
-              <Button variant="ghost" className="h-10 w-full text-sm" onClick={cancelSelection} disabled={disabled}>
-                Cancel replacement
+        {state === "chooser" &&
+          (compact ? (
+            <>
+              <div className="flex gap-1.5">
+                <Button size="sm" className="h-8 flex-1 text-xs" onClick={openCamera} disabled={disabled}>
+                  <Camera className="size-3.5" /> Photo
+                </Button>
+                <Button size="sm" variant="outline" className="h-8 flex-1 text-xs" onClick={() => deviceRef.current?.click()} disabled={disabled}>
+                  <Upload className="size-3.5" /> Upload
+                </Button>
+              </div>
+              {replacing && (
+                <Button variant="ghost" size="sm" className="h-7 w-full text-xs" onClick={cancelSelection} disabled={disabled}>
+                  Cancel replacement
+                </Button>
+              )}
+            </>
+          ) : (
+            <>
+              <Button className="h-11 w-full text-sm" onClick={openCamera} disabled={disabled}>
+                <Camera className="size-4" /> Take Photo
               </Button>
-            )}
-          </>
-        )}
-        {state === "selected" && (
-          <>
-            <Button className="h-12 w-full text-base" onClick={save} disabled={disabled}>
-              <Upload className="size-5" /> Save Photo
-            </Button>
-            <Button variant="outline" className="h-10 w-full text-sm" onClick={openCamera} disabled={disabled}>
-              <Camera className="size-4" /> Retake
-            </Button>
-            <Button variant="outline" className="h-10 w-full text-sm" onClick={() => deviceRef.current?.click()} disabled={disabled}>
-              <Upload className="size-4" /> Choose Another
-            </Button>
-            {replacing && (
-              <Button variant="ghost" className="h-10 w-full text-sm" onClick={cancelSelection} disabled={disabled}>
-                Cancel replacement
+              <Button variant="outline" className="h-11 w-full text-sm" onClick={() => deviceRef.current?.click()} disabled={disabled}>
+                <Upload className="size-4" /> Choose from Device
               </Button>
-            )}
-          </>
-        )}
-        {state === "error" && (
-          <>
-            <Button className="h-12 w-full text-base" onClick={save} disabled={disabled}>
-              <RefreshCw className="size-5" /> Try saving again
-            </Button>
-            <Button variant="outline" className="h-10 w-full text-sm" onClick={openCamera} disabled={disabled}>
-              <Camera className="size-4" /> Retake
-            </Button>
-            <Button variant="outline" className="h-10 w-full text-sm" onClick={() => deviceRef.current?.click()} disabled={disabled}>
-              <Upload className="size-4" /> Choose Another
-            </Button>
-          </>
-        )}
+              {replacing && (
+                <Button variant="ghost" className="h-10 w-full text-sm" onClick={cancelSelection} disabled={disabled}>
+                  Cancel replacement
+                </Button>
+              )}
+            </>
+          ))}
+        {state === "selected" &&
+          (compact ? (
+            <>
+              <Button size="sm" className="h-8 w-full text-xs" onClick={save} disabled={disabled}>
+                <Upload className="size-3.5" /> Save
+              </Button>
+              <div className="flex gap-1.5">
+                <Button size="sm" variant="outline" className="h-7 flex-1 text-[11px]" onClick={openCamera} disabled={disabled}>
+                  Retake
+                </Button>
+                <Button size="sm" variant="outline" className="h-7 flex-1 text-[11px]" onClick={() => deviceRef.current?.click()} disabled={disabled}>
+                  Choose
+                </Button>
+              </div>
+              {replacing && (
+                <Button variant="ghost" size="sm" className="h-7 w-full text-[11px]" onClick={cancelSelection} disabled={disabled}>
+                  Cancel replacement
+                </Button>
+              )}
+            </>
+          ) : (
+            <>
+              <Button className="h-12 w-full text-base" onClick={save} disabled={disabled}>
+                <Upload className="size-5" /> Save Photo
+              </Button>
+              <Button variant="outline" className="h-10 w-full text-sm" onClick={openCamera} disabled={disabled}>
+                <Camera className="size-4" /> Retake
+              </Button>
+              <Button variant="outline" className="h-10 w-full text-sm" onClick={() => deviceRef.current?.click()} disabled={disabled}>
+                <Upload className="size-4" /> Choose Another
+              </Button>
+              {replacing && (
+                <Button variant="ghost" className="h-10 w-full text-sm" onClick={cancelSelection} disabled={disabled}>
+                  Cancel replacement
+                </Button>
+              )}
+            </>
+          ))}
+        {state === "error" &&
+          (compact ? (
+            <>
+              <Button size="sm" className="h-8 w-full text-xs" onClick={save} disabled={disabled}>
+                <RefreshCw className="size-3.5" /> Retry
+              </Button>
+              <div className="flex gap-1.5">
+                <Button size="sm" variant="outline" className="h-7 flex-1 text-[11px]" onClick={openCamera} disabled={disabled}>
+                  Retake
+                </Button>
+                <Button size="sm" variant="outline" className="h-7 flex-1 text-[11px]" onClick={() => deviceRef.current?.click()} disabled={disabled}>
+                  Choose
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <Button className="h-12 w-full text-base" onClick={save} disabled={disabled}>
+                <RefreshCw className="size-5" /> Try saving again
+              </Button>
+              <Button variant="outline" className="h-10 w-full text-sm" onClick={openCamera} disabled={disabled}>
+                <Camera className="size-4" /> Retake
+              </Button>
+              <Button variant="outline" className="h-10 w-full text-sm" onClick={() => deviceRef.current?.click()} disabled={disabled}>
+                <Upload className="size-4" /> Choose Another
+              </Button>
+            </>
+          ))}
         {state === "saved" && (
-          <Button variant="outline" className="h-10 w-full text-sm" onClick={beginReplace} disabled={disabled}>
-            <Camera className="size-4" /> Replace
+          <Button variant="outline" className={compact ? "h-7 w-full text-[11px]" : "h-10 w-full text-sm"} size={compact ? "sm" : "default"} onClick={beginReplace} disabled={disabled}>
+            <Camera className={compact ? "size-3.5" : "size-4"} /> Replace
           </Button>
         )}
         {state === "uploading" && (
-          <p className="text-center text-sm font-medium text-muted-foreground">Uploading… {progress}%</p>
+          <p className={`text-center font-medium text-muted-foreground ${compact ? "text-xs" : "text-sm"}`}>Uploading… {progress}%</p>
         )}
       </div>
     </div>

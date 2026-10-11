@@ -220,11 +220,12 @@ export function DismantlingProcessingWorkspace({ user }: { user: User }) {
   );
 }
 
-// Solid fill, matching the reference dashboard's KPI tiles (see kpi-grid.tsx) instead of a pale tint.
-const kpiTone: Record<string, { bg: string; icon: string; ring: string }> = {
-  primary: { bg: "bg-tone-blue hover:brightness-95", icon: "bg-white/20", ring: "ring-white/70" },
-  destructive: { bg: "bg-tone-red hover:brightness-95", icon: "bg-white/20", ring: "ring-white/70" },
-  success: { bg: "bg-tone-green hover:brightness-95", icon: "bg-white/20", ring: "ring-white/70" },
+// Calm accent-tinted tile, matching reference-images/yard manager.jpeg — a pale tint card with a
+// small solid icon chip, not a fully-saturated fill.
+const kpiTone: Record<string, { card: string; value: string; icon: string; ring: string }> = {
+  primary: { card: "bg-tone-blue/8 border-tone-blue/20 hover:bg-tone-blue/12", value: "text-tone-blue", icon: "bg-tone-blue", ring: "ring-tone-blue/50" },
+  destructive: { card: "bg-tone-red/8 border-tone-red/20 hover:bg-tone-red/12", value: "text-tone-red", icon: "bg-tone-red", ring: "ring-tone-red/50" },
+  success: { card: "bg-tone-green/8 border-tone-green/20 hover:bg-tone-green/12", value: "text-tone-green", icon: "bg-tone-green", ring: "ring-tone-green/50" },
 };
 
 /** One shared template for the three top KPI buttons, so they always match in height, padding and type scale. */
@@ -250,20 +251,20 @@ function KpiLinkCard({
     <button
       onClick={onClick}
       className={cn(
-        "flex h-full items-center gap-3 rounded-xl p-4 text-left text-white shadow-sm transition-transform",
-        t.bg,
+        "flex h-full items-center gap-3 rounded-xl border p-4 text-left shadow-xs transition-colors",
+        t.card,
         active && `ring-2 ring-offset-2 ring-offset-background ${t.ring}`
       )}
     >
-      <span className={cn("flex size-11 shrink-0 items-center justify-center rounded-xl", t.icon)}>
+      <span className={cn("flex size-11 shrink-0 items-center justify-center rounded-xl text-white", t.icon)}>
         <Icon className="size-6" strokeWidth={2.25} />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-xs font-semibold text-white/85">{label}</span>
-        <span className="block text-2xl leading-tight font-bold">{value}</span>
-        <span className="block truncate text-xs text-white/70">{hint}</span>
+        <span className="block text-xs font-semibold text-foreground/80">{label}</span>
+        <span className={cn("block text-2xl leading-tight font-bold", t.value)}>{value}</span>
+        <span className="block truncate text-xs text-muted-foreground">{hint}</span>
       </span>
-      <ChevronRight className="size-5 shrink-0 text-white/70" />
+      <ChevronRight className="size-5 shrink-0 text-muted-foreground" />
     </button>
   );
 }

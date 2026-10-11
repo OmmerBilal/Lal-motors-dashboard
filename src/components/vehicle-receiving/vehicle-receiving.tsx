@@ -318,48 +318,48 @@ export function VehicleReceiving({ user }: { user: User }) {
         </div>
       </div>
 
-      {/* KPI row — solid fills matching the reference dashboard's KPI tiles (see kpi-grid.tsx), not
-          pale tints on a white card. */}
+      {/* KPI row — calm accent-tinted tiles matching reference-images/vechile receiving.jpeg (pale
+          tint card, bold tone-coloured number, small solid icon chip), not a fully-saturated fill. */}
       <div className="grid min-w-0 grid-cols-2 gap-3 lg:grid-cols-4">
         <button
           onClick={resetAll}
-          className="flex min-w-0 items-center justify-between rounded-xl bg-tone-blue p-4 text-left text-white shadow-sm transition-transform hover:brightness-95"
+          className="flex min-w-0 items-center justify-between rounded-xl border border-tone-blue/20 bg-tone-blue/8 p-4 text-left shadow-xs transition-colors hover:bg-tone-blue/12"
         >
           <span>
-            <b className="block text-3xl font-extrabold tabular-nums">{inbound.length}</b>
-            <span className="block text-sm font-semibold text-white/90">Expected Today</span>
+            <b className="block text-3xl font-extrabold text-tone-blue tabular-nums">{inbound.length}</b>
+            <span className="block text-sm font-semibold text-foreground/85">Expected Today</span>
           </span>
-          <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-white/20">
+          <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-tone-blue text-white">
             <Truck className="size-6" />
           </span>
         </button>
-        <div className="flex min-w-0 items-center justify-between rounded-xl bg-tone-green p-4 text-white shadow-sm">
+        <div className="flex min-w-0 items-center justify-between rounded-xl border border-tone-green/20 bg-tone-green/8 p-4 shadow-xs">
           <span>
-            <b className="block text-3xl font-extrabold tabular-nums">{arrivedToday}</b>
-            <span className="block text-sm font-semibold text-white/90">Arrived Today</span>
+            <b className="block text-3xl font-extrabold text-tone-green tabular-nums">{arrivedToday}</b>
+            <span className="block text-sm font-semibold text-foreground/85">Arrived Today</span>
           </span>
-          <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-white/20">
+          <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-tone-green text-white">
             <CircleCheckBig className="size-6" />
           </span>
         </div>
         <button
           onClick={resetAll}
-          className="flex min-w-0 items-center justify-between rounded-xl bg-tone-orange p-4 text-left text-white shadow-sm transition-transform hover:brightness-95"
+          className="flex min-w-0 items-center justify-between rounded-xl border border-tone-orange/25 bg-tone-orange/10 p-4 text-left shadow-xs transition-colors hover:bg-tone-orange/15"
         >
           <span>
-            <b className="block text-3xl font-extrabold tabular-nums">{inbound.length}</b>
-            <span className="block text-sm font-semibold text-white/90">Still Waiting</span>
+            <b className="block text-3xl font-extrabold text-tone-orange tabular-nums">{inbound.length}</b>
+            <span className="block text-sm font-semibold text-foreground/85">Still Waiting</span>
           </span>
-          <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-white/20">
+          <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-tone-orange text-white">
             <Clock3 className="size-6" />
           </span>
         </button>
-        <div className="flex min-w-0 items-center justify-between rounded-xl bg-tone-red p-4 text-white shadow-sm">
+        <div className="flex min-w-0 items-center justify-between rounded-xl border border-tone-red/20 bg-tone-red/8 p-4 shadow-xs">
           <span>
-            <b className="block text-3xl font-extrabold tabular-nums">{vinProblems}</b>
-            <span className="block text-sm font-semibold text-white/90">VIN Problems</span>
+            <b className="block text-3xl font-extrabold text-tone-red tabular-nums">{vinProblems}</b>
+            <span className="block text-sm font-semibold text-foreground/85">VIN Problems</span>
           </span>
-          <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-white/20">
+          <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-tone-red text-white">
             <TriangleAlert className="size-6" />
           </span>
         </div>
@@ -450,7 +450,10 @@ export function VehicleReceiving({ user }: { user: User }) {
               completion={completion}
               pendingByRole={pendingBySlot}
             />
-            <div className="mt-3 grid grid-cols-2 gap-3">
+            {/* Compact tiles (shorter preview, smaller side-by-side buttons — see MediaCapture's
+                compact prop) in a tight 4-across grid, so the required photos no longer tower over
+                the Scan VIN / Match Found columns. Same capture/save/upload behaviour as elsewhere. */}
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
               {ARRIVAL_PHOTO_SLOTS.map((slot) => (
                 <MediaCapture
                   key={`${matched.id}-${slot.id}`}
@@ -461,11 +464,13 @@ export function VehicleReceiving({ user }: { user: User }) {
                   disabled={receiveMutation.isPending}
                   persistedMediaId={completion.mediaIdBySlot[slot.id]}
                   onPendingChange={setSlotPending}
+                  compact
                 />
               ))}
             </div>
-            <div className="mt-3">
-              <MediaCapture key={`${matched.id}-extra`} label="Additional photo (optional)" ownerType="vehicle" ownerId={matched.id} role={ARRIVAL_EXTRA_ROLE} disabled={receiveMutation.isPending} />
+            {/* Same compact tile size as the 4 required photos, not a full-width box. */}
+            <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <MediaCapture key={`${matched.id}-extra`} label="Additional photo (optional)" ownerType="vehicle" ownerId={matched.id} role={ARRIVAL_EXTRA_ROLE} disabled={receiveMutation.isPending} compact />
             </div>
           </CardShell>
         ) : (

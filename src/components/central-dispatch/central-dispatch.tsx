@@ -61,14 +61,15 @@ const kpiCards: { key: "needTransport" | "postedToCd" | "assigned" | "inTransit"
   { key: "overdue", label: "Overdue", sub: "10+ days", icon: ShieldAlert, tone: "red" },
 ];
 
-// Solid fills, matching the reference dashboard's KPI tiles (see kpi-grid.tsx) — not light tints.
-const cardTone: Record<string, string> = {
-  slate: "bg-tone-grey",
-  blue: "bg-tone-blue",
-  purple: "bg-tone-purple",
-  amber: "bg-tone-orange",
-  green: "bg-tone-green",
-  red: "bg-tone-red",
+// Calm accent-tinted tiles, matching reference-images/central dispatch.jpeg — a pale tint card with
+// a small solid icon chip, not a fully-saturated fill.
+const cardTone: Record<string, { card: string; chip: string }> = {
+  slate: { card: "bg-muted/60 border-border", chip: "bg-muted-foreground" },
+  blue: { card: "bg-tone-blue/8 border-tone-blue/20", chip: "bg-tone-blue" },
+  purple: { card: "bg-tone-purple/8 border-tone-purple/20", chip: "bg-tone-purple" },
+  amber: { card: "bg-tone-orange/10 border-tone-orange/25", chip: "bg-tone-orange" },
+  green: { card: "bg-tone-green/8 border-tone-green/20", chip: "bg-tone-green" },
+  red: { card: "bg-tone-red/8 border-tone-red/20", chip: "bg-tone-red" },
 };
 
 const EDIT_ROLES = ["owner", "engineer_admin", "manager", "auction"];
@@ -270,13 +271,13 @@ export function CentralDispatch({ user }: { user: User }) {
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {kpiCards.map((c) => (
-          <div key={c.key} className={`rounded-lg p-3.5 text-white shadow-sm ${cardTone[c.tone]}`}>
-            <span className="flex size-10 items-center justify-center rounded-xl bg-white/20">
+          <div key={c.key} className={`rounded-lg border p-3.5 shadow-xs ${cardTone[c.tone].card}`}>
+            <span className={`flex size-10 items-center justify-center rounded-xl text-white ${cardTone[c.tone].chip}`}>
               <c.icon className="size-5" strokeWidth={2.25} />
             </span>
             <b className="mt-2 block text-2xl font-bold tabular-nums">{dc ? dc[c.key] ?? 0 : "…"}</b>
-            <span className="block text-xs font-semibold text-white/90">{c.label}</span>
-            <span className="block text-[11px] text-white/70">{c.sub}</span>
+            <span className="block text-xs font-semibold text-foreground/85">{c.label}</span>
+            <span className="block text-[11px] text-muted-foreground">{c.sub}</span>
           </div>
         ))}
       </div>
