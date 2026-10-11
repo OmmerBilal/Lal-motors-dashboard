@@ -1,23 +1,26 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, Plus } from "lucide-react";
+import { ArrowLeft, Boxes, CheckCircle2, FileText, Plus, Truck } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatusBadge } from "@/components/patterns/status-badge";
+import { MetricCard } from "@/components/patterns/metric-card";
+import { PageHeader } from "@/components/patterns/page-header";
 import { EmptyState } from "@/components/patterns/empty-state";
 import { useExportCounts, useExportList } from "@/lib/query/containers";
-import { CONTAINER_STATUS_LABEL, type ExportBucket, type ExportContainerRow } from "@/lib/data/containers";
+import { CONTAINER_STATUS_LABEL, CONTAINER_STATUS_TONE, type ExportBucket, type ExportContainerRow, type ExportCounts } from "@/lib/data/containers";
 import { ExportContainerDetail } from "@/components/containers/export/export-container-detail";
 import { NewContainerDialog } from "@/components/containers/export/new-container-dialog";
 import { dateLabel } from "@/components/scrap/scrap-shared";
 
-const TABS: { id: ExportBucket; label: string; count: (c: Record<string, number>) => number }[] = [
-  { id: "all", label: "All", count: (c) => c.all ?? 0 },
-  { id: "loading", label: "Loading / Open", count: (c) => c.loading ?? 0 },
-  { id: "ready_for_invoice", label: "Ready for Invoice", count: (c) => c.ready_for_invoice ?? 0 },
-  { id: "on_the_way", label: "On the Way", count: (c) => c.on_the_way ?? 0 },
-  { id: "closed", label: "Closed", count: (c) => c.closed ?? 0 },
+const TABS: { id: ExportBucket; label: string; icon: LucideIcon; count: (c: ExportCounts) => number }[] = [
+  { id: "all", label: "All", icon: Boxes, count: (c) => c.all },
+  { id: "loading", label: "Loading / Open", icon: Boxes, count: (c) => c.loading },
+  { id: "ready_for_invoice", label: "Ready for Invoice", icon: FileText, count: (c) => c.ready_for_invoice },
+  { id: "on_the_way", label: "On the Way", icon: Truck, count: (c) => c.on_the_way },
+  { id: "closed", label: "Closed", icon: CheckCircle2, count: (c) => c.closed },
 ];
 
 /** Export management: the same container rows the loader works on, with the confidential export view. */
@@ -41,42 +44,45 @@ export function ExportManagementApp() {
   }
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-semibold">Container Export</h2>
-          <p className="text-sm text-muted-foreground">Consignees, invoices, payments, shipping and close for loaded containers</p>
-        </div>
-        <Button className="h-9" onClick={() => setNewOpen(true)}>
-          <Plus className="size-4" /> New Container
-        </Button>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        eyebrow="Containers"
+        title="Container Export"
+        description="Consignees, invoices, payments, shipping and close for loaded containers."
+        actions={
+          <Button size="lg" onClick={() => setNewOpen(true)}>
+            <Plus className="size-4" /> New Container
+          </Button>
+        }
+      />
       <NewContainerDialog open={newOpen} onOpenChange={setNewOpen} onCreated={(id) => setOpenId(id)} />
 
       {counts.isError && <p className="text-sm text-destructive">{counts.error.message}</p>}
-      <div className="flex flex-wrap gap-2">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         {TABS.map((t) => (
-          <button
+          <MetricCard
             key={t.id}
+            icon={t.icon}
+            label={t.label}
+            value={counts.data ? t.count(counts.data) : "—"}
             onClick={() => setBucket(t.id)}
-            className={`rounded-lg border px-3 py-2 text-left text-sm ${bucket === t.id ? "border-primary bg-primary/10 text-primary" : "border-border bg-card text-muted-foreground hover:text-foreground"}`}
-          >
-            <span className="block text-lg font-semibold tabular-nums">{counts.data ? t.count(counts.data as unknown as Record<string, number>) : "—"}</span>
-            <span className="block text-xs">{t.label}</span>
-          </button>
+            active={bucket === t.id}
+          />
         ))}
       </div>
 
       {list.isPending && <p className="text-sm text-muted-foreground">Loading containers…</p>}
       {list.isError && <p className="text-sm text-destructive">{list.error.message}</p>}
-      {!list.isPending && rows.length === 0 && <EmptyState title="No containers in this view." />}
+      {!list.isPending && rows.length === 0 && (
+        <EmptyState icon={Boxes} title="No containers in this view" description="Try a different filter, or create a new container." />
+      )}
       {rows.length > 0 && (
         <div className="overflow-x-auto rounded-lg border border-border bg-card">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>LAL ref</TableHead>
-                <TableHead>Container no.</TableHead>
+                <TableHead>LAL Ref</TableHead>
+                <TableHead>Container No.</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Consignee</TableHead>
                 <TableHead>Invoice</TableHead>
@@ -90,17 +96,27 @@ export function ExportManagementApp() {
               {rows.map((r) => (
                 <TableRow key={r.id}>
                   <TableCell className="font-medium">{r.t_ref}</TableCell>
-                  <TableCell>{r.container_number ?? "—"}</TableCell>
+                  <TableCell className="text-muted-foreground">{r.container_number ?? "—"}</TableCell>
                   <TableCell>
-                    <StatusBadge tone={r.status === "closed" ? "neutral" : r.status === "loading" ? "info" : "success"}>{CONTAINER_STATUS_LABEL[r.status].toUpperCase()}</StatusBadge>
+                    <StatusBadge tone={CONTAINER_STATUS_TONE[r.status]}>{CONTAINER_STATUS_LABEL[r.status].toUpperCase()}</StatusBadge>
                   </TableCell>
-                  <TableCell>{r.consignee_company ?? "—"}</TableCell>
-                  <TableCell>{r.invoice_number ?? (r.invoice_status ? r.invoice_status : "No invoice")}</TableCell>
-                  <TableCell className="text-right tabular-nums">{r.invoice_total ?? "—"}</TableCell>
+                  <TableCell>{r.consignee_company ?? <span className="text-muted-foreground">—</span>}</TableCell>
+                  <TableCell>
+                    {r.invoice_number ? (
+                      <span className="font-medium">{r.invoice_number}</span>
+                    ) : r.invoice_status ? (
+                      <StatusBadge tone="neutral">{r.invoice_status.toUpperCase()}</StatusBadge>
+                    ) : (
+                      <span className="text-muted-foreground">No invoice</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right font-medium tabular-nums">{r.invoice_total ?? "—"}</TableCell>
                   <TableCell className="text-right tabular-nums">{r.balance ?? "—"}</TableCell>
-                  <TableCell>{dateLabel(r.created_at.slice(0, 10))}</TableCell>
+                  <TableCell className="text-muted-foreground">{dateLabel(r.created_at.slice(0, 10))}</TableCell>
                   <TableCell className="text-right">
-                    <Button size="sm" variant="outline" onClick={() => setOpenId(r.id)}>Open</Button>
+                    <Button size="sm" variant="outline" onClick={() => setOpenId(r.id)}>
+                      Open
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}

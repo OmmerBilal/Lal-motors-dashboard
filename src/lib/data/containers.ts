@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
+import type { StatusTone } from "@/components/patterns/status-badge";
 
 /**
  * Container loading (Module 12) and export management (Module 13). Every call is an RPC (migrations
@@ -12,6 +13,13 @@ export const CONTAINER_STATUS_LABEL: Record<ContainerStatus, string> = {
   ready_for_invoice: "Ready for Invoice",
   on_the_way: "On the Way",
   closed: "Closed",
+};
+/** One tone per container status, used consistently everywhere a container's status is shown (the list and the detail view). */
+export const CONTAINER_STATUS_TONE: Record<ContainerStatus, StatusTone> = {
+  loading: "info",
+  ready_for_invoice: "warning",
+  on_the_way: "brand",
+  closed: "neutral",
 };
 
 export type LoaderContainer = {

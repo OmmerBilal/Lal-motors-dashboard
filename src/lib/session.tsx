@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import type { Role, User } from "@/lib/types";
+import { ForcedPasswordChange } from "@/components/auth/forced-password-change";
 
 /**
  * One provider for the whole application lifecycle. It is mounted once in the root layout and never removed or
@@ -25,6 +26,8 @@ type SessionContextValue = {
   user: User | null;
   error: string | null;
   signOut: () => Promise<void>;
+  /** Optimistically clears the forced-password-change gate once the server-side flag has actually been cleared. */
+  markPasswordChanged: () => void;
 };
 
 const SessionContext = createContext<SessionContextValue | null>(null);
@@ -58,7 +61,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
     async function loadProfile(authUserId: string) {
       const [profileResult, roleResult] = await Promise.all([
-        supabase.from("profiles").select("id, name, email").eq("id", authUserId).maybeSingle(),
+        supabase.from("profiles").select("id, name, email, must_change_password").eq("id", authUserId).maybeSingle(),
         supabase.from("user_roles").select("roles(key)").eq("user_id", authUserId),
       ]);
       if (!active) return;
@@ -82,11 +85,23 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const next: User = { id: profile.id, name: profile.name, email: profile.email, role: roleKey };
+      const next: User = {
+        id: profile.id,
+        name: profile.name,
+        email: profile.email,
+        role: roleKey,
+        must_change_password: Boolean((profile as { must_change_password?: boolean }).must_change_password),
+      };
       switchCacheTo(next.id);
       // Keep the same object when nothing changed, so consumers do not re-render or reset.
       setState((prev) => {
-        const same = prev.user && prev.user.id === next.id && prev.user.name === next.name && prev.user.email === next.email && prev.user.role === next.role;
+        const same =
+          prev.user &&
+          prev.user.id === next.id &&
+          prev.user.name === next.name &&
+          prev.user.email === next.email &&
+          prev.user.role === next.role &&
+          prev.user.must_change_password === next.must_change_password;
         return { status: "signed-in", user: same ? prev.user : next, error: null };
       });
     }
@@ -135,9 +150,13 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     router.replace("/login");
   }, [supabase, router]);
 
+  const markPasswordChanged = useCallback(() => {
+    setState((prev) => (prev.user ? { ...prev, user: { ...prev.user, must_change_password: false } } : prev));
+  }, []);
+
   const value = useMemo<SessionContextValue>(
-    () => ({ status: state.status, user: state.user, error: state.error, signOut }),
-    [state, signOut],
+    () => ({ status: state.status, user: state.user, error: state.error, signOut, markPasswordChanged }),
+    [state, signOut, markPasswordChanged],
   );
 
   return (
@@ -161,7 +180,14 @@ function SessionGate({ children }: { children: React.ReactNode }) {
     );
   }
   if (isPublic) return <>{children}</>;
-  if (session.status === "signed-in") return <>{children}</>;
+  if (session.status === "signed-in") {
+    // Mandatory, unskippable: an owner-created account must set its own password before any
+    // app screen renders. Nothing here can navigate past it except a successful password change.
+    if (session.user?.must_change_password) {
+      return <ForcedPasswordChange role={session.user.role} onDone={session.markPasswordChanged} />;
+    }
+    return <>{children}</>;
+  }
   if (session.status === "error") {
     return (
       <div className="flex min-h-screen items-center justify-center px-4">

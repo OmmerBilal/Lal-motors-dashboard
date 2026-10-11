@@ -66,30 +66,74 @@ async function decodeImageFile(file: File): Promise<string | null> {
 function CameraScanDialog({ onClose, onDecoded }: { onClose: () => void; onDecoded: (code: string) => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState<string | null>(null);
-  const stopRef = useRef<(() => void) | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const stopDecodeRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+
+    function releaseCamera() {
+      stopDecodeRef.current?.();
+      stopDecodeRef.current = null;
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+      if (videoRef.current) videoRef.current.srcObject = null;
+    }
+
     (async () => {
+      const video = videoRef.current;
+      if (!video) return;
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setError("Camera scanning needs a secure connection (HTTPS). Use Upload image instead.");
+        return;
+      }
       try {
-        const reader = await loadZxing();
-        if (cancelled || !videoRef.current) return;
-        const controls = await reader.decodeFromConstraints(
-          { video: { facingMode: "environment" } },
-          videoRef.current,
-          (result, _err, ctrl) => {
-            if (cancelled || !result) return;
-            ctrl.stop();
-            onDecoded(result.getText());
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        if (cancelled) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+        streamRef.current = stream;
+        video.srcObject = stream;
+
+        // videoWidth/videoHeight stay 0 for a beat on some mobile browsers even after play() resolves —
+        // the decoder snapshots the frame size once when it starts, so starting before a real frame has
+        // arrived leaves it decoding a 0x0 image forever, with no error and no result. Wait for an actual
+        // frame first.
+        await new Promise<void>((resolve) => {
+          if (video.videoWidth > 0) {
+            resolve();
+            return;
           }
-        );
+          const onReady = () => {
+            if (video.videoWidth > 0) {
+              video.removeEventListener("loadedmetadata", onReady);
+              video.removeEventListener("loadeddata", onReady);
+              resolve();
+            }
+          };
+          video.addEventListener("loadedmetadata", onReady);
+          video.addEventListener("loadeddata", onReady);
+        });
+        if (cancelled) return;
+        await video.play();
+        if (cancelled) return;
+
+        const reader = await loadZxing();
+        if (cancelled) return;
+        const controls = await reader.decodeFromVideoElement(video, (result, _err, ctrl) => {
+          if (cancelled || !result) return;
+          ctrl.stop();
+          onDecoded(result.getText());
+        });
         if (cancelled) {
           controls.stop();
           return;
         }
-        stopRef.current = () => controls.stop();
+        stopDecodeRef.current = () => controls.stop();
       } catch (err) {
         if (cancelled) return;
+        releaseCamera();
         const name = err instanceof DOMException ? err.name : "";
         if (name === "NotAllowedError" || name === "PermissionDeniedError" || name === "SecurityError") {
           setError("Camera access was denied. Allow camera access in your browser, or use Upload image instead.");
@@ -104,7 +148,7 @@ function CameraScanDialog({ onClose, onDecoded }: { onClose: () => void; onDecod
     })();
     return () => {
       cancelled = true;
-      stopRef.current?.();
+      releaseCamera();
     };
   }, [onDecoded]);
 
@@ -171,11 +215,12 @@ export function VehicleScanInput({ onDecoded, className }: { onDecoded: (code: s
           {uploading ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
           {uploading ? "Reading…" : "Upload image"}
         </Button>
+        {/* No `capture` attribute: that forces the OS straight into the camera. Plain `accept="image/*"`
+            lets the OS show its normal gallery/files/camera chooser. */}
         <input
           ref={fileInputRef}
           type="file"
           accept="image/*"
-          capture="environment"
           className="hidden"
           onChange={(e) => {
             const file = e.target.files?.[0];

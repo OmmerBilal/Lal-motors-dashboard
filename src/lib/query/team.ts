@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import {
-  cancelInvite, dayActivity, employeeActivity, inviteMember, recentActivity, removeMember, setAccountStatus, setMemberRole, teamInvites, teamMembers,
+  cancelInvite, createUserMember, dayActivity, employeeActivity, recentActivity, removeMember, setAccountStatus, setMemberRole, teamInvites, teamMembers,
 } from "@/lib/data/team";
 
 export const teamKeys = {
@@ -42,7 +42,7 @@ export function useTeamMutations() {
     setRole: useMutation({ mutationFn: (p: { id: string; role: string }) => setMemberRole(p.id, p.role), onSuccess: done }),
     setStatus: useMutation({ mutationFn: (p: { id: string; status: "active" | "disabled" }) => setAccountStatus(p.id, p.status), onSuccess: done }),
     remove: useMutation({ mutationFn: (p: { id: string; reason: string }) => removeMember(p.id, p.reason), onSuccess: done }),
-    invite: useMutation({ mutationFn: inviteMember, onSuccess: done }),
+    createUser: useMutation({ mutationFn: createUserMember, onSuccess: done }),
     cancelInvite: useMutation({ mutationFn: (id: string) => cancelInvite(id), onSuccess: done }),
   };
 }

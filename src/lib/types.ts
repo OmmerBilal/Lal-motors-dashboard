@@ -15,7 +15,13 @@ export type User = {
   name: string;
   email: string;
   role: Role;
+  must_change_password: boolean;
 };
+
+/** Every role an account can be created or re-assigned as, through the owner's Team page. "owner" is excluded on purpose — it is never granted through the UI (team_set_role, migration 0044, rejects it server-side too). */
+export const ASSIGNABLE_ROLES: Role[] = [
+  "engineer_admin", "manager", "employee", "auction", "scrap_driver", "receiving", "dismantling", "container_loading", "export_manager",
+];
 
 export const roleLabels: Record<Role, string> = {
   owner: "Owner / Admin",

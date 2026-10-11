@@ -5,23 +5,11 @@ import { toast } from "sonner";
 import { Plus, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { roleLabels, type Role } from "@/lib/types";
+import { ASSIGNABLE_ROLES, roleLabels, type Role } from "@/lib/types";
 import { useEmployeeActivity, useTeamInvites, useTeamMembers, useTeamMutations } from "@/lib/query/team";
-import { InviteDialog } from "@/components/team/invite-dialog";
+import { CreateUserDialog } from "@/components/team/create-user-dialog";
 import { EmployeeDailyActivity } from "@/components/team/employee-daily-activity";
 import { yardDay } from "@/components/scrap/scrap-shared";
-
-const editableRoles: { value: Role; label: string }[] = [
-  { value: "engineer_admin", label: "Engineer Admin" },
-  { value: "manager", label: "Front Desk Manager" },
-  { value: "employee", label: "Warehouse Employee" },
-  { value: "auction", label: "Auction Vehicle Employee" },
-  { value: "scrap_driver", label: "Scrap Driver" },
-  { value: "receiving", label: "Vehicle Receiving Employee" },
-  { value: "dismantling", label: "Dismantling Employee" },
-  { value: "container_loading", label: "Container Loading Employee" },
-  { value: "export_manager", label: "Export Manager" },
-];
 
 /** Owner team page. Members, roles and statuses are the real profile and role rows; every change is an audited RPC. */
 export function TeamView() {
@@ -29,7 +17,7 @@ export function TeamView() {
   const invites = useTeamInvites();
   const activity = useEmployeeActivity(yardDay(6), yardDay());
   const { setRole, setStatus, remove, cancelInvite } = useTeamMutations();
-  const [inviteOpen, setInviteOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
   const [activityId, setActivityId] = useState<string | null>(null);
 
   const countsById = useMemo(() => new Map((activity.data ?? []).map((a) => [a.profile_id, a])), [activity.data]);
@@ -44,8 +32,8 @@ export function TeamView() {
             <h3 className="text-sm font-semibold">Users, roles and employee activity</h3>
             <p className="text-xs text-muted-foreground">Owner-only controls. Activity counts cover the last 7 days.</p>
           </div>
-          <Button size="sm" onClick={() => setInviteOpen(true)}>
-            <Plus /> Invite User
+          <Button size="sm" onClick={() => setCreateOpen(true)}>
+            <Plus /> Create user
           </Button>
         </div>
 
@@ -87,9 +75,9 @@ export function TeamView() {
                         <SelectValue>{roleLabels[role] ?? role}</SelectValue>
                       </SelectTrigger>
                       <SelectContent>
-                        {editableRoles.map((r) => (
-                          <SelectItem key={r.value} value={r.value}>
-                            {r.label}
+                        {ASSIGNABLE_ROLES.map((r) => (
+                          <SelectItem key={r} value={r}>
+                            {roleLabels[r]}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -143,7 +131,7 @@ export function TeamView() {
         <div className="border-b border-border p-4">
           <h3 className="text-sm font-semibold">Pending invitations</h3>
           <p className="text-xs text-muted-foreground">
-            Invitations are recorded here. Email delivery is NOT CONNECTED, so no email is sent yet.
+            Legacy invitations created before accounts could be created directly above. Cancel any you no longer need.
           </p>
         </div>
         {invites.isPending && <p className="p-4 text-sm text-muted-foreground">Loading invitations…</p>}
@@ -172,7 +160,7 @@ export function TeamView() {
 
       {activeMember && <EmployeeDailyActivity member={{ id: activeMember.id, name: activeMember.name }} onClose={() => setActivityId(null)} />}
 
-      <InviteDialog open={inviteOpen} onOpenChange={setInviteOpen} />
+      <CreateUserDialog open={createOpen} onOpenChange={setCreateOpen} />
     </div>
   );
 }

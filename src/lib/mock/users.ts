@@ -1,6 +1,6 @@
 import type { User } from "@/lib/types";
 
-export const mockUsers: User[] = [
+const rawMockUsers: Omit<User, "must_change_password">[] = [
   { id: "u-owner", name: "Marcus Lal", email: "marcus@lalmotors.com", role: "owner" },
   { id: "u-engineer", name: "Priya Nair", email: "priya@lalmotors.com", role: "engineer_admin" },
   { id: "u-manager", name: "Denise Ford", email: "denise@lalmotors.com", role: "manager" },
@@ -21,6 +21,8 @@ export const mockUsers: User[] = [
   { id: "u-loading", name: "Ahmed Khalil", email: "ahmed@lalmotors.com", role: "container_loading" },
   { id: "u-export", name: "Sofia Reyes", email: "sofia@lalmotors.com", role: "export_manager" },
 ];
+
+export const mockUsers: User[] = rawMockUsers.map((u) => ({ ...u, must_change_password: false }));
 
 export const staff: { id: string; name: string; role: string }[] = mockUsers.map((u) => ({
   id: u.id,

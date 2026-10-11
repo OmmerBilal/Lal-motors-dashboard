@@ -34,6 +34,15 @@ const BUCKETS: { id: LoadBucket; label: string }[] = [
   { id: "unpaid", label: "Unpaid" },
 ];
 
+/**
+ * The "Open Loads", "Awaiting Ticket", "Needs Review" and "payment pending" KPI cards above (scrap_manager_summary's
+ * *_now fields) are live backlog counts that never apply a date filter — a load opened last week is still "open"
+ * today. These buckets mirror that same unscoped status check (see scrap_manager_list_loads), so the list for them
+ * also ignores the period picker; otherwise the KPI would count a load the list, scoped to "Today", hides. "All"
+ * and "Completed" stay period-scoped, matching loads_in_range/completed_in_range.
+ */
+const UNSCOPED_BUCKETS = new Set<LoadBucket>(["open", "awaiting_ticket", "needs_review", "discrepancy", "unpaid"]);
+
 const SECTIONS: { id: Section; label: string }[] = [
   { id: "loads", label: "Loads" },
   { id: "payments", label: "Payments" },
@@ -67,7 +76,8 @@ export function ScrapManagerDashboard({ user, onOpenUsers }: { user: User; onOpe
   // The driver list covers a year, so a driver with no loads in the chosen period still appears for payments.
   const yearSummary = useManagerSummary(yardDay(365), yardDay());
   const drivers = yearSummary.data?.by_driver ?? [];
-  const loads = useManagerLoads({ bucket, from: range.from, to: range.to, driverId });
+  const loadsScoped = !UNSCOPED_BUCKETS.has(bucket);
+  const loads = useManagerLoads({ bucket, from: loadsScoped ? range.from : null, to: loadsScoped ? range.to : null, driverId });
   const rows: ManagerLoad[] = loads.data?.pages.flatMap((p) => p.rows) ?? [];
   const s = summary.data;
 
@@ -196,10 +206,17 @@ export function ScrapManagerDashboard({ user, onOpenUsers }: { user: User; onOpe
               </SelectContent>
             </Select>
           </div>
+          {!loadsScoped && (
+            <p className="text-xs text-muted-foreground">
+              Showing every {BUCKETS.find((b) => b.id === bucket)?.label.toLowerCase()} load — this view isn't limited by the period above.
+            </p>
+          )}
 
           {loads.isPending && <p className="text-sm text-muted-foreground">Loading loads…</p>}
           {loads.isError && <p className="text-sm text-destructive">{loads.error.message}</p>}
-          {!loads.isPending && rows.length === 0 && <EmptyState title="No loads match this view." />}
+          {!loads.isPending && rows.length === 0 && (
+            <EmptyState title={loadsScoped ? "No loads match this view." : "No loads match this status right now."} />
+          )}
           {rows.length > 0 && (
             <div className="overflow-x-auto">
               <Table>

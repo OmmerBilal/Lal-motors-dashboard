@@ -51,6 +51,21 @@ export const dayActivity = (profileId: string, date: string) => rpc<DayActivity>
 export const setMemberRole = (profileId: string, roleKey: string) => rpc<{ changed: boolean }>("team_set_role", { p_profile: profileId, p_role_key: roleKey });
 export const setAccountStatus = (profileId: string, status: "active" | "disabled") => rpc<{ changed: boolean }>("team_set_account_status", { p_profile: profileId, p_status: status });
 export const removeMember = (profileId: string, reason: string) => rpc<{ changed: boolean }>("team_remove_member", { p_profile: profileId, p_reason: reason });
-export const inviteMember = (p: { email: string; name: string; roleKey: string; requestId: string }) =>
-  rpc<{ id: string; email_delivery: string; replay: boolean }>("team_invite_member", { p_email: p.email, p_name: p.name, p_role_key: p.roleKey, p_client_request_id: p.requestId });
 export const cancelInvite = (inviteId: string) => rpc<{ changed: boolean }>("team_cancel_invite", { p_invite: inviteId });
+
+/**
+ * Creates a real login for a new employee (owner only). This cannot be a Postgres RPC — it
+ * needs the Supabase Auth Admin API, which only the service-role key can call — so it goes
+ * through a server route instead (src/app/api/team/create-user/route.ts), which re-checks the
+ * caller is the owner itself rather than trusting this client call.
+ */
+export async function createUserMember(p: { name: string; email: string; password: string; role: string }) {
+  const res = await fetch("/api/team/create-user", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(p),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body?.error?.message || "The account could not be created.");
+  return body as { id: string; name: string; email: string; role: string };
+}

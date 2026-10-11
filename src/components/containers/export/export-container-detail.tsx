@@ -16,6 +16,7 @@ import { PAYMENT_METHODS, PAYMENT_TYPES, CONTAINER_STATUS_LABEL, type ExportInvo
 import { useConsignees, useExportDetail, useExportMutations, invalidateContainers, usePlannedItems } from "@/lib/query/containers";
 import { InvoiceDocument } from "@/components/containers/export/invoice-document";
 import { PlannedPartsSection } from "@/components/containers/export/planned-parts-section";
+import { CONTAINER_STATUS_TONE } from "@/lib/data/containers";
 import { PhotoTile, usd, timeLabel } from "@/components/scrap/scrap-shared";
 
 type LineDraft = { description: string; quantity: string; unit_price: string; category: string; condition: string; source_item_id?: string };
@@ -45,17 +46,31 @@ export function ExportContainerDetail({ id }: { id: string }) {
 
   return (
     <div className="space-y-6">
-      <section className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-border bg-card p-4">
-        <div>
-          <h3 className="text-lg font-semibold">{c.t_ref}</h3>
-          <p className="text-sm text-muted-foreground">{c.container_number ?? "Official number not confirmed"}</p>
+      <section className="space-y-3 rounded-lg border border-border bg-card p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="text-lg font-semibold">{c.t_ref}</h3>
+            <p className="text-sm text-muted-foreground">{c.container_number ?? "Official number not confirmed"}</p>
+          </div>
+          <StatusBadge tone={CONTAINER_STATUS_TONE[c.status]}>{CONTAINER_STATUS_LABEL[c.status].toUpperCase()}</StatusBadge>
         </div>
-        <StatusBadge tone={c.status === "closed" ? "neutral" : "success"}>{CONTAINER_STATUS_LABEL[c.status].toUpperCase()}</StatusBadge>
-        <div className="w-full text-xs text-muted-foreground">
-          Loader: {planned.data?.container.assigned_loader_name ?? "not assigned"}
-          {planned.data?.container.assigned_at ? ` · assigned ${timeLabel(planned.data.container.assigned_at)}` : ""}
-          {" · "}Loading finished: {c.finished_at ? new Date(c.finished_at).toLocaleString() : "—"} · Closed: {c.closed_at ? new Date(c.closed_at).toLocaleString() : "—"}
-        </div>
+        <dl className="grid grid-cols-1 gap-2 text-xs text-muted-foreground sm:grid-cols-3">
+          <div>
+            <dt className="font-medium text-foreground">Loader</dt>
+            <dd>
+              {planned.data?.container.assigned_loader_name ?? "Not assigned"}
+              {planned.data?.container.assigned_at ? ` · ${timeLabel(planned.data.container.assigned_at)}` : ""}
+            </dd>
+          </div>
+          <div>
+            <dt className="font-medium text-foreground">Loading finished</dt>
+            <dd>{c.finished_at ? new Date(c.finished_at).toLocaleString() : "—"}</dd>
+          </div>
+          <div>
+            <dt className="font-medium text-foreground">Closed</dt>
+            <dd>{c.closed_at ? new Date(c.closed_at).toLocaleString() : "—"}</dd>
+          </div>
+        </dl>
       </section>
 
       <section className="space-y-2">
