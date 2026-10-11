@@ -277,16 +277,18 @@ export function ScrapManagerDashboard({ user, onOpenUsers }: { user: User; onOpe
   );
 }
 
+// Solid fill (the hex tone at full opacity), matching the reference dashboard's KPI tiles — not a
+// pale tint of the tone on a white card, which is what made this page look washed out.
 function SummaryCard({ icon: Icon, tone, value, label, hint }: { icon: typeof Truck; tone: string; value: number | string; label: string; hint?: string }) {
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-border p-3.5" style={{ backgroundColor: `${tone}0f` }}>
-      <span className="flex size-11 shrink-0 items-center justify-center rounded-xl" style={{ backgroundColor: `${tone}26`, color: tone }}>
+    <div className="flex items-center gap-3 rounded-lg p-3.5 text-white shadow-sm" style={{ backgroundColor: tone }}>
+      <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-white/20">
         <Icon className="size-6" strokeWidth={2.25} />
       </span>
       <span className="flex min-w-0 flex-col gap-0.5">
         <span className="text-2xl leading-none font-semibold tabular-nums">{value}</span>
-        <span className="truncate text-xs font-semibold text-foreground">{label}</span>
-        {hint && <span className="truncate text-[11px] text-muted-foreground">{hint}</span>}
+        <span className="truncate text-xs font-semibold text-white/90">{label}</span>
+        {hint && <span className="truncate text-[11px] text-white/70">{hint}</span>}
       </span>
     </div>
   );

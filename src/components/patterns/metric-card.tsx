@@ -2,14 +2,18 @@ import type { LucideIcon } from "lucide-react";
 import { cn } from "cn";
 import type { StatusTone } from "@/components/patterns/status-badge";
 
-/** Same accent-tinted-chip language as StatusBadge, so a KPI's icon colour always means the same thing as its status pill. */
-const TONE_CHIP_CLASSES: Record<StatusTone, string> = {
-  neutral: "bg-muted text-foreground",
-  info: "bg-primary/15 text-primary",
-  success: "bg-success/15 text-success",
-  warning: "bg-warning/20 text-warning-foreground",
-  danger: "bg-destructive/15 text-destructive",
-  brand: "bg-accent-gold/20 text-accent-gold-foreground",
+/**
+ * Solid, saturated fill per tone — matching reference-images/dashboard reference image.jpeg, where
+ * every KPI tile is a confident block of colour with a white icon chip and white text, not a pale
+ * tint. "brand" (gold) is the one light tone, so it gets dark text instead of white.
+ */
+const TONE_SOLID: Record<StatusTone, { card: string; fg: string; chip: string; sub: string; hint: string }> = {
+  neutral: { card: "bg-tone-grey", fg: "text-white", chip: "bg-white/20", sub: "text-white/85", hint: "text-white/65" },
+  info: { card: "bg-tone-blue", fg: "text-white", chip: "bg-white/20", sub: "text-white/85", hint: "text-white/65" },
+  success: { card: "bg-tone-green", fg: "text-white", chip: "bg-white/20", sub: "text-white/85", hint: "text-white/65" },
+  warning: { card: "bg-tone-orange", fg: "text-white", chip: "bg-white/20", sub: "text-white/85", hint: "text-white/65" },
+  danger: { card: "bg-tone-red", fg: "text-white", chip: "bg-white/20", sub: "text-white/85", hint: "text-white/65" },
+  brand: { card: "bg-accent-gold", fg: "text-accent-gold-foreground", chip: "bg-accent-gold-foreground/15", sub: "text-accent-gold-foreground/80", hint: "text-accent-gold-foreground/60" },
 };
 
 export function MetricCard({
@@ -27,29 +31,32 @@ export function MetricCard({
   hint?: string;
   onClick?: () => void;
   active?: boolean;
-  /** Which accent the icon chip takes. Defaults to "info" (the brand blue) when not given. */
+  /** Which solid colour the whole tile takes. Defaults to "info" (blue) when not given. */
   tone?: StatusTone;
 }) {
   const Comp = onClick ? "button" : "div";
+  const t = TONE_SOLID[tone];
   return (
     <Comp
       type={onClick ? "button" : undefined}
       onClick={onClick}
       className={cn(
-        "flex items-center gap-3 rounded-lg border border-border bg-card p-3.5 text-left shadow-xs transition-colors",
-        onClick && "cursor-pointer hover:border-primary/40 hover:bg-accent/40",
-        active && "border-primary/50 bg-primary/5"
+        "flex items-center gap-3 rounded-lg p-3.5 text-left shadow-sm transition-transform",
+        t.card,
+        t.fg,
+        onClick && "cursor-pointer hover:brightness-95",
+        active && "ring-2 ring-offset-2 ring-offset-background ring-foreground/40"
       )}
     >
       {Icon && (
-        <span className={cn("flex size-11 shrink-0 items-center justify-center rounded-xl", TONE_CHIP_CLASSES[tone])}>
+        <span className={cn("flex size-11 shrink-0 items-center justify-center rounded-xl", t.chip)}>
           <Icon className="size-6" strokeWidth={2.25} />
         </span>
       )}
       <span className="flex min-w-0 flex-col gap-0.5">
         <span className="text-2xl leading-none font-semibold tabular-nums">{value}</span>
-        <span className="truncate text-xs text-muted-foreground">{label}</span>
-        {hint && <span className="truncate text-[11px] text-muted-foreground/70">{hint}</span>}
+        <span className={cn("truncate text-xs font-medium", t.sub)}>{label}</span>
+        {hint && <span className={cn("truncate text-[11px]", t.hint)}>{hint}</span>}
       </span>
     </Comp>
   );

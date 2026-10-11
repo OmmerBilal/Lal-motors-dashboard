@@ -3,13 +3,16 @@
 import type { LucideIcon } from "lucide-react";
 import { cn } from "cn";
 
+// Solid fills matching reference-images/dashboard reference image.jpeg (Vehicles=blue, Parts=green,
+// Sales=orange, Containers=purple, Scrap=grey, Alerts=red), not light tints on a white card — this is
+// the exact row shown in that reference, so it's the clearest proof the new palette actually renders.
 const tone = {
-  blue: { bg: "bg-primary/8 border-primary/25", icon: "bg-primary/15 text-primary" },
-  green: { bg: "bg-success/8 border-success/25", icon: "bg-success/15 text-success" },
-  orange: { bg: "bg-warning/10 border-warning/30", icon: "bg-warning/20 text-warning-foreground" },
-  purple: { bg: "bg-violet-500/8 border-violet-500/25", icon: "bg-violet-500/15 text-violet-600 dark:text-violet-400" },
-  grey: { bg: "bg-muted/60 border-border", icon: "bg-muted text-muted-foreground" },
-  red: { bg: "bg-destructive/8 border-destructive/25", icon: "bg-destructive/15 text-destructive" },
+  blue: "bg-tone-blue",
+  green: "bg-tone-green",
+  orange: "bg-tone-orange",
+  purple: "bg-tone-purple",
+  grey: "bg-tone-grey",
+  red: "bg-tone-red",
 } as const;
 
 export type KpiTile = {
@@ -27,26 +30,25 @@ export function KpiGrid({ tiles }: { tiles: KpiTile[] }) {
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
       {tiles.map((t) => {
-        const tn = tone[t.tone];
         const Comp = t.onClick ? "button" : "div";
         return (
           <Comp
             key={t.key}
             onClick={t.onClick}
             type={t.onClick ? "button" : undefined}
-            className={cn("flex h-full flex-col gap-2 rounded-xl border p-4 text-left transition-colors", tn.bg, t.onClick && "hover:brightness-95")}
+            className={cn("flex h-full flex-col gap-2 rounded-xl p-4 text-left text-white shadow-sm transition-transform", tone[t.tone], t.onClick && "hover:brightness-95")}
           >
-            <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-full", tn.icon)}>
-              <t.icon className="size-4.5" />
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-white/20">
+              <t.icon className="size-5" strokeWidth={2.25} />
             </span>
             <div>
               <p className="text-2xl leading-tight font-bold tabular-nums">{t.value}</p>
-              <p className="text-xs font-medium text-muted-foreground">{t.label}</p>
+              <p className="text-xs font-medium text-white/85">{t.label}</p>
             </div>
-            <div className="mt-auto flex flex-wrap gap-x-3 gap-y-0.5 border-t border-border/60 pt-2 text-[11px] text-muted-foreground">
+            <div className="mt-auto flex flex-wrap gap-x-3 gap-y-0.5 border-t border-white/20 pt-2 text-[11px] text-white/75">
               {t.subStats.map((s) => (
                 <span key={s.label}>
-                  <b className="text-foreground">{s.value}</b> {s.label}
+                  <b className="text-white">{s.value}</b> {s.label}
                 </span>
               ))}
             </div>

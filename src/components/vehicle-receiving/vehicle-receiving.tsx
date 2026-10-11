@@ -151,8 +151,12 @@ function CardShell({
     neutral: "border-border",
   }[tone];
 
+  // No h-full here: this div IS the grid item (CardShell has no wrapper), so an explicit height:100%
+  // resolves against the row's track height and silently re-stretches the card even under the
+  // parent's items-start — which is why the previous xl:items-start fix alone didn't hold. Without
+  // it, the card is exactly as tall as its own content, at every breakpoint.
   return (
-    <div className={`flex h-full min-w-0 flex-col rounded-xl border ${toneBorder} bg-card p-4 shadow-xs ${className}`}>
+    <div className={`flex min-w-0 flex-col rounded-xl border ${toneBorder} bg-card p-4 shadow-xs ${className}`}>
       <div className="mb-3 flex items-center gap-2.5">
         {badge}
         <div className="min-w-0">
@@ -160,7 +164,7 @@ function CardShell({
           <p className="text-xs text-muted-foreground">{subtitle}</p>
         </div>
       </div>
-      <div className="flex-1">{children}</div>
+      <div>{children}</div>
     </div>
   );
 }
@@ -314,58 +318,60 @@ export function VehicleReceiving({ user }: { user: User }) {
         </div>
       </div>
 
-      {/* KPI row */}
+      {/* KPI row — solid fills matching the reference dashboard's KPI tiles (see kpi-grid.tsx), not
+          pale tints on a white card. */}
       <div className="grid min-w-0 grid-cols-2 gap-3 lg:grid-cols-4">
         <button
           onClick={resetAll}
-          className="flex min-w-0 items-center justify-between rounded-xl border border-primary/25 bg-primary/8 p-4 text-left transition-colors hover:bg-primary/12"
+          className="flex min-w-0 items-center justify-between rounded-xl bg-tone-blue p-4 text-left text-white shadow-sm transition-transform hover:brightness-95"
         >
           <span>
-            <b className="block text-3xl font-extrabold text-primary tabular-nums">{inbound.length}</b>
-            <span className="block text-sm font-semibold">Expected Today</span>
+            <b className="block text-3xl font-extrabold tabular-nums">{inbound.length}</b>
+            <span className="block text-sm font-semibold text-white/90">Expected Today</span>
           </span>
-          <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+          <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-white/20">
             <Truck className="size-6" />
           </span>
         </button>
-        <div className="flex min-w-0 items-center justify-between rounded-xl border border-success/25 bg-success/10 p-4">
+        <div className="flex min-w-0 items-center justify-between rounded-xl bg-tone-green p-4 text-white shadow-sm">
           <span>
-            <b className="block text-3xl font-extrabold text-success tabular-nums">{arrivedToday}</b>
-            <span className="block text-sm font-semibold">Arrived Today</span>
+            <b className="block text-3xl font-extrabold tabular-nums">{arrivedToday}</b>
+            <span className="block text-sm font-semibold text-white/90">Arrived Today</span>
           </span>
-          <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-success text-success-foreground">
+          <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-white/20">
             <CircleCheckBig className="size-6" />
           </span>
         </div>
         <button
           onClick={resetAll}
-          className="flex min-w-0 items-center justify-between rounded-xl border border-warning/30 bg-warning/15 p-4 text-left transition-colors hover:bg-warning/20"
+          className="flex min-w-0 items-center justify-between rounded-xl bg-tone-orange p-4 text-left text-white shadow-sm transition-transform hover:brightness-95"
         >
           <span>
-            <b className="block text-3xl font-extrabold text-warning-foreground tabular-nums">{inbound.length}</b>
-            <span className="block text-sm font-semibold">Still Waiting</span>
+            <b className="block text-3xl font-extrabold tabular-nums">{inbound.length}</b>
+            <span className="block text-sm font-semibold text-white/90">Still Waiting</span>
           </span>
-          <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-warning text-warning-foreground">
+          <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-white/20">
             <Clock3 className="size-6" />
           </span>
         </button>
-        <div className="flex min-w-0 items-center justify-between rounded-xl border border-destructive/25 bg-destructive/10 p-4">
+        <div className="flex min-w-0 items-center justify-between rounded-xl bg-tone-red p-4 text-white shadow-sm">
           <span>
-            <b className="block text-3xl font-extrabold text-destructive tabular-nums">{vinProblems}</b>
-            <span className="block text-sm font-semibold">VIN Problems</span>
+            <b className="block text-3xl font-extrabold tabular-nums">{vinProblems}</b>
+            <span className="block text-sm font-semibold text-white/90">VIN Problems</span>
           </span>
-          <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-destructive text-white">
+          <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-white/20">
             <TriangleAlert className="size-6" />
           </span>
         </div>
       </div>
 
-      {/* 3-column workflow grid — always 6 cards, state decides active vs placeholder.
-          xl:items-start: CSS grid stretches every item in a row to the row's tallest item by default,
-          which is what was forcing "Scan VIN" and "Match Found" (naturally short) to match the much
-          taller "Take Arrival Photos" card, leaving dead space below their real content. Each card now
-          sizes to its own content and stays top-aligned with the others in its row. */}
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12 xl:items-start">
+      {/* 3-column workflow grid — always 6 cards, state decides active vs placeholder. items-start (at
+          every breakpoint, not just xl — below xl the grid is a single column anyway, so this is a
+          no-op there, not a gap) stops CSS Grid's default row-stretch; combined with CardShell no
+          longer setting its own h-full (that was the actual holdout — see the comment in CardShell),
+          "Scan VIN" and "Match Found" now size to their own content instead of stretching down to
+          match the much taller "Take Arrival Photos" card after a VIN is scanned. */}
+      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-12">
         {/* 1. Scan VIN — always active */}
         <CardShell tone="blue" className="xl:col-span-3" badge={<NumberBadge n={1} tone="blue" />} title="Scan VIN" subtitle="Scan the VIN barcode or take a photo">
           <VehicleScanInput

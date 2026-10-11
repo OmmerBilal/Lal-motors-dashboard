@@ -61,13 +61,14 @@ const kpiCards: { key: "needTransport" | "postedToCd" | "assigned" | "inTransit"
   { key: "overdue", label: "Overdue", sub: "10+ days", icon: ShieldAlert, tone: "red" },
 ];
 
+// Solid fills, matching the reference dashboard's KPI tiles (see kpi-grid.tsx) — not light tints.
 const cardTone: Record<string, string> = {
-  slate: "border-border bg-muted/40 text-foreground",
-  blue: "border-primary/20 bg-primary/6 text-primary",
-  purple: "border-violet-500/20 bg-violet-500/6 text-violet-600 dark:text-violet-400",
-  amber: "border-warning/25 bg-warning/10 text-warning-foreground",
-  green: "border-success/20 bg-success/8 text-success",
-  red: "border-destructive/20 bg-destructive/8 text-destructive",
+  slate: "bg-tone-grey",
+  blue: "bg-tone-blue",
+  purple: "bg-tone-purple",
+  amber: "bg-tone-orange",
+  green: "bg-tone-green",
+  red: "bg-tone-red",
 };
 
 const EDIT_ROLES = ["owner", "engineer_admin", "manager", "auction"];
@@ -269,13 +270,13 @@ export function CentralDispatch({ user }: { user: User }) {
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {kpiCards.map((c) => (
-          <div key={c.key} className={`rounded-lg border p-3.5 ${cardTone[c.tone]}`}>
-            <span className="flex size-8 items-center justify-center rounded-md bg-background/60">
-              <c.icon className="size-4" />
+          <div key={c.key} className={`rounded-lg p-3.5 text-white shadow-sm ${cardTone[c.tone]}`}>
+            <span className="flex size-10 items-center justify-center rounded-xl bg-white/20">
+              <c.icon className="size-5" strokeWidth={2.25} />
             </span>
             <b className="mt-2 block text-2xl font-bold tabular-nums">{dc ? dc[c.key] ?? 0 : "…"}</b>
-            <span className="block text-xs font-semibold">{c.label}</span>
-            <span className="block text-[11px] opacity-80">{c.sub}</span>
+            <span className="block text-xs font-semibold text-white/90">{c.label}</span>
+            <span className="block text-[11px] text-white/70">{c.sub}</span>
           </div>
         ))}
       </div>

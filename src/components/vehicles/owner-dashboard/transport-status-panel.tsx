@@ -9,7 +9,7 @@ const rows: { key: keyof TransportStatusCounts; label: string; icon: LucideIcon;
   { key: "inTransit", label: "In Transit", icon: Truck, color: "text-primary" },
   { key: "arrivingToday", label: "Arriving Today", icon: CalendarCheck2, color: "text-warning-foreground" },
   { key: "atYard", label: "At Yard", icon: Warehouse, color: "text-success" },
-  { key: "dispatched", label: "Dispatched", icon: PackageCheck, color: "text-violet-600 dark:text-violet-400" },
+  { key: "dispatched", label: "Dispatched", icon: PackageCheck, color: "text-tone-purple" },
 ];
 
 /** "Transport Status" — real counts from dispatch_stage_counts (In Transit / Dispatched = assigned-to-carrier /

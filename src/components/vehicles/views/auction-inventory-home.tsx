@@ -74,8 +74,8 @@ const intakeCards: {
     label: "AI Photo / Screenshot Scan",
     description: "Upload or take a picture",
     icon: Camera,
-    className: "border-violet-500/25 bg-violet-500/6 hover:bg-violet-500/10",
-    iconClassName: "bg-violet-500/15 text-violet-600 dark:text-violet-400",
+    className: "border-tone-purple/25 bg-tone-purple/6 hover:bg-tone-purple/10",
+    iconClassName: "bg-tone-purple/15 text-tone-purple",
   },
   {
     id: "manual",

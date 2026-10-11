@@ -220,10 +220,11 @@ export function DismantlingProcessingWorkspace({ user }: { user: User }) {
   );
 }
 
-const kpiTone: Record<string, { border: string; bg: string; icon: string; text: string; ring: string }> = {
-  primary: { border: "border-primary/30", bg: "bg-primary/5 hover:bg-primary/10", icon: "bg-primary/15 text-primary", text: "text-primary", ring: "ring-primary/40" },
-  destructive: { border: "border-destructive/30", bg: "bg-destructive/5 hover:bg-destructive/10", icon: "bg-destructive/15 text-destructive", text: "text-destructive", ring: "ring-destructive/40" },
-  success: { border: "border-success/30", bg: "bg-success/5 hover:bg-success/10", icon: "bg-success/15 text-success", text: "text-success", ring: "ring-success/40" },
+// Solid fill, matching the reference dashboard's KPI tiles (see kpi-grid.tsx) instead of a pale tint.
+const kpiTone: Record<string, { bg: string; icon: string; ring: string }> = {
+  primary: { bg: "bg-tone-blue hover:brightness-95", icon: "bg-white/20", ring: "ring-white/70" },
+  destructive: { bg: "bg-tone-red hover:brightness-95", icon: "bg-white/20", ring: "ring-white/70" },
+  success: { bg: "bg-tone-green hover:brightness-95", icon: "bg-white/20", ring: "ring-white/70" },
 };
 
 /** One shared template for the three top KPI buttons, so they always match in height, padding and type scale. */
@@ -249,21 +250,20 @@ function KpiLinkCard({
     <button
       onClick={onClick}
       className={cn(
-        "flex h-full items-center gap-3 rounded-xl border p-4 text-left transition-colors",
-        t.border,
+        "flex h-full items-center gap-3 rounded-xl p-4 text-left text-white shadow-sm transition-transform",
         t.bg,
-        active && `ring-2 ${t.ring}`
+        active && `ring-2 ring-offset-2 ring-offset-background ${t.ring}`
       )}
     >
-      <span className={cn("flex size-11 shrink-0 items-center justify-center rounded-full", t.icon)}>
-        <Icon className="size-5" />
+      <span className={cn("flex size-11 shrink-0 items-center justify-center rounded-xl", t.icon)}>
+        <Icon className="size-6" strokeWidth={2.25} />
       </span>
       <span className="min-w-0 flex-1">
-        <span className={cn("block text-xs font-semibold", t.text)}>{label}</span>
+        <span className="block text-xs font-semibold text-white/85">{label}</span>
         <span className="block text-2xl leading-tight font-bold">{value}</span>
-        <span className="block truncate text-xs text-muted-foreground">{hint}</span>
+        <span className="block truncate text-xs text-white/70">{hint}</span>
       </span>
-      <ChevronRight className={cn("size-5 shrink-0", t.text, "opacity-60")} />
+      <ChevronRight className="size-5 shrink-0 text-white/70" />
     </button>
   );
 }

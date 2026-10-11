@@ -42,12 +42,14 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
               onClick={onNavigate}
               className={cn(
                 "flex h-10 items-center gap-3 rounded-md border-l-2 px-3 text-sm font-medium transition-colors",
+                // Reference dashboard: the active nav row is a solid gold fill with dark text, not a
+                // tinted/bordered blue row — matches the brand's own gold (see the "L" logo chip above).
                 active
-                  ? "border-accent-gold bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
+                  ? "border-accent-gold bg-accent-gold text-accent-gold-foreground shadow-sm"
                   : "border-transparent text-sidebar-foreground/65 hover:border-sidebar-foreground/20 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
               )}
             >
-              <Icon className={cn("size-4 shrink-0", active ? "text-sidebar-primary-foreground" : "text-sidebar-foreground/50")} />
+              <Icon className={cn("size-4 shrink-0", active ? "text-accent-gold-foreground" : "text-sidebar-foreground/50")} />
               <span className="truncate">{item.label}</span>
             </Link>
           );

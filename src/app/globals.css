@@ -34,6 +34,12 @@
   --color-chart-3: var(--chart-3);
   --color-chart-2: var(--chart-2);
   --color-chart-1: var(--chart-1);
+  --color-tone-blue: var(--tone-blue);
+  --color-tone-green: var(--tone-green);
+  --color-tone-orange: var(--tone-orange);
+  --color-tone-purple: var(--tone-purple);
+  --color-tone-grey: var(--tone-grey);
+  --color-tone-red: var(--tone-red);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -60,11 +66,14 @@
 }
 
 :root {
-  /* Premium theme pass: deeper, more saturated primary/accents and visibly-tinted (not flat-grey)
+  /* Premium theme pass, re-matched against reference-images/dashboard reference image.jpeg (the
+     client's own target): deeper, more saturated primary/accents and visibly-tinted (not flat-grey)
      surfaces/borders, for stronger contrast and a less washed-out feel. Every ui/* primitive and
-     every page reads these tokens, so this one file is the whole redesign — see metric-card.tsx
-     and status-badge.tsx for the one place icon/badge chip colours are derived from them. */
-  --background: oklch(0.99 0.003 95);
+     every page reads these tokens, so this one file is the whole redesign — see metric-card.tsx,
+     kpi-grid.tsx and status-badge.tsx for the one place icon/badge chip colours are derived from
+     them. The reference's content canvas is a cool light blue-grey (not near-white) behind solid
+     white cards — --background now matches that, with --card staying pure white so panels pop. */
+  --background: oklch(0.966 0.008 255);
   --foreground: oklch(0.16 0.025 258);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.16 0.025 258);
@@ -109,6 +118,16 @@
   --sidebar-ring: oklch(0.5 0.17 258);
   --sidebar-scrollbar-thumb: oklch(0.42 0.1 258 / 55%);
   --sidebar-scrollbar-thumb-hover: oklch(0.52 0.12 258 / 75%);
+  /* Solid categorical KPI-tile tones (reference dashboard: Vehicles=blue, Parts=green, Sales=orange,
+     Containers=purple, Scrap=grey, Alerts=red — each a solid fill with white icon/text, not a tint).
+     Shared by kpi-grid.tsx, metric-card.tsx, central-dispatch.tsx and the Dismantling Processing /
+     Scrap Management KPI cards, so one set of six colours is used for "this kind of thing" everywhere. */
+  --tone-blue: oklch(0.55 0.22 262);
+  --tone-green: oklch(0.55 0.16 149);
+  --tone-orange: oklch(0.64 0.19 42);
+  --tone-purple: oklch(0.54 0.22 293);
+  --tone-grey: oklch(0.47 0.03 257);
+  --tone-red: oklch(0.55 0.22 27);
 }
 
 .dark {
@@ -156,6 +175,14 @@
   --sidebar-ring: oklch(0.55 0.14 258);
   --sidebar-scrollbar-thumb: oklch(0.4 0.11 258 / 55%);
   --sidebar-scrollbar-thumb-hover: oklch(0.5 0.13 258 / 75%);
+  /* Same six solid KPI tones as light mode — they're used as white-text fills, so they don't need
+     to invert for dark mode the way tinted surfaces do. */
+  --tone-blue: oklch(0.58 0.2 262);
+  --tone-green: oklch(0.58 0.15 149);
+  --tone-orange: oklch(0.66 0.18 42);
+  --tone-purple: oklch(0.58 0.2 293);
+  --tone-grey: oklch(0.5 0.03 257);
+  --tone-red: oklch(0.58 0.2 27);
 }
 
 @layer base {
