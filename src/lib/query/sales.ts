@@ -1,6 +1,6 @@
 "use client";
 
-import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createSaleWithPayment, getCustomerOutstanding, receiveCustomerPayment, type CheckoutResult } from "@/lib/data/sales-checkout";
 import { customerKeys } from "@/lib/query/customers";
 import {
@@ -9,6 +9,7 @@ import {
   fulfillSale,
   getSaleDetail,
   getSalesSettings,
+  getSalesSummary,
   listCustomerQuotes,
   listSalePage,
   releaseSale,
@@ -21,9 +22,13 @@ import {
   type SalesSettings,
 } from "@/lib/data/sales";
 
+type IsoRange = { from: string | null; to: string | null };
+
 export const salesKeys = {
   all: ["sales"] as const,
-  list: (search: string, status: string | null) => ["sales", "list", search, status ?? "all"] as const,
+  list: (search: string, status: string | null, range: IsoRange) =>
+    ["sales", "list", search, status ?? "all", range.from ?? "", range.to ?? ""] as const,
+  summary: (range: IsoRange) => ["sales", "summary", range.from ?? "", range.to ?? ""] as const,
   detail: (id: string) => ["sales", "detail", id] as const,
   settings: ["sales", "settings"] as const,
   customerQuotes: (customerId: string) => ["sales", "customer-quotes", customerId] as const,
@@ -33,17 +38,25 @@ export const partKeys = {
   sellable: (search: string) => ["parts", "sellable", search] as const,
 };
 
-/** Keyset-paged sales list. */
-export function useSaleList(search: string, status: string | null) {
+/** Keyset-paged sales list, optionally bounded to a created_at range (the date-range selector). */
+export function useSaleList(search: string, status: string | null, range: IsoRange = { from: null, to: null }) {
   return useInfiniteQuery({
-    queryKey: salesKeys.list(search, status),
+    queryKey: salesKeys.list(search, status, range),
     initialPageParam: null as { createdAt: string; id: string } | null,
-    queryFn: ({ pageParam }) => listSalePage(search, status, pageParam),
+    queryFn: ({ pageParam }) => listSalePage(search, status, pageParam, 25, range),
     getNextPageParam: (page) => {
       if (!page.hasMore || page.rows.length === 0) return undefined;
       const last: SaleListRow = page.rows[page.rows.length - 1];
       return { createdAt: last.created_at, id: last.id };
     },
+  });
+}
+
+/** Range totals for the Sales & Invoices KPI row — same range the list above uses, so they agree. */
+export function useSalesSummary(range: IsoRange) {
+  return useQuery({
+    queryKey: salesKeys.summary(range),
+    queryFn: () => getSalesSummary(range),
   });
 }
 
@@ -86,6 +99,30 @@ export function useCustomerOutstanding(customerId: string | null | undefined) {
     queryFn: () => getCustomerOutstanding(customerId as string),
     enabled: !!customerId,
   });
+}
+
+/**
+ * Per-customer balances for a list of customer ids, for the Customers list's balance column/filter.
+ * list_customers (the list RPC) carries no balance field, and the only existing balance read model,
+ * customer_outstanding, is per-customer (the same one the "receive payment" flow and the customer
+ * detail page already use) — so this fans out one call per id rather than inventing a new
+ * calculation. Each query shares its cache key with useCustomerOutstanding above, so opening a
+ * customer's detail page (or paging back to a list already fetched) costs nothing extra. Bounded to
+ * the ids passed in — callers should pass only the currently-loaded page of rows, not the whole table.
+ */
+export function useCustomersOutstanding(customerIds: string[]) {
+  const results = useQueries({
+    queries: customerIds.map((id) => ({
+      queryKey: ["customers", "outstanding", id],
+      queryFn: () => getCustomerOutstanding(id),
+      staleTime: 30_000,
+    })),
+  });
+  const byId: Record<string, number> = {};
+  results.forEach((r, i) => {
+    if (r.data) byId[customerIds[i]] = Number(r.data.total_outstanding) || 0;
+  });
+  return { byId, isLoading: results.some((r) => r.isPending) };
 }
 
 /** A receipt changes that customer's outstanding balance, history and sales. Nothing else. */

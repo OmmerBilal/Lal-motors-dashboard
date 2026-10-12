@@ -77,7 +77,8 @@ export async function listPaymentPage(
   search: string,
   status: PaymentStatus | null,
   cursor: { createdAt: string; id: string } | null,
-  limit = 25
+  limit = 25,
+  range?: { from: string | null; to: string | null }
 ): Promise<{ rows: PaymentListRow[]; hasMore: boolean }> {
   const supabase = createClient();
   const { data, error } = await supabase.rpc("list_payments", {
@@ -86,10 +87,44 @@ export async function listPaymentPage(
     p_limit: limit,
     p_cursor_created_at: cursor?.createdAt ?? null,
     p_cursor_id: cursor?.id ?? null,
+    p_from: range?.from ?? null,
+    p_to: range?.to ?? null,
   });
   if (error) fail(error);
   const rows = (data ?? []) as PaymentListRow[];
   return { rows, hasMore: rows.length > 0 && !!rows[0].has_more };
+}
+
+export type PaymentsSummary = {
+  total_count: number;
+  total_amount: string;
+  posted_count: number;
+  posted_amount: string;
+  pending_count: number;
+  pending_amount: string;
+  void_count: number;
+  void_amount: string;
+};
+
+/** Range totals for the Payments KPI row — payments_summary (migration 0079), the same
+ * created_at predicate list_payments filters by, so the tiles and the list agree for the same range. */
+export async function getPaymentsSummary(range: { from: string | null; to: string | null }): Promise<PaymentsSummary> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("payments_summary", { p_from: range.from, p_to: range.to });
+  if (error) fail(error);
+  const row = (Array.isArray(data) ? data[0] : data) as PaymentsSummary | undefined;
+  return (
+    row ?? {
+      total_count: 0,
+      total_amount: "0",
+      posted_count: 0,
+      posted_amount: "0",
+      pending_count: 0,
+      pending_amount: "0",
+      void_count: 0,
+      void_amount: "0",
+    }
+  );
 }
 
 export async function getPaymentDetail(id: string): Promise<PaymentDetail> {

@@ -8,7 +8,8 @@ export type Role =
   | "dismantling"
   | "scrap_driver"
   | "container_loading"
-  | "export_manager";
+  | "export_manager"
+  | "sales";
 
 export type User = {
   id: string;
@@ -20,7 +21,7 @@ export type User = {
 
 /** Every role an account can be created or re-assigned as, through the owner's Team page. "owner" is excluded on purpose — it is never granted through the UI (team_set_role, migration 0044, rejects it server-side too). */
 export const ASSIGNABLE_ROLES: Role[] = [
-  "engineer_admin", "manager", "employee", "auction", "scrap_driver", "receiving", "dismantling", "container_loading", "export_manager",
+  "engineer_admin", "manager", "employee", "auction", "scrap_driver", "receiving", "dismantling", "container_loading", "export_manager", "sales",
 ];
 
 export const roleLabels: Record<Role, string> = {
@@ -34,6 +35,7 @@ export const roleLabels: Record<Role, string> = {
   scrap_driver: "Scrap Driver",
   container_loading: "Container Loading Employee",
   export_manager: "Export Manager",
+  sales: "Sales",
 };
 
 export const rolePhaseLabels: Record<Role, string> = {
@@ -47,4 +49,5 @@ export const rolePhaseLabels: Record<Role, string> = {
   employee: "Warehouse App",
   container_loading: "Container Loading",
   export_manager: "Export Operations",
+  sales: "Sales Desk",
 };

@@ -20,7 +20,8 @@ export function CustomerDetailView({
   customerId: string;
   onBack: () => void;
   onEdit: () => void;
-  onStartSale: () => void;
+  /** Omitted for a role that doesn't have Sales Desk access from this workspace (owner/admin) — the button is hidden rather than reaching a view that no longer has a tab. */
+  onStartSale?: () => void;
   onOpenQuote: (id: string) => void;
   onOpenSale: (id: string) => void;
 }) {
@@ -52,9 +53,11 @@ export function CustomerDetailView({
             </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={onStartSale}>
-              Start Sale
-            </Button>
+            {onStartSale && (
+              <Button variant="outline" size="sm" onClick={onStartSale}>
+                Start Sale
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={onEdit}>
               Edit
             </Button>

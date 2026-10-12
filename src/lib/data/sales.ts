@@ -146,7 +146,8 @@ export async function listSalePage(
   search: string,
   status: string | null,
   cursor: { createdAt: string; id: string } | null,
-  limit = 25
+  limit = 25,
+  range?: { from: string | null; to: string | null }
 ): Promise<{ rows: SaleListRow[]; hasMore: boolean }> {
   const supabase = createClient();
   const { data, error } = await supabase.rpc("list_sales", {
@@ -155,10 +156,31 @@ export async function listSalePage(
     p_limit: limit,
     p_cursor_created_at: cursor?.createdAt ?? null,
     p_cursor_id: cursor?.id ?? null,
+    p_from: range?.from ?? null,
+    p_to: range?.to ?? null,
   });
   if (error) fail(error);
   const rows = (data ?? []) as SaleListRow[];
   return { rows, hasMore: rows.length > 0 && !!rows[0].has_more };
+}
+
+export type SalesSummary = {
+  total_count: number;
+  total_amount: string;
+  paid_count: number;
+  paid_amount: string;
+  outstanding_count: number;
+  outstanding_amount: string;
+};
+
+/** Range totals for the Sales & Invoices KPI row — sales_summary (migration 0079), the same
+ * created_at predicate list_sales filters by, so the tiles and the list agree for the same range. */
+export async function getSalesSummary(range: { from: string | null; to: string | null }): Promise<SalesSummary> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("sales_summary", { p_from: range.from, p_to: range.to });
+  if (error) fail(error);
+  const row = (Array.isArray(data) ? data[0] : data) as SalesSummary | undefined;
+  return row ?? { total_count: 0, total_amount: "0", paid_count: 0, paid_amount: "0", outstanding_count: 0, outstanding_amount: "0" };
 }
 
 export async function getSaleDetail(id: string): Promise<SaleDetail> {

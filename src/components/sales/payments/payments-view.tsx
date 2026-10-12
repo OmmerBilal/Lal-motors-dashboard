@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { ChevronLeft, Plus } from "lucide-react";
+import { useMemo, useState } from "react";
+import type { DateRange } from "react-day-picker";
+import { ChevronLeft, CircleCheck, CircleDollarSign, CircleSlash, Plus, Receipt } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,9 +10,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatusBadge, type StatusTone } from "@/components/patterns/status-badge";
 import { EmptyState } from "@/components/patterns/empty-state";
+import { MetricCard } from "@/components/patterns/metric-card";
 import { PaymentCreateDialog } from "@/components/sales/payments/payment-create-dialog";
+import { rangeToIso } from "@/components/sales/shared";
+import { DateRangePicker } from "@/components/vehicles/owner-dashboard/date-range-picker";
 import { useCustomerHistory } from "@/lib/query/customers";
-import { usePaymentList, usePaymentDetail, useAllocatePayment, usePostPayment, useVoidPayment } from "@/lib/query/payments";
+import { usePaymentList, usePaymentDetail, usePaymentsSummary, useAllocatePayment, usePostPayment, useVoidPayment } from "@/lib/query/payments";
 import { usd } from "@/lib/mock/sales";
 import { salesErrorMessage } from "@/lib/data/sales";
 import type { PaymentStatus } from "@/lib/data/payments";
@@ -26,13 +30,26 @@ export function PaymentsList({ onOpen, manager }: { onOpen: (id: string) => void
   // Front desk sees posted payments by default. Pending items are shown as a banner only when something needs attention.
   const [status, setStatus] = useState<PaymentStatus | null>("posted");
   const [createOpen, setCreateOpen] = useState(false);
-  const list = usePaymentList(q.trim(), status);
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  // Half-open ISO [from, to) the list and the summary RPC both filter created_at by — undefined
+  // range (nothing picked yet) means "all time" for both, so they always agree.
+  const range = useMemo(() => rangeToIso(dateRange), [dateRange]);
+  const list = usePaymentList(q.trim(), status, range);
   const rows = list.data?.pages.flatMap((p) => p.rows) ?? [];
   const pendingCheck = usePaymentList("", "pending");
   const pendingCount = pendingCheck.data?.pages.flatMap((p) => p.rows).length ?? 0;
+  const summary = usePaymentsSummary(range);
+  const s = summary.data;
 
   return (
     <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <MetricCard icon={Receipt} tone="info" label="Total Received" value={s ? usd(s.posted_amount) : "—"} hint={s ? `${s.posted_count} posted` : "Loading…"} />
+        <MetricCard icon={CircleDollarSign} tone="warning" label="Pending" value={s ? usd(s.pending_amount) : "—"} hint={s ? `${s.pending_count} pending` : "Loading…"} />
+        <MetricCard icon={CircleSlash} tone="neutral" label="Void" value={s ? usd(s.void_amount) : "—"} hint={s ? `${s.void_count} void` : "Loading…"} />
+        <MetricCard icon={CircleCheck} tone="success" label="All Payments" value={s ? s.total_count : "—"} hint="in selected range" />
+      </div>
+
       {pendingCount > 0 && status !== "pending" && (
         <button
           onClick={() => setStatus("pending")}
@@ -43,10 +60,11 @@ export function PaymentsList({ onOpen, manager }: { onOpen: (id: string) => void
         </button>
       )}
       <div className="flex flex-wrap items-center gap-2">
+        <DateRangePicker value={dateRange} onChange={setDateRange} />
         <Input className="h-9 max-w-xs text-sm" placeholder="Customer name or reference" value={q} onChange={(e) => setQ(e.target.value)} />
-        {([null, "pending", "posted", "void"] as const).map((s) => (
-          <Button key={s ?? "all"} size="sm" variant={status === s ? "default" : "outline"} onClick={() => setStatus(s)}>
-            {s ? statusWord[s] : "All"}
+        {([null, "pending", "posted", "void"] as const).map((st) => (
+          <Button key={st ?? "all"} size="sm" variant={status === st ? "default" : "outline"} onClick={() => setStatus(st)}>
+            {st ? statusWord[st] : "All"}
           </Button>
         ))}
         {manager && (
@@ -67,14 +85,17 @@ export function PaymentsList({ onOpen, manager }: { onOpen: (id: string) => void
         <div className="divide-y divide-border">
           {rows.map((p) => (
             <button key={p.id} onClick={() => onOpen(p.id)} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-accent/30">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                <Receipt className="size-4" />
+              </span>
               <span className="min-w-0 flex-1">
                 <b className="block truncate text-sm">{p.customer_name}</b>
-                <small className="text-xs text-muted-foreground">
+                <small className="block truncate text-xs text-muted-foreground">
                   {p.method.replace(/_/g, " ").toLowerCase()} · allocated {usd(p.allocated_total)} · {new Date(p.created_at).toLocaleDateString()}
                 </small>
               </span>
-              <StatusBadge tone={statusTone[p.status]}>{statusWord[p.status]}</StatusBadge>
-              <b className="text-sm">{usd(p.amount)}</b>
+              <StatusBadge className="shrink-0" tone={statusTone[p.status]}>{statusWord[p.status]}</StatusBadge>
+              <b className="shrink-0 text-sm whitespace-nowrap">{usd(p.amount)}</b>
             </button>
           ))}
         </div>

@@ -5,6 +5,7 @@ import {
   allocatePayment,
   createPayment,
   getPaymentDetail,
+  getPaymentsSummary,
   listPaymentPage,
   listSalePayments,
   postPayment,
@@ -16,23 +17,35 @@ import type { PaymentMethod } from "@/lib/mock/sales";
 import { salesKeys } from "@/lib/query/sales";
 import { customerKeys } from "@/lib/query/customers";
 
+type IsoRange = { from: string | null; to: string | null };
+
 export const paymentKeys = {
   all: ["payments"] as const,
-  list: (search: string, status: PaymentStatus | null) => ["payments", "list", search, status ?? "all"] as const,
+  list: (search: string, status: PaymentStatus | null, range: IsoRange) =>
+    ["payments", "list", search, status ?? "all", range.from ?? "", range.to ?? ""] as const,
+  summary: (range: IsoRange) => ["payments", "summary", range.from ?? "", range.to ?? ""] as const,
   detail: (id: string) => ["payments", "detail", id] as const,
   forSale: (saleId: string) => ["payments", "sale", saleId] as const,
 };
 
-export function usePaymentList(search: string, status: PaymentStatus | null) {
+export function usePaymentList(search: string, status: PaymentStatus | null, range: IsoRange = { from: null, to: null }) {
   return useInfiniteQuery({
-    queryKey: paymentKeys.list(search, status),
+    queryKey: paymentKeys.list(search, status, range),
     initialPageParam: null as { createdAt: string; id: string } | null,
-    queryFn: ({ pageParam }) => listPaymentPage(search, status, pageParam),
+    queryFn: ({ pageParam }) => listPaymentPage(search, status, pageParam, 25, range),
     getNextPageParam: (page) => {
       if (!page.hasMore || page.rows.length === 0) return undefined;
       const last: PaymentListRow = page.rows[page.rows.length - 1];
       return { createdAt: last.created_at, id: last.id };
     },
+  });
+}
+
+/** Range totals for the Payments KPI row — same range the list above uses, so they agree. */
+export function usePaymentsSummary(range: IsoRange) {
+  return useQuery({
+    queryKey: paymentKeys.summary(range),
+    queryFn: () => getPaymentsSummary(range),
   });
 }
 

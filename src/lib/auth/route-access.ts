@@ -17,7 +17,7 @@ type RouteRule = { prefix: string; roles: readonly Role[] };
 const OWNER_ONLY: readonly Role[] = [];
 const ROLE_KEYS_ALL: readonly Role[] = [
   "engineer_admin", "manager", "employee", "auction", "receiving", "dismantling",
-  "scrap_driver", "container_loading", "export_manager",
+  "scrap_driver", "container_loading", "export_manager", "sales",
 ];
 
 const ROUTE_RULES: RouteRule[] = [
@@ -30,7 +30,7 @@ const ROUTE_RULES: RouteRule[] = [
   { prefix: "/ai-command-center", roles: ["engineer_admin", "manager", "export_manager"] },
   { prefix: "/parts", roles: ["engineer_admin", "manager", "employee"] },
   { prefix: "/operations", roles: ["engineer_admin", "manager"] },
-  { prefix: "/sales", roles: ["engineer_admin", "manager"] },
+  { prefix: "/sales", roles: ["engineer_admin", "manager", "sales"] },
   { prefix: "/containers", roles: ["engineer_admin", "export_manager", "container_loading"] },
   { prefix: "/scrap", roles: ["engineer_admin", "manager", "scrap_driver"] },
   { prefix: "/audit", roles: ["engineer_admin"] },
@@ -58,6 +58,7 @@ const HOME_BY_ROLE: Record<Role, string> = {
   scrap_driver: "/scrap",
   container_loading: "/containers",
   export_manager: "/containers",
+  sales: "/sales",
 };
 
 export const ROLE_KEYS: readonly Role[] = Object.keys(HOME_BY_ROLE) as Role[];

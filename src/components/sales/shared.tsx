@@ -1,9 +1,24 @@
 "use client";
 
 import { FileText } from "lucide-react";
+import type { DateRange } from "react-day-picker";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/patterns/empty-state";
 import { usd, type SaleItem } from "@/lib/mock/sales";
+
+/** A picked {from, to} (react-day-picker's range shape, the same one DateRangePicker already uses
+ * on the Owner Dashboard) to the half-open [from 00:00, to's next day 00:00) ISO range the
+ * list_sales/list_payments/sales_summary/payments_summary RPCs filter created_at by. No range
+ * picked (undefined) means "all time" — both bounds null, same as never passing a range at all. */
+export function rangeToIso(range: DateRange | undefined): { from: string | null; to: string | null } {
+  if (!range?.from) return { from: null, to: null };
+  const from = new Date(range.from);
+  from.setHours(0, 0, 0, 0);
+  const to = new Date(range.to ?? range.from);
+  to.setDate(to.getDate() + 1);
+  to.setHours(0, 0, 0, 0);
+  return { from: from.toISOString(), to: to.toISOString() };
+}
 
 export function ListPanel<T extends { id: string }>({
   title,

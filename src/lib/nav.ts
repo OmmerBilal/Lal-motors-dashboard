@@ -102,6 +102,8 @@ export function getPrimaryNav(role: Role): NavItem[] {
       return [{ id: "dismantling", label: "Dismantling Employee App", href: "/dismantling", icon: Wrench }];
     case "scrap_driver":
       return [{ id: "scrap", label: "My Scrap Loads", href: "/scrap", icon: Truck }];
+    case "sales":
+      return [{ id: "sales", label: "Customers & Sales", href: "/sales", icon: ShoppingCart }];
     case "employee":
     default:
       return [{ id: "parts", label: "Warehouse Inventory", href: "/parts", icon: Warehouse }];
